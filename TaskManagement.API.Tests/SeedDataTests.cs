@@ -1,4 +1,3 @@
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using TaskManagement.API.Data;
 using TaskManagement.API.Models.Entities;
@@ -12,15 +11,11 @@ public class SeedDataTests
     [Fact]
     public async System.Threading.Tasks.Task InitializeAsync_UsesExistingTaskStatusIds()
     {
-        await using var connection = new SqliteConnection("Data Source=:memory:");
-        await connection.OpenAsync();
-
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseSqlite(connection)
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
 
         await using var context = new ApplicationDbContext(options);
-        await context.Database.EnsureCreatedAsync();
 
         context.TaskStatuses.AddRange(
             new TaskStatusEntity { StatusId = 10, StatusName = "To Do" },
@@ -39,15 +34,11 @@ public class SeedDataTests
     [Fact]
     public async System.Threading.Tasks.Task InitializeAsync_SeedsTasksAfterPartialProjectSeed()
     {
-        await using var connection = new SqliteConnection("Data Source=:memory:");
-        await connection.OpenAsync();
-
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseSqlite(connection)
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
 
         await using var context = new ApplicationDbContext(options);
-        await context.Database.EnsureCreatedAsync();
 
         context.TaskStatuses.AddRange(
             new TaskStatusEntity { StatusId = 10, StatusName = "To Do" },
