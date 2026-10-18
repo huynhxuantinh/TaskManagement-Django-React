@@ -30,13 +30,10 @@ describe('api client', () => {
     await expect(apiRequest<{ id: number }>('/api/v1/auth/me/')).resolves.toEqual({
       id: 1,
     })
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining('/api/v1/auth/me/'),
-      expect.objectContaining({
-        credentials: 'include',
-        headers: expect.objectContaining({ Authorization: 'Bearer access-one' }),
-      }),
-    )
+    const [url, options] = fetchMock.mock.calls[0]
+    expect(url).toContain('/api/v1/auth/me/')
+    expect(options.credentials).toBe('include')
+    expect((options.headers as Headers).get('Authorization')).toBe('Bearer access-one')
   })
 
   it('refreshes once after 401 then retries the original request', async () => {
@@ -58,12 +55,23 @@ describe('api client', () => {
     })
     expect(getAccessToken()).toBe('fresh')
     expect(fetchMock).toHaveBeenCalledTimes(3)
-    expect(fetchMock.mock.calls[1][1]).toEqual(
-      expect.objectContaining({
-        credentials: 'include',
-        headers: expect.objectContaining({ 'X-CSRFToken': 'csrf-value' }),
-      }),
+    const refreshOptions = fetchMock.mock.calls[1][1]
+    expect(refreshOptions.credentials).toBe('include')
+    expect((refreshOptions.headers as Headers).get('X-CSRFToken')).toBe('csrf-value')
+  })
+
+  it('clears the in-memory token when refresh is rejected', async () => {
+    setAccessToken('expired')
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(response({ success: false, message: 'expired' }, 401))
+        .mockResolvedValueOnce(response({ success: false, message: 'reuse detected' }, 401)),
     )
+
+    await expect(apiRequest('/api/v1/tasks/')).rejects.toThrow('reuse detected')
+    expect(getAccessToken()).toBeNull()
   })
 })
 

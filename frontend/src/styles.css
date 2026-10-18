@@ -1,17 +1,141 @@
 @import 'tailwindcss';
 
 :root {
-  font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
-  color: #0f172a;
-  background: #f8fafc;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #101828;
+  background: #f3f3ee;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+  --ink: #101828;
+  --ink-soft: #475467;
+  --canvas: #f3f3ee;
+  --accent: #c7f464;
+  --accent-soft: #e8f9bd;
+  --shadow: 0 20px 45px -28px rgb(15 23 42 / 35%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  min-height: 100%;
+  background: var(--canvas);
 }
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.auth-grid {
+  display: grid;
+}
+
+.auth-card {
+  animation: auth-enter 420ms ease-out both;
+}
+
+.auth-orbit {
+  position: absolute;
+  border: 1px solid rgb(199 244 100 / 22%);
+  border-radius: 9999px;
+}
+
+.auth-orbit-one {
+  width: 34rem;
+  height: 34rem;
+  right: -10rem;
+  top: -13rem;
+}
+
+.auth-orbit-two {
+  width: 22rem;
+  height: 22rem;
+  right: 6rem;
+  top: -7rem;
+}
+
+.dashboard-hero {
+  position: relative;
+  background-image:
+    radial-gradient(circle at 92% 10%, rgb(199 244 100 / 30%), transparent 26%),
+    linear-gradient(115deg, #101828 55%, #1d2939);
+}
+
+.dashboard-hero::after {
+  content: '';
+  position: absolute;
+  width: 18rem;
+  height: 18rem;
+  right: -4rem;
+  bottom: -12rem;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 9999px;
+}
+
+.metric-card {
+  border: 1px solid #e4e7ec;
+  border-radius: 1rem;
+  background: white;
+  padding: 1.25rem;
+  box-shadow: var(--shadow);
+  animation: metric-enter 380ms ease-out both;
+}
+
+.section-kicker {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #667085;
+}
+
+.section-title {
+  margin-top: 0.25rem;
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  font-weight: 850;
+  letter-spacing: -0.025em;
+  color: #101828;
+}
+
+@media (min-width: 1024px) {
+  .auth-grid {
+    grid-template-columns: minmax(0, 1.08fr) minmax(28rem, 0.92fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@keyframes auth-enter {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes metric-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }

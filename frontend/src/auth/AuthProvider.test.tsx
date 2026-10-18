@@ -1,9 +1,15 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { AuthProvider } from './AuthProvider'
 import { ProtectedRoute, RoleRoute } from './RouteGuards'
+import { useAuth } from './AuthContext'
+
+function DashboardHarness() {
+  const { logout } = useAuth()
+  return <button onClick={() => void logout()}>Đăng xuất</button>
+}
 
 function response(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -19,7 +25,7 @@ function renderRoutes(path: string) {
         <Routes>
           <Route path="/login" element={<h1>Đăng nhập</h1>} />
           <Route element={<ProtectedRoute />}>
-            <Route path="/dashboard" element={<h1>Tổng quan</h1>} />
+            <Route path="/dashboard" element={<DashboardHarness />} />
             <Route element={<RoleRoute allowedRoles={['ADMIN']} />}>
               <Route path="/admin" element={<h1>Quản trị</h1>} />
             </Route>
@@ -75,6 +81,38 @@ describe('auth session and route guards', () => {
       expect(screen.queryByRole('heading', { name: 'Quản trị' })).not.toBeInTheDocument()
     })
     expect(await screen.findByText(/không có quyền truy cập/i)).toBeInTheDocument()
+  })
+
+  it('clears the session after logout', async () => {
+    const employee = {
+      id: 3,
+      full_name: 'Employee One',
+      email: 'employee1@task.com',
+      role: 'EMPLOYEE',
+      avatar_url: '',
+      is_active: true,
+      created_at: '2026-10-19T00:00:00Z',
+      permissions: ['EMPLOYEE'],
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          response({ success: true, message: 'ok', data: { access: 'fresh' } }),
+        )
+        .mockResolvedValueOnce(
+          response({ success: true, message: 'ok', data: employee }),
+        )
+        .mockResolvedValueOnce(
+          response({ success: true, message: 'logged out', data: null }),
+        ),
+    )
+
+    renderRoutes('/dashboard')
+    fireEvent.click(await screen.findByRole('button', { name: 'Đăng xuất' }))
+
+    expect(await screen.findByRole('heading', { name: 'Đăng nhập' })).toBeInTheDocument()
   })
 })
 

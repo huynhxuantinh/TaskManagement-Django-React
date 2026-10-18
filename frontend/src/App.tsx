@@ -1,38 +1,39 @@
-import { Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
 
-function HomePage() {
-  return (
-    <main className="mx-auto flex min-h-screen max-w-5xl items-center px-6 py-16">
-      <section className="w-full rounded-3xl border border-slate-200 bg-white p-10 shadow-xl shadow-slate-200/50">
-        <p className="mb-4 text-sm font-semibold uppercase tracking-[0.2em] text-blue-600">
-          Internal workspace
-        </p>
-        <h1 className="text-4xl font-bold tracking-tight text-slate-950">
-          Task Management
-        </h1>
-        <p className="mt-4 max-w-2xl text-lg leading-8 text-slate-600">
-          Nền tảng giao việc và theo dõi tiến độ dự án nội bộ.
-        </p>
-        <div className="mt-8 flex flex-wrap gap-3" aria-label="Trạng thái hệ thống">
-          <span className="rounded-full bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700">
-            Django API sẵn sàng
-          </span>
-          <span className="rounded-full bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700">
-            React 19
-          </span>
-          <span className="rounded-full bg-violet-50 px-4 py-2 text-sm font-medium text-violet-700">
-            PostgreSQL 18
-          </span>
-        </div>
-      </section>
-    </main>
-  )
-}
+import { ProtectedRoute, PublicOnlyRoute, RoleRoute } from './auth/RouteGuards'
+import { AppShell } from './layout/AppShell'
+import { AuthLayout } from './pages/AuthLayout'
+import { DashboardPage } from './pages/DashboardPage'
+import { LoginPage } from './pages/LoginPage'
+import { PlaceholderPage } from './pages/PlaceholderPage'
+import { ProfilePage } from './pages/ProfilePage'
+import { RegisterPage } from './pages/RegisterPage'
 
 export default function App() {
   return (
     <Routes>
-      <Route path="*" element={<HomePage />} />
+      <Route element={<PublicOnlyRoute />}>
+        <Route element={<AuthLayout />}>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+        </Route>
+      </Route>
+      <Route element={<ProtectedRoute />}>
+        <Route element={<AppShell />}>
+          <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/projects" element={<PlaceholderPage title="Dự án đang được kết nối" milestone="S9" />} />
+          <Route path="/tasks" element={<PlaceholderPage title="Luồng công việc đang được kết nối" milestone="S9" />} />
+          <Route path="/team" element={<PlaceholderPage title="Đội ngũ đang được kết nối" milestone="S9" />} />
+          <Route path="/reports" element={<PlaceholderPage title="Báo cáo đang được kết nối" milestone="S10" />} />
+          <Route path="/notifications" element={<PlaceholderPage title="Thông báo đang được kết nối" milestone="S10" />} />
+          <Route element={<RoleRoute allowedRoles={['ADMIN']} />}>
+            <Route path="/admin" element={<PlaceholderPage title="Khu vực quản trị" milestone="S9" />} />
+          </Route>
+        </Route>
+      </Route>
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   )
 }

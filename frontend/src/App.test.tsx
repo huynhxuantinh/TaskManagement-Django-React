@@ -1,20 +1,33 @@
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import App from './App'
+import { AuthProvider } from './auth/AuthProvider'
+import { ToastProvider } from './components/ui/Toast'
 
 describe('App', () => {
-  it('renders the task management shell', () => {
+  it('renders the login screen when there is no session', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ success: false, message: 'unauthorized' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      ),
+    )
     render(
-      <MemoryRouter>
-        <App />
+      <MemoryRouter initialEntries={['/login']}>
+        <ToastProvider>
+          <AuthProvider>
+            <App />
+          </AuthProvider>
+        </ToastProvider>
       </MemoryRouter>,
     )
 
-    expect(
-      screen.getByRole('heading', { name: /task management/i }),
-    ).toBeInTheDocument()
-    expect(screen.getByText(/django api/i)).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /chào mừng trở lại/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Admin' })).toBeInTheDocument()
   })
 })
