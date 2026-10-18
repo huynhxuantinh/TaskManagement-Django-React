@@ -154,6 +154,72 @@ paths:
               schema:
                 $ref: '#/components/schemas/UserResponse'
           description: ''
+  /api/v1/metadata/task-statuses/:
+    get:
+      operationId: v1_metadata_task_statuses_list
+      tags:
+      - Task metadata
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TaskStatus'
+          description: ''
+  /api/v1/notifications/:
+    get:
+      operationId: v1_notifications_list
+      tags:
+      - Notifications
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NotificationListResponse'
+          description: ''
+  /api/v1/notifications/{id}/read/:
+    patch:
+      operationId: v1_notifications_read_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Notifications
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationResponse'
+          description: ''
+  /api/v1/notifications/read-all/:
+    post:
+      operationId: v1_notifications_read_all_create
+      tags:
+      - Notifications
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadAllResponse'
+          description: ''
   /api/v1/projects/:
     get:
       operationId: v1_projects_list
@@ -354,6 +420,166 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/tasks/:
+    get:
+      operationId: v1_tasks_list
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - Tasks
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedTaskListResponseList'
+          description: ''
+    post:
+      operationId: v1_tasks_create
+      tags:
+      - Tasks
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TaskCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TaskCreate'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+          description: ''
+  /api/v1/tasks/{id}/:
+    get:
+      operationId: v1_tasks_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Tasks
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+          description: ''
+    patch:
+      operationId: v1_tasks_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Tasks
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedTaskUpdate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedTaskUpdate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedTaskUpdate'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+          description: ''
+    delete:
+      operationId: v1_tasks_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Tasks
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/tasks/{id}/status/:
+    patch:
+      operationId: v1_tasks_status_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Tasks
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedTaskStatusUpdate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedTaskStatusUpdate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedTaskStatusUpdate'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+          description: ''
 components:
   schemas:
     AccessData:
@@ -530,6 +756,88 @@ components:
       - data
       - message
       - success
+    Notification:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        message:
+          type: string
+          maxLength: 255
+        type:
+          $ref: '#/components/schemas/TypeEnum'
+        is_priority:
+          type: boolean
+        is_read:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - message
+      - type
+    NotificationListData:
+      type: object
+      properties:
+        count:
+          type: integer
+          readOnly: true
+        next:
+          type: string
+          format: uri
+          readOnly: true
+          nullable: true
+        previous:
+          type: string
+          format: uri
+          readOnly: true
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Notification'
+          readOnly: true
+      required:
+      - count
+      - next
+      - previous
+      - results
+    NotificationListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          readOnly: true
+        message:
+          type: string
+          readOnly: true
+        data:
+          allOf:
+          - $ref: '#/components/schemas/NotificationListData'
+          readOnly: true
+      required:
+      - data
+      - message
+      - success
+    NotificationResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          readOnly: true
+        message:
+          type: string
+          readOnly: true
+        data:
+          allOf:
+          - $ref: '#/components/schemas/Notification'
+          readOnly: true
+      required:
+      - data
+      - message
+      - success
     PaginatedProjectListResponseList:
       type: object
       required:
@@ -553,6 +861,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ProjectListResponse'
+    PaginatedTaskListResponseList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskListResponse'
     PatchedProjectWrite:
       type: object
       properties:
@@ -570,6 +901,42 @@ components:
           type: string
           format: date
           nullable: true
+    PatchedTaskStatusUpdate:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/TaskStatusCodeEnum'
+    PatchedTaskUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 500
+        assignee_id:
+          type: integer
+          nullable: true
+        priority:
+          allOf:
+          - $ref: '#/components/schemas/PriorityEnum'
+          minimum: 0
+          maximum: 32767
+        deadline:
+          type: string
+          format: date
+          nullable: true
+    PriorityEnum:
+      enum:
+      - 1
+      - 2
+      - 3
+      type: integer
+      description: |-
+        * `1` - Low
+        * `2` - Medium
+        * `3` - High
     Project:
       type: object
       properties:
@@ -729,6 +1096,31 @@ components:
           nullable: true
       required:
       - name
+    ReadAllData:
+      type: object
+      properties:
+        updated_count:
+          type: integer
+          readOnly: true
+      required:
+      - updated_count
+    ReadAllResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          readOnly: true
+        message:
+          type: string
+          readOnly: true
+        data:
+          allOf:
+          - $ref: '#/components/schemas/ReadAllData'
+          readOnly: true
+      required:
+      - data
+      - message
+      - success
     Register:
       type: object
       properties:
@@ -746,6 +1138,214 @@ components:
       - email
       - full_name
       - password
+    Task:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 500
+        project:
+          allOf:
+          - $ref: '#/components/schemas/TaskProject'
+          readOnly: true
+        assignee:
+          allOf:
+          - $ref: '#/components/schemas/TaskUser'
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/TaskStatus'
+          readOnly: true
+        priority:
+          allOf:
+          - $ref: '#/components/schemas/PriorityEnum'
+          minimum: 0
+          maximum: 32767
+        deadline:
+          type: string
+          format: date
+          nullable: true
+        is_overdue:
+          type: boolean
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - assignee
+      - id
+      - is_overdue
+      - project
+      - status
+      - title
+    TaskCreate:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 500
+        project_id:
+          type: integer
+        assignee_id:
+          type: integer
+          nullable: true
+        status:
+          $ref: '#/components/schemas/TaskStatusCodeEnum'
+        priority:
+          allOf:
+          - $ref: '#/components/schemas/PriorityEnum'
+          minimum: 0
+          maximum: 32767
+        deadline:
+          type: string
+          format: date
+          nullable: true
+      required:
+      - project_id
+      - title
+    TaskListData:
+      type: object
+      properties:
+        count:
+          type: integer
+          readOnly: true
+        next:
+          type: string
+          format: uri
+          readOnly: true
+          nullable: true
+        previous:
+          type: string
+          format: uri
+          readOnly: true
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Task'
+          readOnly: true
+      required:
+      - count
+      - next
+      - previous
+      - results
+    TaskListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          readOnly: true
+        message:
+          type: string
+          readOnly: true
+        data:
+          allOf:
+          - $ref: '#/components/schemas/TaskListData'
+          readOnly: true
+      required:
+      - data
+      - message
+      - success
+    TaskProject:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 200
+      required:
+      - id
+      - name
+    TaskResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          readOnly: true
+        message:
+          type: string
+          readOnly: true
+        data:
+          allOf:
+          - $ref: '#/components/schemas/Task'
+          readOnly: true
+      required:
+      - data
+      - message
+      - success
+    TaskStatus:
+      type: object
+      properties:
+        code:
+          $ref: '#/components/schemas/TaskStatusCodeEnum'
+        name:
+          type: string
+          maxLength: 50
+      required:
+      - code
+      - name
+    TaskStatusCodeEnum:
+      enum:
+      - TODO
+      - IN_PROGRESS
+      - COMPLETED
+      - ON_HOLD
+      type: string
+      description: |-
+        * `TODO` - To Do
+        * `IN_PROGRESS` - In Progress
+        * `COMPLETED` - Completed
+        * `ON_HOLD` - On Hold
+    TaskUser:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        full_name:
+          type: string
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          maxLength: 100
+        role:
+          type: string
+          readOnly: true
+        avatar_url:
+          type: string
+          readOnly: true
+      required:
+      - avatar_url
+      - email
+      - full_name
+      - id
+      - role
+    TypeEnum:
+      enum:
+      - GENERAL
+      - TASK_ASSIGNED
+      - STATUS_CHANGED
+      - PROJECT_ADDED
+      - DEADLINE_APPROACHING
+      type: string
+      description: |-
+        * `GENERAL` - General
+        * `TASK_ASSIGNED` - Task assigned
+        * `STATUS_CHANGED` - Status changed
+        * `PROJECT_ADDED` - Project added
+        * `DEADLINE_APPROACHING` - Deadline approaching
     User:
       type: object
       properties:

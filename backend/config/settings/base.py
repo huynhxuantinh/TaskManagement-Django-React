@@ -117,6 +117,14 @@ SPECTACULAR_SETTINGS = {
     "TITLE": "Task Management API",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    "ENUM_NAME_OVERRIDES": {
+        "TaskStatusCodeEnum": [
+            ("TODO", "To Do"),
+            ("IN_PROGRESS", "In Progress"),
+            ("COMPLETED", "Completed"),
+            ("ON_HOLD", "On Hold"),
+        ],
+    },
 }
 AUTH_REFRESH_COOKIE_NAME = "refresh_token"
 AUTH_REFRESH_COOKIE_PATH = "/api/v1/auth/"
