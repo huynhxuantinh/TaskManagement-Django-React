@@ -114,10 +114,34 @@ namespace TaskManagement.API.Data
                 }
                 await context.SaveChangesAsync();
 
-                // Seed Tasks
+            }
+
+            // Seed Tasks independently so startup can recover after a partial seed.
+            if (!await context.Tasks.AnyAsync())
+            {
+                var statusIds = await context.TaskStatuses
+                    .Where(status => status.StatusName == "To Do"
+                        || status.StatusName == "In Progress"
+                        || status.StatusName == "Completed")
+                    .ToDictionaryAsync(status => status.StatusName, status => status.StatusId);
+
+                if (statusIds.Count != 3)
+                {
+                    throw new Exception("Required task statuses were not found in database.");
+                }
+
+                var projects = await context.Projects.ToListAsync();
                 foreach (var project in projects)
                 {
-                    var projectMembers = await context.ProjectMembers.Where(pm => pm.ProjectId == project.ProjectId).ToListAsync();
+                    var projectMembers = await context.ProjectMembers
+                        .Where(pm => pm.ProjectId == project.ProjectId)
+                        .OrderBy(pm => pm.UserId)
+                        .ToListAsync();
+
+                    if (projectMembers.Count < 4)
+                    {
+                        throw new Exception($"Project {project.ProjectId} needs at least four members to seed tasks.");
+                    }
                     
                     context.Tasks.AddRange(
                         new Models.Entities.Task 
@@ -126,7 +150,7 @@ namespace TaskManagement.API.Data
                             Description = "Ensure ingredient ratios are perfect for production.",
                             ProjectId = project.ProjectId,
                             AssignedTo = projectMembers.Skip(1).First().UserId,
-                            StatusId = 3, // Completed
+                            StatusId = statusIds["Completed"],
                             Priority = 3,
                             Deadline = DateTime.Now.AddDays(-5)
                         },
@@ -136,7 +160,7 @@ namespace TaskManagement.API.Data
                             Description = "Create high-res visuals for social media and in-store displays.",
                             ProjectId = project.ProjectId,
                             AssignedTo = projectMembers.Skip(2).First().UserId,
-                            StatusId = 2, // In Progress
+                            StatusId = statusIds["In Progress"],
                             Priority = 2,
                             Deadline = DateTime.Now.AddDays(10)
                         },
@@ -146,7 +170,7 @@ namespace TaskManagement.API.Data
                             Description = "Train baristas on the new brewing process.",
                             ProjectId = project.ProjectId,
                             AssignedTo = projectMembers.Skip(3).First().UserId,
-                            StatusId = 1, // To Do
+                            StatusId = statusIds["To Do"],
                             Priority = 1,
                             Deadline = DateTime.Now.AddDays(15)
                         }
