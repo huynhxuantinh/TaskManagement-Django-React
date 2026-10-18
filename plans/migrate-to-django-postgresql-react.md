@@ -17,6 +17,7 @@ Các miền nghiệp vụ được giữ: User/Role, Project, ProjectMember, Tas
 - S0 hoàn thành ngày 2026-10-18: commits `2608bad`, `4687043`.
 - S1 hoàn thành ngày 2026-10-18: contract, parity, schema map, baseline dữ liệu và cutover runbook đã được xác minh.
 - S2 hoàn thành ngày 2026-10-18: Django/DRF, React/Vite/Tailwind, PostgreSQL 18, Docker Compose và CI nền đã chạy xanh.
+- S3 hoàn thành ngày 2026-10-18: schema đầy đủ, export mã hóa chỉ đọc và rehearsal dữ liệu thật hai lần đã đối soát bằng count/hash/media checksum.
 
 ### Quyết định bảo mật bắt buộc
 

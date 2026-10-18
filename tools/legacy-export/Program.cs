@@ -2,7 +2,6 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using LegacyExport;
 using Microsoft.EntityFrameworkCore;
-using TaskManagement.API.Data;
 
 var arguments = Arguments.Parse(args);
 var keyText = Environment.GetEnvironmentVariable(arguments.KeyEnvironment)
@@ -14,10 +13,10 @@ if (Directory.Exists(arguments.Output) && Directory.EnumerateFileSystemEntries(a
     throw new InvalidOperationException("Output directory must be new or empty");
 Directory.CreateDirectory(arguments.Output);
 
-var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+var options = new DbContextOptionsBuilder<LegacyDbContext>()
     .UseSqlServer(arguments.Connection)
     .Options;
-await using var database = new ApplicationDbContext(options);
+await using var database = new LegacyDbContext(options);
 var service = new ExportService(database);
 var payload = await service.ReadPayloadAsync();
 var diagnostics = ExportService.Diagnostics(payload);

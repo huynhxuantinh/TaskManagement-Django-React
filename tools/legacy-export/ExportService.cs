@@ -1,13 +1,12 @@
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
-using TaskManagement.API.Data;
 
 namespace LegacyExport;
 
 using Row = SortedDictionary<string, object?>;
 using Payload = Dictionary<string, List<SortedDictionary<string, object?>>>;
 
-public sealed class ExportService(ApplicationDbContext db)
+public sealed class ExportService(LegacyDbContext db)
 {
     public async Task<Payload> ReadPayloadAsync()
     {
