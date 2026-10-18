@@ -16,6 +16,7 @@ Các miền nghiệp vụ được giữ: User/Role, Project, ProjectMember, Tas
 
 - S0 hoàn thành ngày 2026-10-18: commits `2608bad`, `4687043`.
 - S1 hoàn thành ngày 2026-10-18: contract, parity, schema map, baseline dữ liệu và cutover runbook đã được xác minh.
+- S2 hoàn thành ngày 2026-10-18: Django/DRF, React/Vite/Tailwind, PostgreSQL 18, Docker Compose và CI nền đã chạy xanh.
 
 ### Quyết định bảo mật bắt buộc
 
@@ -122,7 +123,7 @@ S10 -> S11 production compose + final migration + cutover
 ```bash
 docker compose -f infra/compose.dev.yaml up -d db
 docker compose -f infra/compose.dev.yaml run --rm backend python manage.py check
-curl --fail http://localhost:8000/health/
+curl --fail http://localhost:8010/health/
 npm --prefix frontend run lint
 npm --prefix frontend run test -- --run
 npm --prefix frontend run build

@@ -1,5 +1,9 @@
+asgiref==3.12.1
 Django==5.2.18
 django-cors-headers==4.9.0
 djangorestframework==3.18.3
 psycopg[binary]==3.3.6
+psycopg-binary==3.3.6
 python-json-logger==4.2.0
+sqlparse==0.6.0
+tzdata==2026.5; sys_platform == "win32"
