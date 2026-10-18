@@ -70,6 +70,8 @@ Access token chỉ giữ trong memory của React. Refresh cookie dùng `HttpOnl
 
 User response tối thiểu: `id`, `full_name`, `email`, `role`, `avatar_url`, `is_active`, `created_at`. Không serialize entity/navigation object trực tiếp.
 
+Avatar tối đa 2 MB, chỉ nhận PNG/JPEG/GIF/WebP sau khi kiểm tra chữ ký file; tên lưu trữ do server sinh.
+
 ## Projects và members
 
 | Method | Endpoint | Quyền | Nội dung |

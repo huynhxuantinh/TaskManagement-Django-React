@@ -21,6 +21,7 @@ Các miền nghiệp vụ được giữ: User/Role, Project, ProjectMember, Tas
 - S4 hoàn thành ngày 2026-10-19: JWT access, refresh cookie rotation/blacklist, CSRF, Argon2, adapter BCrypt.Net, RBAC primitives và OpenAPI đã chạy xanh cho ba role.
 - S5 hoàn thành ngày 2026-10-19: Projects/ProjectMembers API có pagination/search/order, scope theo role, chống IDOR, soft delete và member invariant đã chạy xanh trên dữ liệu thật.
 - S6 hoàn thành ngày 2026-10-19: Tasks/Notifications API có filter/search/pagination, scope theo role, assignee validation, soft delete, status code ổn định và transaction notification đã chạy xanh trên dữ liệu thật.
+- S7 hoàn thành ngày 2026-10-19: Users/profile/avatar/preferences, dashboard và reports API đã có scope theo role/project, kiểm tra media an toàn và chạy xanh trên dữ liệu thật.
 
 ### Quyết định bảo mật bắt buộc
 

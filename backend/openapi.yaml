@@ -154,6 +154,20 @@ paths:
               schema:
                 $ref: '#/components/schemas/UserResponse'
           description: ''
+  /api/v1/dashboard/summary/:
+    get:
+      operationId: v1_dashboard_summary_retrieve
+      tags:
+      - Dashboard
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardResponse'
+          description: ''
   /api/v1/metadata/task-statuses/:
     get:
       operationId: v1_metadata_task_statuses_list
@@ -420,6 +434,119 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/reports/messages/:
+    get:
+      operationId: v1_reports_messages_retrieve
+      tags:
+      - Report messages
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportMessageListResponse'
+          description: ''
+    post:
+      operationId: v1_reports_messages_create
+      tags:
+      - Report messages
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportMessageCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ReportMessageCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ReportMessageCreate'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportMessageResponse'
+          description: ''
+  /api/v1/reports/messages/{id}/read/:
+    patch:
+      operationId: v1_reports_messages_read_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Report messages
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportMessageResponse'
+          description: ''
+  /api/v1/reports/projects/{project_id}/:
+    get:
+      operationId: v1_reports_projects_retrieve
+      parameters:
+      - in: path
+        name: project_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Reports
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectReportResponse'
+          description: ''
+  /api/v1/reports/projects/{project_id}/top-contributors/:
+    get:
+      operationId: v1_reports_projects_top_contributors_retrieve
+      parameters:
+      - in: path
+        name: project_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Reports
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContributorListResponse'
+          description: ''
+  /api/v1/reports/workload/:
+    get:
+      operationId: v1_reports_workload_retrieve
+      tags:
+      - Reports
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkloadResponse'
+          description: ''
   /api/v1/tasks/:
     get:
       operationId: v1_tasks_list
@@ -580,6 +707,212 @@ paths:
               schema:
                 $ref: '#/components/schemas/TaskResponse'
           description: ''
+  /api/v1/users/:
+    get:
+      operationId: v1_users_list
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedUserListResponseList'
+          description: ''
+  /api/v1/users/{id}/:
+    get:
+      operationId: v1_users_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+          description: ''
+    patch:
+      operationId: v1_users_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedUser'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedUser'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedUser'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+          description: ''
+  /api/v1/users/{id}/avatar/:
+    post:
+      operationId: v1_users_avatar_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Users
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AvatarUpload'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AvatarUpload'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+          description: ''
+  /api/v1/users/{id}/preferences/:
+    get:
+      operationId: v1_users_preferences_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreferenceListResponse'
+          description: ''
+    put:
+      operationId: v1_users_preferences_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/PreferenceWrite'
+          application/x-www-form-urlencoded:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/PreferenceWrite'
+          multipart/form-data:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/PreferenceWrite'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreferenceListResponse'
+          description: ''
+  /api/v1/users/{id}/role/:
+    patch:
+      operationId: v1_users_role_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedRoleUpdate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedRoleUpdate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedRoleUpdate'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+          description: ''
 components:
   schemas:
     AccessData:
@@ -617,6 +950,15 @@ components:
           type: string
           format: email
           maxLength: 100
+    AvatarUpload:
+      type: object
+      properties:
+        file:
+          type: string
+          format: uri
+          writeOnly: true
+      required:
+      - file
     ChangePassword:
       type: object
       properties:
@@ -629,6 +971,111 @@ components:
       required:
       - current_password
       - new_password
+    Contributor:
+      type: object
+      properties:
+        user:
+          allOf:
+          - $ref: '#/components/schemas/ContributorUser'
+          readOnly: true
+        completed_tasks:
+          type: integer
+          readOnly: true
+        total_tasks:
+          type: integer
+          readOnly: true
+      required:
+      - completed_tasks
+      - total_tasks
+      - user
+    ContributorListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          readOnly: true
+        message:
+          type: string
+          readOnly: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Contributor'
+          readOnly: true
+      required:
+      - data
+      - message
+      - success
+    ContributorUser:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        full_name:
+          type: string
+          readOnly: true
+        email:
+          type: string
+          format: email
+          readOnly: true
+      required:
+      - email
+      - full_name
+      - id
+    Dashboard:
+      type: object
+      properties:
+        project_count:
+          type: integer
+          readOnly: true
+        task_count:
+          type: integer
+          readOnly: true
+        completed_task_count:
+          type: integer
+          readOnly: true
+        overdue_task_count:
+          type: integer
+          readOnly: true
+        team_count:
+          type: integer
+          readOnly: true
+        task_distribution:
+          type: array
+          items:
+            $ref: '#/components/schemas/Distribution'
+          readOnly: true
+        recent_tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/Task'
+          readOnly: true
+      required:
+      - completed_task_count
+      - overdue_task_count
+      - project_count
+      - recent_tasks
+      - task_count
+      - task_distribution
+      - team_count
+    DashboardResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          readOnly: true
+        message:
+          type: string
+          readOnly: true
+        data:
+          allOf:
+          - $ref: '#/components/schemas/Dashboard'
+          readOnly: true
+      required:
+      - data
+      - message
+      - success
     Deactivate:
       type: object
       properties:
@@ -637,6 +1084,22 @@ components:
           writeOnly: true
       required:
       - password
+    Distribution:
+      type: object
+      properties:
+        code:
+          type: string
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        count:
+          type: integer
+          readOnly: true
+      required:
+      - code
+      - count
+      - name
     EmptyResponse:
       type: object
       properties:
@@ -884,6 +1347,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/TaskListResponse'
+    PaginatedUserListResponseList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserListResponse'
     PatchedProjectWrite:
       type: object
       properties:
@@ -901,6 +1387,11 @@ components:
           type: string
           format: date
           nullable: true
+    PatchedRoleUpdate:
+      type: object
+      properties:
+        role:
+          $ref: '#/components/schemas/RoleEnum'
     PatchedTaskStatusUpdate:
       type: object
       properties:
@@ -927,6 +1418,72 @@ components:
           type: string
           format: date
           nullable: true
+    PatchedUser:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        full_name:
+          type: string
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          maxLength: 100
+        role:
+          type: string
+          readOnly: true
+        avatar_url:
+          type: string
+          readOnly: true
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        permissions:
+          type: array
+          items:
+            type: string
+          readOnly: true
+    Preference:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/TypeEnum'
+        is_priority:
+          type: boolean
+      required:
+      - type
+    PreferenceListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          readOnly: true
+        message:
+          type: string
+          readOnly: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Preference'
+          readOnly: true
+      required:
+      - data
+      - message
+      - success
+    PreferenceWrite:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/TypeEnum'
+        is_priority:
+          type: boolean
+      required:
+      - is_priority
+      - type
     PriorityEnum:
       enum:
       - 1
@@ -1035,6 +1592,53 @@ components:
       required:
       - id
       - user
+    ProjectReport:
+      type: object
+      properties:
+        project_id:
+          type: integer
+          readOnly: true
+        project_name:
+          type: string
+          readOnly: true
+        total_tasks:
+          type: integer
+          readOnly: true
+        completed_tasks:
+          type: integer
+          readOnly: true
+        progress:
+          type: integer
+          readOnly: true
+        task_distribution:
+          type: array
+          items:
+            $ref: '#/components/schemas/Distribution'
+          readOnly: true
+      required:
+      - completed_tasks
+      - progress
+      - project_id
+      - project_name
+      - task_distribution
+      - total_tasks
+    ProjectReportResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          readOnly: true
+        message:
+          type: string
+          readOnly: true
+        data:
+          allOf:
+          - $ref: '#/components/schemas/ProjectReport'
+          readOnly: true
+      required:
+      - data
+      - message
+      - success
     ProjectResponse:
       type: object
       properties:
@@ -1138,6 +1742,128 @@ components:
       - email
       - full_name
       - password
+    ReportMessage:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        project:
+          type: object
+          additionalProperties: {}
+          readOnly: true
+        sender:
+          allOf:
+          - $ref: '#/components/schemas/User'
+          readOnly: true
+        receiver:
+          allOf:
+          - $ref: '#/components/schemas/User'
+          readOnly: true
+        title:
+          type: string
+          maxLength: 200
+        content:
+          type: string
+        is_read:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - content
+      - id
+      - project
+      - receiver
+      - sender
+      - title
+    ReportMessageCreate:
+      type: object
+      properties:
+        project_id:
+          type: integer
+        receiver_id:
+          type: integer
+        title:
+          type: string
+          maxLength: 200
+        content:
+          type: string
+      required:
+      - content
+      - project_id
+      - receiver_id
+      - title
+    ReportMessageListData:
+      type: object
+      properties:
+        count:
+          type: integer
+          readOnly: true
+        next:
+          type: string
+          format: uri
+          readOnly: true
+          nullable: true
+        previous:
+          type: string
+          format: uri
+          readOnly: true
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReportMessage'
+          readOnly: true
+      required:
+      - count
+      - next
+      - previous
+      - results
+    ReportMessageListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          readOnly: true
+        message:
+          type: string
+          readOnly: true
+        data:
+          allOf:
+          - $ref: '#/components/schemas/ReportMessageListData'
+          readOnly: true
+      required:
+      - data
+      - message
+      - success
+    ReportMessageResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          readOnly: true
+        message:
+          type: string
+          readOnly: true
+        data:
+          allOf:
+          - $ref: '#/components/schemas/ReportMessage'
+          readOnly: true
+      required:
+      - data
+      - message
+      - success
+    RoleEnum:
+      enum:
+      - ADMIN
+      - MANAGER
+      - EMPLOYEE
+      type: string
+      description: |-
+        * `ADMIN` - Admin
+        * `MANAGER` - Manager
+        * `EMPLOYEE` - Employee
     Task:
       type: object
       properties:
@@ -1382,6 +2108,49 @@ components:
       - id
       - permissions
       - role
+    UserListData:
+      type: object
+      properties:
+        count:
+          type: integer
+          readOnly: true
+        next:
+          type: string
+          format: uri
+          readOnly: true
+          nullable: true
+        previous:
+          type: string
+          format: uri
+          readOnly: true
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+          readOnly: true
+      required:
+      - count
+      - next
+      - previous
+      - results
+    UserListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          readOnly: true
+        message:
+          type: string
+          readOnly: true
+        data:
+          allOf:
+          - $ref: '#/components/schemas/UserListData'
+          readOnly: true
+      required:
+      - data
+      - message
+      - success
     UserResponse:
       type: object
       properties:
@@ -1394,6 +2163,49 @@ components:
         data:
           allOf:
           - $ref: '#/components/schemas/User'
+          readOnly: true
+      required:
+      - data
+      - message
+      - success
+    Workload:
+      type: object
+      properties:
+        user:
+          allOf:
+          - $ref: '#/components/schemas/User'
+          readOnly: true
+        total_tasks:
+          type: integer
+          readOnly: true
+        active_tasks:
+          type: integer
+          readOnly: true
+        completed_before_deadline:
+          type: integer
+          readOnly: true
+        is_available:
+          type: boolean
+          readOnly: true
+      required:
+      - active_tasks
+      - completed_before_deadline
+      - is_available
+      - total_tasks
+      - user
+    WorkloadResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          readOnly: true
+        message:
+          type: string
+          readOnly: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Workload'
           readOnly: true
       required:
       - data
