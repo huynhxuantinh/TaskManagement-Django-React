@@ -12,6 +12,11 @@ Dependency phải được khóa bằng `requirements.txt` và `package-lock.jso
 
 Các miền nghiệp vụ được giữ: User/Role, Project, ProjectMember, TaskStatus, Task, Notification, UserNotificationPreference, Report và avatar.
 
+## Trạng thái thực thi
+
+- S0 hoàn thành ngày 2026-10-18: commits `2608bad`, `4687043`.
+- S1 hoàn thành ngày 2026-10-18: contract, parity, schema map, baseline dữ liệu và cutover runbook đã được xác minh.
+
 ### Quyết định bảo mật bắt buộc
 
 - Backend lấy danh tính/role từ JWT, không tin `userId` hoặc `role` do client gửi.

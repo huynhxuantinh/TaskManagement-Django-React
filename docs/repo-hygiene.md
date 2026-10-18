@@ -30,14 +30,15 @@ API và Web vẫn đang lắng nghe lần lượt tại cổng `5129` và `5200`
 - Không xóa file, không bỏ track file, không dừng dịch vụ và không sửa dữ liệu.
 - File đã được Git track vẫn giữ nguyên cho đến khi người dùng xác nhận cleanup.
 
-## Cleanup cần xác nhận
+## Cleanup đã hoàn thành
 
-Sau khi được chấp thuận, thực hiện trong một commit riêng:
+Sau khi người dùng chấp thuận, commit `4687043` đã:
 
-1. Bỏ track `node_modules/`, `bin/`, `obj/` và `.vs/` nhưng giữ file trên máy.
-2. Không bỏ track hai avatar cũ trước khi xác định chúng là seed asset hay dữ liệu người dùng.
-3. Kiểm tra staged diff chỉ chứa việc bỏ artifact khỏi Git index.
-4. Chạy lại build/test trước khi commit.
+1. Bỏ track 2.800 file trong `node_modules/`, `bin/`, `obj/` và `.vs/`.
+2. Giữ toàn bộ file trên máy; không xóa vật lý.
+3. Giữ hai avatar cũ trong Git cho đến khi xác định rõ nguồn dữ liệu.
+4. Xác minh solution build 0 lỗi và 2 test seed đều pass.
+5. Xác minh không còn artifact thuộc các nhóm trên được Git track.
 
 ## Quy tắc cho các bước migration
 
