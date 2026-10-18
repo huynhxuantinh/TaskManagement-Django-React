@@ -254,6 +254,113 @@ def payload_manifest(payload: dict[str, list[dict[str, Any]]]):
     }
 
 
+def database_rows():
+    return {
+        "roles": [
+            {"legacy_id": row.legacy_id, "name": row.name, "code": row.code}
+            for row in Role.objects.all()
+        ],
+        "users": [
+            {
+                "id": row.id,
+                "full_name": row.full_name,
+                "email": row.email,
+                "password": row.password,
+                "role_legacy_id": row.role.legacy_id,
+                "is_active": row.is_active,
+                "created_at": datetime_text(row.created_at),
+                "avatar": row.avatar,
+            }
+            for row in User.objects.select_related("role")
+        ],
+        "projects": [
+            {
+                "id": row.id,
+                "name": row.name,
+                "description": row.description,
+                "start_date": row.start_date.isoformat() if row.start_date else None,
+                "end_date": row.end_date.isoformat() if row.end_date else None,
+                "creator_id": row.creator_id,
+                "is_deleted": row.is_deleted,
+                "created_at": datetime_text(row.created_at),
+            }
+            for row in Project.objects.all()
+        ],
+        "project_members": [
+            {
+                "id": row.id,
+                "project_id": row.project_id,
+                "user_id": row.user_id,
+                "joined_at": datetime_text(row.joined_at),
+            }
+            for row in ProjectMember.objects.all()
+        ],
+        "task_statuses": [
+            {"legacy_id": row.legacy_id, "name": row.name, "code": row.code}
+            for row in TaskStatus.objects.all()
+        ],
+        "tasks": [
+            {
+                "id": row.id,
+                "title": row.title,
+                "description": row.description,
+                "project_id": row.project_id,
+                "assignee_id": row.assignee_id,
+                "status_legacy_id": row.status.legacy_id,
+                "priority": row.priority,
+                "deadline": row.deadline.isoformat() if row.deadline else None,
+                "is_deleted": row.is_deleted,
+                "created_at": datetime_text(row.created_at),
+            }
+            for row in Task.objects.select_related("status")
+        ],
+        "notifications": [
+            {
+                "id": row.id,
+                "user_id": row.user_id,
+                "message": row.message,
+                "type": row.type,
+                "is_priority": row.is_priority,
+                "is_read": row.is_read,
+                "created_at": datetime_text(row.created_at),
+            }
+            for row in Notification.objects.all()
+        ],
+        "preferences": [
+            {
+                "id": row.id,
+                "user_id": row.user_id,
+                "type": row.type,
+                "is_priority": row.is_priority,
+            }
+            for row in Preference.objects.all()
+        ],
+        "reports": [
+            {
+                "id": row.id,
+                "project_id": row.project_id,
+                "sender_id": row.sender_id,
+                "receiver_id": row.receiver_id,
+                "title": row.title,
+                "content": row.content,
+                "is_read": row.is_read,
+                "created_at": datetime_text(row.created_at),
+            }
+            for row in ReportMessage.objects.all()
+        ],
+    }
+
+
+def database_manifest():
+    rows = database_rows()
+    return {
+        "counts": {table: len(values) for table, values in rows.items()},
+        "hashes": {
+            table: canonical_table_hash(values) for table, values in rows.items()
+        },
+    }
+
+
 def _reset_sequences():
     models = [
         Role,
