@@ -18,6 +18,7 @@ Các miền nghiệp vụ được giữ: User/Role, Project, ProjectMember, Tas
 - S1 hoàn thành ngày 2026-10-18: contract, parity, schema map, baseline dữ liệu và cutover runbook đã được xác minh.
 - S2 hoàn thành ngày 2026-10-18: Django/DRF, React/Vite/Tailwind, PostgreSQL 18, Docker Compose và CI nền đã chạy xanh.
 - S3 hoàn thành ngày 2026-10-18: schema đầy đủ, export mã hóa chỉ đọc và rehearsal dữ liệu thật hai lần đã đối soát bằng count/hash/media checksum.
+- S4 hoàn thành ngày 2026-10-19: JWT access, refresh cookie rotation/blacklist, CSRF, Argon2, adapter BCrypt.Net, RBAC primitives và OpenAPI đã chạy xanh cho ba role.
 
 ### Quyết định bảo mật bắt buộc
 

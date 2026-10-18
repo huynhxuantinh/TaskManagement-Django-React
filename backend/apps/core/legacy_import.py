@@ -83,6 +83,18 @@ def canonical_table_hash(rows: list[dict[str, Any]]) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
+def django_legacy_password(value: str) -> str:
+    if value.startswith(("$2a$", "$2b$", "$2y$")):
+        return f"bcrypt${value}"
+    return value
+
+
+def legacy_password_for_manifest(value: str) -> str:
+    if value.startswith("bcrypt$$2"):
+        return value.removeprefix("bcrypt$")
+    return value
+
+
 def role_code(name: str) -> str:
     try:
         return ROLE_CODES[name.strip().casefold()]
@@ -265,7 +277,7 @@ def database_rows():
                 "id": row.id,
                 "full_name": row.full_name,
                 "email": row.email,
-                "password": row.password,
+                "password": legacy_password_for_manifest(row.password),
                 "role_legacy_id": row.role.legacy_id,
                 "is_active": row.is_active,
                 "created_at": datetime_text(row.created_at),
@@ -411,7 +423,7 @@ def import_payload(payload: dict[str, list[dict[str, Any]]], dry_run: bool = Fal
                 defaults={
                     "full_name": row["full_name"],
                     "email": row["email"].strip().lower(),
-                    "password": row["password"],
+                    "password": django_legacy_password(row["password"]),
                     "role": roles[row["role_legacy_id"]],
                     "is_active": row["is_active"],
                     "is_staff": False,

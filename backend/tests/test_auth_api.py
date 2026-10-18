@@ -1,8 +1,13 @@
+from types import SimpleNamespace
+
 import pytest
+from django.core.cache import cache
 from django.test import override_settings
 from rest_framework.test import APIClient
 
 from apps.accounts.models import Role, User
+from apps.accounts.permissions import IsAdmin, IsAdminOrManager, IsSelfOrAdmin
+from apps.accounts.throttles import LoginRateThrottle
 
 
 AUTH_HASHERS = [
@@ -242,3 +247,40 @@ def test_openapi_exposes_bearer_auth_schema():
 
     assert response.status_code == 200
     assert "jwtAuth" in response.data["components"]["securitySchemes"]
+
+
+@pytest.mark.django_db
+def test_rbac_primitives_cover_admin_manager_employee_and_self(roles):
+    admin = create_user(roles, role=Role.Code.ADMIN)
+    manager = create_user(roles, role=Role.Code.MANAGER)
+    employee = create_user(roles, role=Role.Code.EMPLOYEE)
+    view = SimpleNamespace()
+
+    assert IsAdmin().has_permission(SimpleNamespace(user=admin), view)
+    assert not IsAdmin().has_permission(SimpleNamespace(user=manager), view)
+    assert IsAdminOrManager().has_permission(SimpleNamespace(user=manager), view)
+    assert not IsAdminOrManager().has_permission(SimpleNamespace(user=employee), view)
+    assert IsSelfOrAdmin().has_object_permission(
+        SimpleNamespace(user=employee), view, employee
+    )
+    assert IsSelfOrAdmin().has_object_permission(
+        SimpleNamespace(user=admin), view, employee
+    )
+    assert not IsSelfOrAdmin().has_object_permission(
+        SimpleNamespace(user=manager), view, employee
+    )
+
+
+@pytest.mark.django_db
+def test_login_is_rate_limited_per_ip_and_email(roles, monkeypatch):
+    cache.clear()
+    monkeypatch.setattr(LoginRateThrottle, "get_rate", lambda _self: "2/min")
+    client = APIClient()
+
+    first = login(client, "missing@example.com", "wrong")
+    second = login(client, "missing@example.com", "wrong")
+    limited = login(client, "missing@example.com", "wrong")
+
+    assert first.status_code == 401
+    assert second.status_code == 401
+    assert limited.status_code == 429

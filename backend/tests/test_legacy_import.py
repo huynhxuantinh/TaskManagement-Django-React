@@ -132,6 +132,7 @@ def test_import_is_dry_run_capable_and_idempotent():
     assert first_report["counts"] == second_report["counts"]
     assert Role.objects.count() == 1
     assert User.objects.count() == 1
+    assert User.objects.get().password.startswith("bcrypt$$2a$")
     assert Project.objects.count() == 1
     assert ProjectMember.objects.count() == 1
     assert TaskStatus.objects.count() == 1
