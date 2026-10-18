@@ -200,7 +200,7 @@ def test_member_add_list_remove_conflicts_and_management_scope(project_users):
     assert duplicate.status_code == 409
     assert forbidden.status_code == 403
     assert members.status_code == 200
-    assert {row["user"]["id"] for row in members.data["data"]} == {
+    assert {row["user"]["id"] for row in members.data["data"]["results"]} == {
         owner.id,
         participant.id,
         employee.id,

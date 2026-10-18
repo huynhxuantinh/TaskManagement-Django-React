@@ -154,6 +154,206 @@ paths:
               schema:
                 $ref: '#/components/schemas/UserResponse'
           description: ''
+  /api/v1/projects/:
+    get:
+      operationId: v1_projects_list
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - Projects
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedProjectListResponseList'
+          description: ''
+    post:
+      operationId: v1_projects_create
+      tags:
+      - Projects
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectWrite'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ProjectWrite'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProjectWrite'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponse'
+          description: ''
+  /api/v1/projects/{id}/:
+    get:
+      operationId: v1_projects_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Projects
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponse'
+          description: ''
+    patch:
+      operationId: v1_projects_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Projects
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedProjectWrite'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedProjectWrite'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedProjectWrite'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponse'
+          description: ''
+    delete:
+      operationId: v1_projects_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Projects
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/projects/{id}/members/:
+    get:
+      operationId: v1_projects_members_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Project members
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberListResponse'
+          description: ''
+    post:
+      operationId: v1_projects_members_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Project members
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddMember'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AddMember'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AddMember'
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberResponse'
+          description: ''
+  /api/v1/projects/{id}/members/{user_id}/:
+    delete:
+      operationId: v1_projects_members_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: user_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Project members
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
 components:
   schemas:
     AccessData:
@@ -181,6 +381,16 @@ components:
       - data
       - message
       - success
+    AddMember:
+      type: object
+      properties:
+        user_id:
+          type: integer
+          minimum: 1
+        email:
+          type: string
+          format: email
+          maxLength: 100
     ChangePassword:
       type: object
       properties:
@@ -260,6 +470,265 @@ components:
       - data
       - message
       - success
+    MemberListData:
+      type: object
+      properties:
+        count:
+          type: integer
+          readOnly: true
+        next:
+          type: string
+          format: uri
+          readOnly: true
+          nullable: true
+        previous:
+          type: string
+          format: uri
+          readOnly: true
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectMember'
+          readOnly: true
+      required:
+      - count
+      - next
+      - previous
+      - results
+    MemberListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          readOnly: true
+        message:
+          type: string
+          readOnly: true
+        data:
+          allOf:
+          - $ref: '#/components/schemas/MemberListData'
+          readOnly: true
+      required:
+      - data
+      - message
+      - success
+    MemberResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          readOnly: true
+        message:
+          type: string
+          readOnly: true
+        data:
+          allOf:
+          - $ref: '#/components/schemas/ProjectMember'
+          readOnly: true
+      required:
+      - data
+      - message
+      - success
+    PaginatedProjectListResponseList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectListResponse'
+    PatchedProjectWrite:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 500
+        start_date:
+          type: string
+          format: date
+          nullable: true
+        end_date:
+          type: string
+          format: date
+          nullable: true
+    Project:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 500
+        start_date:
+          type: string
+          format: date
+          nullable: true
+        end_date:
+          type: string
+          format: date
+          nullable: true
+        creator:
+          allOf:
+          - $ref: '#/components/schemas/ProjectUser'
+          readOnly: true
+        member_count:
+          type: integer
+          readOnly: true
+        progress:
+          type: integer
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - creator
+      - id
+      - member_count
+      - name
+      - progress
+    ProjectListData:
+      type: object
+      properties:
+        count:
+          type: integer
+          readOnly: true
+        next:
+          type: string
+          format: uri
+          readOnly: true
+          nullable: true
+        previous:
+          type: string
+          format: uri
+          readOnly: true
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Project'
+          readOnly: true
+      required:
+      - count
+      - next
+      - previous
+      - results
+    ProjectListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          readOnly: true
+        message:
+          type: string
+          readOnly: true
+        data:
+          allOf:
+          - $ref: '#/components/schemas/ProjectListData'
+          readOnly: true
+      required:
+      - data
+      - message
+      - success
+    ProjectMember:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        user:
+          allOf:
+          - $ref: '#/components/schemas/ProjectUser'
+          readOnly: true
+        joined_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - user
+    ProjectResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          readOnly: true
+        message:
+          type: string
+          readOnly: true
+        data:
+          allOf:
+          - $ref: '#/components/schemas/Project'
+          readOnly: true
+      required:
+      - data
+      - message
+      - success
+    ProjectUser:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        full_name:
+          type: string
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          maxLength: 100
+        role:
+          type: string
+          readOnly: true
+        avatar_url:
+          type: string
+          readOnly: true
+      required:
+      - avatar_url
+      - email
+      - full_name
+      - id
+      - role
+    ProjectWrite:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 500
+        start_date:
+          type: string
+          format: date
+          nullable: true
+        end_date:
+          type: string
+          format: date
+          nullable: true
+      required:
+      - name
     Register:
       type: object
       properties:

@@ -97,6 +97,8 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "EXCEPTION_HANDLER": "apps.core.api.exception_handler",
+    "DEFAULT_PAGINATION_CLASS": "apps.core.pagination.StandardPagination",
+    "PAGE_SIZE": 20,
     "DEFAULT_THROTTLE_RATES": {
         "login": os.getenv("AUTH_LOGIN_RATE", "5/min"),
         "refresh": os.getenv("AUTH_REFRESH_RATE", "30/min"),

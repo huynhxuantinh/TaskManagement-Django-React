@@ -85,6 +85,8 @@ User response tối thiểu: `id`, `full_name`, `email`, `role`, `avatar_url`, `
 
 Project fields: `id`, `name`, `description`, `start_date`, `end_date`, `creator`, `member_count`, `progress`, `created_at`; start/end là date-only như UI hiện tại.
 
+POST member nhận đúng một trong `user_id` hoặc `email` của tài khoản đang hoạt động. Email chưa tồn tại trả `404`; API không tự tạo tài khoản hay mật khẩu invite cố định.
+
 ## Task metadata và tasks
 
 | Method | Endpoint | Quyền | Nội dung |

@@ -1,0 +1,46 @@
+from django.db import IntegrityError, transaction
+
+from .models import Project, ProjectMember
+
+
+class MembershipConflict(Exception):
+    pass
+
+
+class CreatorRemovalConflict(Exception):
+    pass
+
+
+class ProjectService:
+    @staticmethod
+    @transaction.atomic
+    def create_project(creator, validated_data):
+        project = Project.objects.create(creator=creator, **validated_data)
+        ProjectMember.objects.create(project=project, user=creator)
+        return project
+
+    @staticmethod
+    @transaction.atomic
+    def add_member(project, user):
+        try:
+            membership, created = ProjectMember.objects.get_or_create(
+                project=project, user=user
+            )
+        except IntegrityError as error:
+            raise MembershipConflict from error
+        if not created:
+            raise MembershipConflict
+        return membership
+
+    @staticmethod
+    @transaction.atomic
+    def remove_member(project, user_id):
+        if project.creator_id == user_id:
+            raise CreatorRemovalConflict
+        membership = ProjectMember.objects.filter(
+            project=project, user_id=user_id
+        ).first()
+        if membership is None:
+            return False
+        membership.delete()
+        return True
