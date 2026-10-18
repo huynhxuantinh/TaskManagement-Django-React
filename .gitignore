@@ -1,0 +1,48 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Python / Django
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+.venv/
+venv/
+backend/media/
+backend/staticfiles/
+db.sqlite3
+
+# Node / React
+node_modules/
+dist/
+.vite/
+frontend/coverage/
+playwright-report/
+test-results/
+
+# .NET / Visual Studio
+bin/
+obj/
+.vs/
+*.user
+*.suo
+
+# Runtime uploads
+TaskManagement.API/wwwroot/avatars/*
+!TaskManagement.API/wwwroot/avatars/.gitkeep
+
+# Local exports, backups, logs and OS files
+exports/
+backups/
+*.bak
+*.dump
+*.log
+.DS_Store
+Thumbs.db
