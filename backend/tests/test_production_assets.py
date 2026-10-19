@@ -48,6 +48,14 @@ def test_root_docker_context_excludes_secrets_data_and_build_artifacts():
         assert excluded in dockerignore
 
 
+def test_playwright_can_opt_into_self_signed_rehearsal_tls():
+    config = (REPOSITORY_ROOT / "frontend" / "playwright.config.ts").read_text(
+        encoding="utf-8"
+    )
+
+    assert "E2E_IGNORE_HTTPS_ERRORS" in config
+
+
 def test_reverse_proxy_terminates_tls_and_serves_all_runtime_assets():
     nginx = (REPOSITORY_ROOT / "infra" / "nginx" / "nginx.conf").read_text(
         encoding="utf-8"
