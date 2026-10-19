@@ -36,6 +36,7 @@ def test_production_images_build_assets_and_drop_root():
 
     assert "USER app" in backend
     assert "gunicorn" in backend
+    assert "collectstatic" in backend
     assert "npm run build" in frontend
     assert "USER nginx" in frontend
 
