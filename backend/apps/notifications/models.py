@@ -4,11 +4,11 @@ from django.utils import timezone
 
 
 class NotificationType(models.TextChoices):
-    GENERAL = "GENERAL", "General"
-    TASK_ASSIGNED = "TASK_ASSIGNED", "Task assigned"
-    STATUS_CHANGED = "STATUS_CHANGED", "Status changed"
-    PROJECT_ADDED = "PROJECT_ADDED", "Project added"
-    DEADLINE_APPROACHING = "DEADLINE_APPROACHING", "Deadline approaching"
+    GENERAL = "GENERAL", "Hệ thống"
+    TASK_ASSIGNED = "TASK_ASSIGNED", "Giao việc"
+    STATUS_CHANGED = "STATUS_CHANGED", "Thay đổi trạng thái"
+    PROJECT_ADDED = "PROJECT_ADDED", "Thêm vào dự án"
+    DEADLINE_APPROACHING = "DEADLINE_APPROACHING", "Sắp đến hạn"
 
 
 class Notification(models.Model):

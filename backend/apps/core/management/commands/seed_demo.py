@@ -101,7 +101,7 @@ class Command(BaseCommand):
 
         notification_rows = (
             (users['employee'], 'Bạn được giao công việc Xây dựng giao diện công việc.', NotificationType.TASK_ASSIGNED, True),
-            (users['employee'], 'Deadline Kiểm thử phân quyền đang đến gần.', NotificationType.DEADLINE_APPROACHING, True),
+            (users['employee'], 'Công việc "Kiểm thử phân quyền" sắp đến hạn.', NotificationType.DEADLINE_APPROACHING, True),
             (users['manager'], 'Tiến độ dự án vừa được cập nhật.', NotificationType.STATUS_CHANGED, False),
         )
         for user, message, notification_type, priority in notification_rows:
@@ -128,4 +128,4 @@ class Command(BaseCommand):
                 'is_read': False,
             },
         )
-        self.stdout.write(self.style.SUCCESS('Demo data is ready.'))
+        self.stdout.write(self.style.SUCCESS('Dữ liệu mẫu đã sẵn sàng.'))

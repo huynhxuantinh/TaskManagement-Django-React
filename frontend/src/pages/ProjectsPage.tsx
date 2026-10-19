@@ -31,7 +31,7 @@ export function ProjectsPage() {
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div><p className="section-kicker">Portfolio / {data?.count ?? 0}</p><h2 className="mt-1 text-3xl font-black tracking-tight text-slate-950">Dự án trong phạm vi</h2><p className="mt-2 text-sm text-slate-600">Theo dõi tiến độ, mốc thời gian và đội phụ trách.</p></div>
+        <div><p className="section-kicker">Danh mục dự án / {data?.count ?? 0}</p><h2 className="mt-1 text-3xl font-black tracking-tight text-slate-950">Dự án trong phạm vi</h2><p className="mt-2 text-sm text-slate-600">Theo dõi tiến độ, mốc thời gian và đội phụ trách.</p></div>
         {user && canCreateProjects(user) && <Button onClick={() => setCreating(true)}>+ Tạo dự án</Button>}
       </header>
 
@@ -42,7 +42,7 @@ export function ProjectsPage() {
 
       {error && <StatePanel eyebrow="Lỗi đồng bộ" title="Không tải được dự án" description={error} />}
       {loading && <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{[1, 2, 3].map((item) => <div key={item} className="h-60 animate-pulse rounded-2xl bg-white" />)}</div>}
-      {!loading && data?.results.length === 0 && <StatePanel eyebrow="Portfolio" title="Chưa có dự án phù hợp" description="Thử từ khóa khác hoặc tạo dự án mới nếu bạn có quyền." />}
+      {!loading && data?.results.length === 0 && <StatePanel eyebrow="Danh mục dự án" title="Chưa có dự án phù hợp" description="Thử từ khóa khác hoặc tạo dự án mới nếu bạn có quyền." />}
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" aria-label="Danh sách dự án">
         {data?.results.map((project) => (
           <Link key={project.id} to={`/projects/${project.id}`} className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-[var(--shadow)] transition hover:-translate-y-1 hover:border-slate-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]">

@@ -4,7 +4,7 @@ export function PlaceholderPage({ title, milestone }: { title: string; milestone
   return (
     <div className="grid min-h-[65vh] place-items-center">
       <StatePanel
-        eyebrow={`${milestone} / In progress`}
+        eyebrow={`${milestone} / Đang thực hiện`}
         title={title}
         description="Khung điều hướng và phân quyền đã sẵn sàng. Màn hình nghiệp vụ sẽ được nối vào API trong chặng tiếp theo."
       />

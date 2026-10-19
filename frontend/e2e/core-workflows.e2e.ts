@@ -5,11 +5,16 @@ const accounts = {
   Manager: { email: 'manager1@task.com', password: 'Manager@123' },
   Employee: { email: 'employee1@task.com', password: 'Employee@123' },
 } as const
+const roleLabels = {
+  Admin: 'Quản trị viên',
+  Manager: 'Quản lý',
+  Employee: 'Nhân viên',
+} as const
 const apiBaseUrl = process.env.E2E_API_BASE_URL ?? 'http://localhost:8010'
 
 async function login(page: Page, role: keyof typeof accounts) {
   await page.goto('/login')
-  await page.getByRole('button', { name: role, exact: true }).click()
+  await page.getByRole('button', { name: roleLabels[role], exact: true }).click()
   await page.locator('form button').click()
   await expect(page).toHaveURL(/\/dashboard$/)
 }

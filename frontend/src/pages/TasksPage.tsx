@@ -68,7 +68,7 @@ export function TasksPage() {
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between"><div><p className="section-kicker">Execution queue / {data?.count ?? 0}</p><h2 className="mt-1 text-3xl font-black tracking-tight">Luồng công việc</h2><p className="mt-2 text-sm text-slate-600">Lọc nhanh, giao việc và cập nhật tiến độ ngay tại một nơi.</p></div>{user && canCreateProjects(user) && <Button disabled={manageableProjects.length === 0} onClick={() => setCreating(true)}>+ Giao công việc</Button>}</header>
+      <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between"><div><p className="section-kicker">Danh sách thực hiện / {data?.count ?? 0}</p><h2 className="mt-1 text-3xl font-black tracking-tight">Luồng công việc</h2><p className="mt-2 text-sm text-slate-600">Lọc nhanh, giao việc và cập nhật tiến độ ngay tại một nơi.</p></div>{user && canCreateProjects(user) && <Button disabled={manageableProjects.length === 0} onClick={() => setCreating(true)}>+ Giao công việc</Button>}</header>
 
       <section className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 md:grid-cols-[minmax(14rem,1fr)_auto_auto_auto] md:items-end">
         <form onSubmit={submitSearch} className="flex gap-2"><Field label="Tìm công việc" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tên hoặc mô tả…" /><Button type="submit" variant="secondary" className="self-end">Tìm</Button></form>
@@ -79,7 +79,7 @@ export function TasksPage() {
 
       {error && <StatePanel eyebrow="Lỗi đồng bộ" title="Không tải được công việc" description={error} />}
       {loading && <div className="h-72 animate-pulse rounded-2xl bg-white" />}
-      {!loading && data?.results.length === 0 && <StatePanel eyebrow="Task queue" title="Không có công việc phù hợp" description="Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm." />}
+      {!loading && data?.results.length === 0 && <StatePanel eyebrow="Danh sách công việc" title="Không có công việc phù hợp" description="Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm." />}
       <section className="grid gap-3" aria-label="Danh sách công việc">
         {data?.results.map((task) => {
           const project = projectById.get(task.project.id)

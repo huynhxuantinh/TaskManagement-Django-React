@@ -6,6 +6,7 @@ import { StatePanel } from '../../components/ui/StatePanel'
 import { useToast } from '../../components/ui/ToastContext'
 import { useApiResource } from '../../hooks/useApiResource'
 import { apiRequest } from '../../lib/api'
+import { roleLabel } from '../../lib/labels'
 import type { Paginated, Project, ProjectMember, User } from '../../types/api'
 import { canManageProject } from './permissions'
 
@@ -53,7 +54,7 @@ export function MembersPanel({ project, user }: { project: Project; user: User }
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 md:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div><p className="section-kicker">Project access</p><h2 className="section-title">Thành viên ({data?.count ?? project.member_count})</h2></div>
+        <div><p className="section-kicker">Quyền truy cập dự án</p><h2 className="section-title">Thành viên ({data?.count ?? project.member_count})</h2></div>
         {manageable && (
           <form onSubmit={addMember} className="flex w-full gap-2 sm:w-auto">
             <Field label="Thêm bằng email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="user@task.com" required className="sm:w-64" />
@@ -67,7 +68,7 @@ export function MembersPanel({ project, user }: { project: Project; user: User }
         {data?.results.map((member) => (
           <article key={member.id} className="flex items-center gap-3 rounded-xl border border-slate-200 p-3">
             <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[var(--accent-soft)] text-xs font-black">{initials(member.user.full_name)}</span>
-            <div className="min-w-0 flex-1"><strong className="block truncate text-sm">{member.user.full_name}</strong><span className="block truncate text-xs text-slate-500">{member.user.email} · {member.user.role}</span></div>
+            <div className="min-w-0 flex-1"><strong className="block truncate text-sm">{member.user.full_name}</strong><span className="block truncate text-xs text-slate-500">{member.user.email} · {roleLabel(member.user.role)}</span></div>
             {manageable && member.user.id !== project.creator.id && <Button variant="ghost" className="!min-h-9 !px-2 !text-red-700" onClick={() => void removeMember(member)} aria-label={`Xóa ${member.user.full_name}`}>×</Button>}
           </article>
         ))}

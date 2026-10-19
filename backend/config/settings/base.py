@@ -114,15 +114,15 @@ SIMPLE_JWT = {
     "CHECK_REVOKE_TOKEN": True,
 }
 SPECTACULAR_SETTINGS = {
-    "TITLE": "Task Management API",
+    "TITLE": "API quản lý công việc",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
     "ENUM_NAME_OVERRIDES": {
         "TaskStatusCodeEnum": [
-            ("TODO", "To Do"),
-            ("IN_PROGRESS", "In Progress"),
-            ("COMPLETED", "Completed"),
-            ("ON_HOLD", "On Hold"),
+            ("TODO", "Chưa thực hiện"),
+            ("IN_PROGRESS", "Đang thực hiện"),
+            ("COMPLETED", "Đã hoàn thành"),
+            ("ON_HOLD", "Tạm dừng"),
         ],
     },
 }

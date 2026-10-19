@@ -40,7 +40,7 @@ class TaskService:
                 create_notification(
                     task.assignee,
                     NotificationType.DEADLINE_APPROACHING,
-                    f'Công việc "{task.title}" có hạn {task.deadline:%d/%m/%Y}.',
+                    f'Công việc "{task.title}" sắp đến hạn vào ngày {task.deadline:%d/%m/%Y}.',
                     default_priority=True,
                 )
         return task
@@ -64,7 +64,7 @@ class TaskService:
             create_notification(
                 task.assignee,
                 NotificationType.DEADLINE_APPROACHING,
-                f'Công việc "{task.title}" có hạn {task.deadline:%d/%m/%Y}.',
+                f'Công việc "{task.title}" sắp đến hạn vào ngày {task.deadline:%d/%m/%Y}.',
                 default_priority=True,
             )
         return task
@@ -81,7 +81,7 @@ class TaskService:
             create_notification(
                 task.project.creator if user_id == task.project.creator_id else task.assignee,
                 NotificationType.STATUS_CHANGED,
-                f'Công việc "{task.title}" chuyển sang {new_status.name}.',
+                f'Công việc "{task.title}" đã chuyển sang trạng thái {new_status.name}.',
             )
         return task
 

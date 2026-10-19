@@ -7,9 +7,9 @@ import { Field } from '../components/ui/Field'
 import { ApiError } from '../lib/api'
 
 const demoAccounts = [
-  { label: 'Admin', email: 'admin1@task.com', password: 'Admin@123' },
-  { label: 'Manager', email: 'manager1@task.com', password: 'Manager@123' },
-  { label: 'Employee', email: 'employee1@task.com', password: 'Employee@123' },
+  { label: 'Quản trị viên', email: 'admin1@task.com', password: 'Admin@123' },
+  { label: 'Quản lý', email: 'manager1@task.com', password: 'Manager@123' },
+  { label: 'Nhân viên', email: 'employee1@task.com', password: 'Employee@123' },
 ]
 
 export function LoginPage() {
@@ -38,11 +38,11 @@ export function LoginPage() {
 
   return (
     <div className="auth-card">
-      <p className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Secure workspace</p>
+      <p className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Không gian bảo mật</p>
       <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">Chào mừng trở lại</h2>
       <p className="mt-3 leading-7 text-slate-600">Đăng nhập để tiếp tục theo dõi dự án và công việc của bạn.</p>
       <form className="mt-8 space-y-5" onSubmit={submit}>
-        <Field label="Email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@company.com" required />
+        <Field label="Email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="ban@congty.com" required />
         <Field label="Mật khẩu" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="••••••••" required />
         {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</p>}
         <Button className="w-full" disabled={submitting}>{submitting ? 'Đang xác thực…' : 'Đăng nhập'}</Button>

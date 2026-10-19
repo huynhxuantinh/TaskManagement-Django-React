@@ -8,10 +8,10 @@ from apps.projects.models import Project
 
 class TaskStatus(models.Model):
     class Code(models.TextChoices):
-        TODO = "TODO", "To Do"
-        IN_PROGRESS = "IN_PROGRESS", "In Progress"
-        COMPLETED = "COMPLETED", "Completed"
-        ON_HOLD = "ON_HOLD", "On Hold"
+        TODO = "TODO", "Chưa thực hiện"
+        IN_PROGRESS = "IN_PROGRESS", "Đang thực hiện"
+        COMPLETED = "COMPLETED", "Đã hoàn thành"
+        ON_HOLD = "ON_HOLD", "Tạm dừng"
 
     legacy_id = models.PositiveBigIntegerField(unique=True)
     code = models.CharField(max_length=20, choices=Code.choices, unique=True)
@@ -26,9 +26,9 @@ class TaskStatus(models.Model):
 
 class Task(models.Model):
     class Priority(models.IntegerChoices):
-        LOW = 1, "Low"
-        MEDIUM = 2, "Medium"
-        HIGH = 3, "High"
+        LOW = 1, "Thấp"
+        MEDIUM = 2, "Trung bình"
+        HIGH = 3, "Cao"
 
     title = models.CharField(max_length=200)
     description = models.CharField(max_length=500, blank=True)

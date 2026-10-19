@@ -5,6 +5,7 @@ import { useAuth } from '../auth/AuthContext'
 import { Icon } from '../components/Icon'
 import { Button } from '../components/ui/Button'
 import { apiAssetUrl } from '../lib/api'
+import { roleLabel } from '../lib/labels'
 import type { RoleCode } from '../types/api'
 
 const navigation: Array<{
@@ -50,8 +51,8 @@ function Sidebar({ close }: { close?: () => void }) {
         <NavLink to="/dashboard" onClick={close} className="flex items-center gap-3">
           <span className="grid size-10 place-items-center rounded-xl bg-[var(--accent)] font-mono text-sm font-black text-[var(--ink)]">TM</span>
           <span>
-            <strong className="block text-[15px] tracking-tight">Task Management</strong>
-            <small className="font-mono text-[10px] uppercase tracking-[0.18em] text-slate-400">Internal OS</small>
+            <strong className="block text-[15px] tracking-tight">Quản lý công việc</strong>
+            <small className="font-mono text-[10px] uppercase tracking-[0.18em] text-slate-400">Vận hành nội bộ</small>
           </span>
         </NavLink>
       </div>
@@ -92,7 +93,7 @@ function Sidebar({ close }: { close?: () => void }) {
           )}
           <span className="min-w-0 flex-1">
             <strong className="block truncate text-sm">{user.full_name}</strong>
-            <small className="block truncate text-xs text-slate-400">{user.role}</small>
+            <small className="block truncate text-xs text-slate-400">{roleLabel(user.role)}</small>
           </span>
         </NavLink>
         <Button variant="ghost" className="mt-1 w-full !justify-start !text-slate-300 hover:!bg-white/8 hover:!text-white" onClick={() => void logout()}>
@@ -122,8 +123,8 @@ export function AppShell() {
             <Icon name="menu" />
           </button>
           <div className="min-w-0 flex-1">
-            <p className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Workspace / {user?.role}</p>
-            <h1 className="truncate text-lg font-extrabold tracking-tight text-slate-950">{location.pathname.startsWith('/projects/') ? 'Chi tiết dự án' : pageTitles[location.pathname] ?? 'Task Management'}</h1>
+            <p className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Không gian làm việc / {user ? roleLabel(user.role) : ''}</p>
+            <h1 className="truncate text-lg font-extrabold tracking-tight text-slate-950">{location.pathname.startsWith('/projects/') ? 'Chi tiết dự án' : pageTitles[location.pathname] ?? 'Quản lý công việc'}</h1>
           </div>
           <NavLink to="/notifications" className="relative grid size-10 place-items-center rounded-xl border border-slate-300 bg-white text-slate-700 hover:border-slate-500" aria-label="Thông báo">
             <Icon name="bell" />

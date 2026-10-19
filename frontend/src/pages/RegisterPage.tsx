@@ -29,9 +29,9 @@ export function RegisterPage() {
 
   return (
     <div className="auth-card">
-      <p className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-slate-500">New teammate</p>
+      <p className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Thành viên mới</p>
       <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">Tạo tài khoản</h2>
-      <p className="mt-3 leading-7 text-slate-600">Bắt đầu với vai trò Employee; Admin có thể điều chỉnh sau.</p>
+      <p className="mt-3 leading-7 text-slate-600">Tài khoản mới có vai trò Nhân viên; Quản trị viên có thể điều chỉnh sau.</p>
       <form className="mt-8 space-y-5" onSubmit={submit}>
         <Field label="Họ và tên" autoComplete="name" value={form.full_name} onChange={(event) => setForm({ ...form, full_name: event.target.value })} required />
         <Field label="Email" type="email" autoComplete="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required />

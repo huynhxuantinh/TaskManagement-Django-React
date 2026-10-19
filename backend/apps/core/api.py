@@ -47,4 +47,4 @@ def enforce_csrf(request):
         request._request, None, (), {}
     )
     if reason:
-        raise PermissionDenied("CSRF verification failed.")
+        raise PermissionDenied("Xác thực CSRF không thành công.")

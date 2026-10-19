@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext'
 import { Icon } from '../components/Icon'
 import { StatePanel } from '../components/ui/StatePanel'
 import { apiRequest } from '../lib/api'
+import { roleLabel } from '../lib/labels'
 import type { DashboardSummary } from '../types/api'
 
 const statusTone: Record<string, string> = {
@@ -33,7 +34,7 @@ export function DashboardPage() {
   if (error) {
     return (
       <StatePanel
-        eyebrow="Sync error"
+        eyebrow="Lỗi đồng bộ"
         title="Không tải được tổng quan"
         description={error}
       />
@@ -41,7 +42,7 @@ export function DashboardPage() {
   }
 
   const metrics = [
-    { label: 'Dự án trong scope', value: summary?.project_count, icon: 'folder' as const },
+    { label: 'Dự án trong phạm vi', value: summary?.project_count, icon: 'folder' as const },
     { label: 'Tổng công việc', value: summary?.task_count, icon: 'check' as const },
     { label: 'Đã hoàn thành', value: summary?.completed_task_count, icon: 'grid' as const },
     { label: 'Đang quá hạn', value: summary?.overdue_task_count, icon: 'chart' as const },
@@ -52,7 +53,7 @@ export function DashboardPage() {
       <section className="dashboard-hero overflow-hidden rounded-3xl bg-[var(--ink)] p-7 text-white md:p-10">
         <div className="relative z-10 max-w-2xl">
           <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-[var(--accent)]">
-            Live workspace / {user?.role}
+            Không gian trực tiếp / {user ? roleLabel(user.role) : ''}
           </p>
           <h2 className="mt-4 text-3xl font-black tracking-[-0.035em] md:text-4xl">
             Chào {user?.full_name.split(' ').at(-1)}, hôm nay mình đẩy dự án tiến thêm một nhịp.
@@ -87,7 +88,7 @@ export function DashboardPage() {
         <section className="rounded-2xl border border-slate-200 bg-white p-5 md:p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="section-kicker">Recent signal</p>
+              <p className="section-kicker">Hoạt động gần đây</p>
               <h3 className="section-title">Công việc gần đây</h3>
             </div>
             <span className="font-mono text-xs text-slate-500">TOP 05</span>
@@ -126,7 +127,7 @@ export function DashboardPage() {
           </div>
         </section>
         <section className="rounded-2xl border border-slate-200 bg-white p-5 md:p-6">
-          <p className="section-kicker">Distribution</p>
+          <p className="section-kicker">Phân bổ</p>
           <h3 className="section-title">Trạng thái công việc</h3>
           <div className="mt-6 space-y-5">
             {summary?.task_distribution.map((item) => {
