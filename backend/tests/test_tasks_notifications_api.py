@@ -121,6 +121,14 @@ def test_task_create_enforces_role_membership_and_creates_notifications(
     assert Notification.objects.filter(
         user=task_users["employee"], type=NotificationType.DEADLINE_APPROACHING
     ).exists()
+    assert set(
+        Notification.objects.filter(user=task_users["employee"]).values_list(
+            "message", flat=True
+        )
+    ) == {
+        'Bạn được giao công việc "Build task screen".',
+        'Công việc "Build task screen" sắp đến hạn vào ngày 25/10/2026.',
+    }
 
 
 @pytest.mark.django_db
@@ -216,6 +224,9 @@ def test_assignee_can_change_status_and_status_code_is_validated(
     assert Notification.objects.filter(
         user=task_users["manager"], type=NotificationType.STATUS_CHANGED
     ).exists()
+    assert Notification.objects.get(
+        user=task_users["manager"], type=NotificationType.STATUS_CHANGED
+    ).message == 'Công việc "Implement API" đã chuyển sang trạng thái Đang thực hiện.'
 
 
 @pytest.mark.django_db(transaction=True)

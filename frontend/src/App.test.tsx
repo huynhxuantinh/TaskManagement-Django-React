@@ -28,6 +28,6 @@ describe('App', () => {
     )
 
     expect(await screen.findByRole('heading', { name: /chào mừng trở lại/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Admin' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Quản trị viên' })).toBeInTheDocument()
   })
 })

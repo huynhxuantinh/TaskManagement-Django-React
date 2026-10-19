@@ -60,4 +60,9 @@ describe('support workflows', () => {
     fireEvent.click(screen.getByRole('switch', { name: 'CUSTOM' }))
     expect(onChange).toHaveBeenCalledWith({ type: 'CUSTOM', is_priority: false })
   })
+
+  it('hiển thị loại thông báo sắp đến hạn bằng tiếng Việt', () => {
+    render(<NotificationCard notification={{ ...notification, type: 'DEADLINE_APPROACHING' }} onRead={vi.fn()} />)
+    expect(screen.getByText('Sắp đến hạn')).toBeInTheDocument()
+  })
 })
