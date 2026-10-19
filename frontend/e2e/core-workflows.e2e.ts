@@ -5,6 +5,7 @@ const accounts = {
   Manager: { email: 'manager1@task.com', password: 'Manager@123' },
   Employee: { email: 'employee1@task.com', password: 'Employee@123' },
 } as const
+const apiBaseUrl = process.env.E2E_API_BASE_URL ?? 'http://localhost:8010'
 
 async function login(page: Page, role: keyof typeof accounts) {
   await page.goto('/login')
@@ -59,9 +60,9 @@ test('Employee chỉ cập nhật trạng thái và API vẫn chặn tạo dự 
   await expect(page.getByRole('button', { name: /Giao công việc/i })).toHaveCount(0)
   await expect(page.locator('select[aria-label^="Trạng thái"]').first()).toBeVisible()
 
-  const loginResponse = await request.post('http://localhost:8010/api/v1/auth/login/', { data: accounts.Employee })
+  const loginResponse = await request.post(`${apiBaseUrl}/api/v1/auth/login/`, { data: accounts.Employee })
   const payload = await loginResponse.json()
-  const forbidden = await request.post('http://localhost:8010/api/v1/projects/', {
+  const forbidden = await request.post(`${apiBaseUrl}/api/v1/projects/`, {
     headers: { Authorization: `Bearer ${payload.data.access}` },
     data: { name: 'Không được tạo', description: '', start_date: '2026-10-19', end_date: '2026-10-20' },
   })

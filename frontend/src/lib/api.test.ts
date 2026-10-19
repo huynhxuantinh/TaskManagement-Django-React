@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  apiAssetUrl,
+  ApiError,
   apiRequest,
   clearAccessToken,
   getAccessToken,
@@ -72,6 +74,34 @@ describe('api client', () => {
 
     await expect(apiRequest('/api/v1/tasks/')).rejects.toThrow('reuse detected')
     expect(getAccessToken()).toBeNull()
+  })
+
+  it('resolves media paths and preserves absolute URLs', () => {
+    expect(apiAssetUrl('')).toBe('')
+    expect(apiAssetUrl('https://cdn.example.com/avatar.png')).toBe('https://cdn.example.com/avatar.png')
+    expect(apiAssetUrl('/media/avatar.png')).toContain('/media/avatar.png')
+    expect(apiAssetUrl('media/avatar.png')).toContain('/media/avatar.png')
+  })
+
+  it('supports form data and empty successful responses', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const body = new FormData()
+    body.append('file', new Blob(['avatar']), 'avatar.png')
+
+    await expect(apiRequest<void>('/api/v1/users/1/avatar/', { method: 'POST', body })).resolves.toBeUndefined()
+    const headers = fetchMock.mock.calls[0][1].headers as Headers
+    expect(headers.has('Content-Type')).toBe(false)
+  })
+
+  it('maps failed envelopes to ApiError details', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ success: false, message: 'invalid', errors: { name: ['Required'] } }, 400)))
+
+    await expect(apiRequest('/api/v1/projects/', { authRetry: false })).rejects.toMatchObject({
+      name: ApiError.name,
+      status: 400,
+      errors: { name: ['Required'] },
+    })
   })
 })
 

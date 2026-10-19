@@ -42,4 +42,22 @@ describe('support workflows', () => {
     render(<ReportProgress value={140} label="Tiến độ dự án" />)
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '100')
   })
+
+  it('giới hạn tiến độ âm về 0', () => {
+    render(<ReportProgress value={-5} label="Tiến độ âm" />)
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0')
+  })
+
+  it('hiển thị loại thông báo lạ và không gắn ưu tiên', () => {
+    render(<NotificationCard notification={{ ...notification, type: 'CUSTOM', is_priority: false, is_read: true }} onRead={vi.fn()} />)
+    expect(screen.getByText('CUSTOM')).toBeInTheDocument()
+    expect(screen.queryByText('Ưu tiên')).not.toBeInTheDocument()
+  })
+
+  it('hỗ trợ loại preference mới và tắt trạng thái đang bật', () => {
+    const onChange = vi.fn()
+    render(<PreferenceToggle preference={{ type: 'CUSTOM', is_priority: true }} onChange={onChange} />)
+    fireEvent.click(screen.getByRole('switch', { name: 'CUSTOM' }))
+    expect(onChange).toHaveBeenCalledWith({ type: 'CUSTOM', is_priority: false })
+  })
 })

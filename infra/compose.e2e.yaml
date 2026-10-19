@@ -1,0 +1,66 @@
+name: task-management-e2e
+
+services:
+  db:
+    image: postgres:18.6-alpine3.23
+    environment:
+      POSTGRES_DB: task_management_e2e
+      POSTGRES_USER: task_management
+      POSTGRES_PASSWORD: task_management_e2e
+    tmpfs:
+      - /var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U task_management -d task_management_e2e"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+
+  setup:
+    build:
+      context: ../backend
+    command: ["sh", "-c", "python manage.py migrate --noinput && python manage.py seed_demo"]
+    environment: &backend-environment
+      DJANGO_SETTINGS_MODULE: config.settings.development
+      DJANGO_SECRET_KEY: e2e-only-secret
+      POSTGRES_DB: task_management_e2e
+      POSTGRES_USER: task_management
+      POSTGRES_PASSWORD: task_management_e2e
+      DB_HOST: db
+      DB_PORT: 5432
+      CORS_ALLOWED_ORIGINS: http://localhost:${E2E_FRONTEND_PORT:-5173}
+      CSRF_TRUSTED_ORIGINS: http://localhost:${E2E_FRONTEND_PORT:-5173}
+      AUTH_LOGIN_RATE: 1000/min
+    depends_on:
+      db:
+        condition: service_healthy
+
+  backend:
+    build:
+      context: ../backend
+    environment: *backend-environment
+    ports:
+      - "127.0.0.1:${E2E_BACKEND_PORT:-8000}:8000"
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready/').read()"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+
+  frontend:
+    build:
+      context: ../frontend
+    environment:
+      VITE_API_BASE_URL: http://localhost:${E2E_BACKEND_PORT:-8000}
+    ports:
+      - "127.0.0.1:${E2E_FRONTEND_PORT:-5173}:5173"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5173/ >/dev/null || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 15

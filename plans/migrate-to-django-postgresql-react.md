@@ -24,6 +24,7 @@ Các miền nghiệp vụ được giữ: User/Role, Project, ProjectMember, Tas
 - S7 hoàn thành ngày 2026-10-19: Users/profile/avatar/preferences, dashboard và reports API đã có scope theo role/project, kiểm tra media an toàn và chạy xanh trên dữ liệu thật.
 - S8 hoàn thành ngày 2026-10-19: React app shell, auth store, refresh cookie flow, route guards, login/register/profile và design system responsive đã build/test xanh.
 - S9 hoàn thành ngày 2026-10-19: Projects/Team/Tasks UI đã nối API thật, ẩn action theo role, CRUD/member/status flow và Playwright cho ba role chạy xanh.
+- S10 hoàn thành ngày 2026-10-19: Notifications/Reports/Admin/Profile/Avatar/Preferences UI, seed cố định, compose E2E và CI Playwright đã chạy xanh trên stack PostgreSQL sạch.
 
 ### Quyết định bảo mật bắt buộc
 

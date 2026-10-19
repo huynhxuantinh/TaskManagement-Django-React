@@ -1,9 +1,9 @@
-import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { ProjectActions } from './ProjectActions'
 import { TaskStatusSelect } from './TaskStatusSelect'
-import { canCreateProjects, canManageProject } from './permissions'
+import { canChangeTaskStatus, canCreateProjects, canManageProject } from './permissions'
 import type { Project, Task, TaskStatus, User } from '../../types/api'
 
 const user = (role: User['role'], id = 1): User => ({
@@ -47,6 +47,8 @@ const task: Task = {
   created_at: '',
 }
 
+afterEach(cleanup)
+
 describe('core workflow permissions', () => {
   it('chỉ Admin và Manager được tạo dự án', () => {
     expect(canCreateProjects(user('ADMIN'))).toBe(true)
@@ -73,5 +75,20 @@ describe('core workflow permissions', () => {
       target: { value: 'COMPLETED' },
     })
     expect(onChange).toHaveBeenCalledWith('COMPLETED')
+  })
+
+  it('xác định đầy đủ quyền cập nhật trạng thái task', () => {
+    expect(canChangeTaskStatus(user('ADMIN'), task, project)).toBe(true)
+    expect(canChangeTaskStatus(user('EMPLOYEE', 3), task, project)).toBe(true)
+    expect(canChangeTaskStatus(user('MANAGER', 2), { ...task, assignee: null }, project)).toBe(true)
+    expect(canChangeTaskStatus(user('MANAGER', 8), { ...task, assignee: null }, project)).toBe(false)
+    expect(canChangeTaskStatus(user('EMPLOYEE', 8), { ...task, assignee: null })).toBe(false)
+    expect(canManageProject(user('EMPLOYEE', 2), project)).toBe(false)
+  })
+
+  it('hiện trạng thái dạng nhãn khi không có quyền thay đổi', () => {
+    render(<TaskStatusSelect task={task} statuses={statuses} canChange={false} onChange={vi.fn()} />)
+    expect(screen.getByText('Cần làm')).toBeInTheDocument()
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
   })
 })

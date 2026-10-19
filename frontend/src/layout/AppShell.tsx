@@ -127,7 +127,6 @@ export function AppShell() {
           </div>
           <NavLink to="/notifications" className="relative grid size-10 place-items-center rounded-xl border border-slate-300 bg-white text-slate-700 hover:border-slate-500" aria-label="Thông báo">
             <Icon name="bell" />
-            <span className="absolute right-2 top-2 size-2 rounded-full bg-[var(--accent)] ring-2 ring-white" />
           </NavLink>
         </header>
         <main className="px-4 py-6 md:px-8 md:py-8"><Outlet /></main>

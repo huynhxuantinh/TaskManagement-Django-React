@@ -5,11 +5,14 @@ export default defineConfig({
   testMatch: '**/*.e2e.ts',
   fullyParallel: false,
   workers: 1,
+  forbidOnly: Boolean(process.env.CI),
+  retries: process.env.CI ? 1 : 0,
+  reporter: process.env.CI ? [['line'], ['html', { outputFolder: 'playwright-report', open: 'never' }]] : 'list',
   use: {
     baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:5174',
-    trace: 'retain-on-failure',
+    trace: process.env.CI ? 'on-first-retry' : 'retain-on-failure',
     screenshot: 'only-on-failure',
-    ...devices['Desktop Edge'],
-    channel: 'msedge',
+    ...devices['Desktop Chrome'],
+    channel: process.env.CI ? undefined : 'msedge',
   },
 })

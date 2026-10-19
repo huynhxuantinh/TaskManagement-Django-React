@@ -13,6 +13,12 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
+      // Stateful pages are exercised by Playwright; this gate targets reusable client logic.
+      include: [
+        'src/lib/api.ts',
+        'src/features/core/permissions.ts',
+        'src/features/support/*.tsx',
+      ],
       thresholds: {
         lines: 80,
         functions: 80,

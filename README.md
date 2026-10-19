@@ -8,6 +8,21 @@ Dự án hỗ trợ quản lý công việc theo nhóm, phân chia nhiệm vụ,
 
 Đây là dự án được xây dựng nhằm rèn luyện kỹ năng phát triển phần mềm full-stack, thiết kế hệ thống và triển khai kiến trúc backend thực tế.
 
+> **Trạng thái migration:** stack mới `React + Django REST Framework + PostgreSQL` trong `frontend/`, `backend/`, `infra/` đã hoàn thành chức năng và E2E. Stack ASP.NET/SQL Server được giữ làm đối chiếu đến bước cutover S11.
+
+Chạy môi trường mới:
+
+```bash
+docker compose -f infra/compose.dev.yaml up --build -d
+docker compose -f infra/compose.dev.yaml exec backend python manage.py seed_demo
+```
+
+- React: `http://localhost:5174`
+- Django API: `http://localhost:8010/api/docs/`
+- Tài khoản demo: `admin1@task.com / Admin@123`, `manager1@task.com / Manager@123`, `employee1@task.com / Employee@123`
+
+Các hành vi legacy đã loại bỏ: nhận diện Starbucks, frontend tự tạo notification tùy ý và invite bằng mật khẩu cố định.
+
 ---
 
 ## Chức năng chính

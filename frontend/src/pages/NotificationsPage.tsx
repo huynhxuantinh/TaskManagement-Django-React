@@ -17,7 +17,11 @@ export function NotificationsPage() {
   async function markRead(notification: Notification) {
     try {
       const updated = await apiRequest<Notification>(`/api/v1/notifications/${notification.id}/read/`, { method: 'PATCH' })
-      setData((current) => current ? { ...current, results: filter === 'unread' ? current.results.filter((item) => item.id !== updated.id) : current.results.map((item) => item.id === updated.id ? updated : item) } : current)
+      setData((current) => current ? {
+        ...current,
+        count: filter === 'unread' ? Math.max(0, current.count - 1) : current.count,
+        results: filter === 'unread' ? current.results.filter((item) => item.id !== updated.id) : current.results.map((item) => item.id === updated.id ? updated : item),
+      } : current)
     } catch (caught) {
       notify((caught as Error).message, 'error')
     }
