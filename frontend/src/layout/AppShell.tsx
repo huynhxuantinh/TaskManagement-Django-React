@@ -122,7 +122,7 @@ export function AppShell() {
           </button>
           <div className="min-w-0 flex-1">
             <p className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Workspace / {user?.role}</p>
-            <h1 className="truncate text-lg font-extrabold tracking-tight text-slate-950">{pageTitles[location.pathname] ?? 'Task Management'}</h1>
+            <h1 className="truncate text-lg font-extrabold tracking-tight text-slate-950">{location.pathname.startsWith('/projects/') ? 'Chi tiết dự án' : pageTitles[location.pathname] ?? 'Task Management'}</h1>
           </div>
           <NavLink to="/notifications" className="relative grid size-10 place-items-center rounded-xl border border-slate-300 bg-white text-slate-700 hover:border-slate-500" aria-label="Thông báo">
             <Icon name="bell" />

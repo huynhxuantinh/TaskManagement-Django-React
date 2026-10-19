@@ -7,7 +7,11 @@ import { DashboardPage } from './pages/DashboardPage'
 import { LoginPage } from './pages/LoginPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
 import { ProfilePage } from './pages/ProfilePage'
+import { ProjectDetailPage } from './pages/ProjectDetailPage'
+import { ProjectsPage } from './pages/ProjectsPage'
 import { RegisterPage } from './pages/RegisterPage'
+import { TasksPage } from './pages/TasksPage'
+import { TeamPage } from './pages/TeamPage'
 
 export default function App() {
   return (
@@ -23,9 +27,10 @@ export default function App() {
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/projects" element={<PlaceholderPage title="Dự án đang được kết nối" milestone="S9" />} />
-          <Route path="/tasks" element={<PlaceholderPage title="Luồng công việc đang được kết nối" milestone="S9" />} />
-          <Route path="/team" element={<PlaceholderPage title="Đội ngũ đang được kết nối" milestone="S9" />} />
+          <Route path="/projects" element={<ProjectsPage />} />
+          <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
+          <Route path="/tasks" element={<TasksPage />} />
+          <Route path="/team" element={<TeamPage />} />
           <Route path="/reports" element={<PlaceholderPage title="Báo cáo đang được kết nối" milestone="S10" />} />
           <Route path="/notifications" element={<PlaceholderPage title="Thông báo đang được kết nối" milestone="S10" />} />
           <Route element={<RoleRoute allowedRoles={['ADMIN']} />}>
