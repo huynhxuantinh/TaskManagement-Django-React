@@ -1,0 +1,210 @@
+name: task-management-prod
+
+x-backend-environment: &backend-environment
+  DJANGO_SETTINGS_MODULE: config.settings.production
+  DJANGO_SECRET_KEY: "${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}"
+  DJANGO_ALLOWED_HOSTS: "${DJANGO_ALLOWED_HOSTS:?DJANGO_ALLOWED_HOSTS is required}"
+  POSTGRES_DB: "${POSTGRES_DB:-task_management}"
+  POSTGRES_USER: "${POSTGRES_USER:-task_management}"
+  POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
+  DB_HOST: db
+  DB_PORT: "5432"
+  CSRF_TRUSTED_ORIGINS: "${CSRF_TRUSTED_ORIGINS:-}"
+  CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:-}"
+  ALLOW_PUBLIC_REGISTRATION: "false"
+  LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+
+x-resource-limits: &resource-limits
+  resources:
+    limits:
+      cpus: "1.00"
+      memory: 768M
+    reservations:
+      cpus: "0.25"
+      memory: 256M
+
+x-postgres-environment: &postgres-environment
+  PGHOST: db
+  PGUSER: "${POSTGRES_USER:-task_management}"
+  PGPASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
+  POSTGRES_DB: "${POSTGRES_DB:-task_management}"
+
+services:
+  db:
+    image: postgres:18.6-alpine3.23
+    environment:
+      POSTGRES_DB: "${POSTGRES_DB:-task_management}"
+      POSTGRES_USER: "${POSTGRES_USER:-task_management}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    networks:
+      - private
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    deploy:
+      <<: *resource-limits
+    restart: unless-stopped
+
+  migration:
+    image: "${BACKEND_IMAGE:-task-management-backend:local}"
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.prod
+    command:
+      - sh
+      - -c
+      - python manage.py migrate_locked && python manage.py collectstatic --noinput
+    environment: *backend-environment
+    volumes:
+      - static_data:/app/staticfiles
+      - media_data:/app/media
+    networks:
+      - private
+    depends_on:
+      db:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: "no"
+
+  backend:
+    image: "${BACKEND_IMAGE:-task-management-backend:local}"
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.prod
+    environment: *backend-environment
+    volumes:
+      - media_data:/app/media
+    expose:
+      - "8000"
+    networks:
+      - private
+    depends_on:
+      db:
+        condition: service_healthy
+      migration:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; r=urllib.request.Request('http://127.0.0.1:8000/ready/', headers={'X-Forwarded-Proto':'https'}); urllib.request.urlopen(r).read()"
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      replicas: 2
+      <<: *resource-limits
+    restart: unless-stopped
+
+  proxy:
+    image: "${PROXY_IMAGE:-task-management-proxy:local}"
+    build:
+      context: ..
+      dockerfile: frontend/Dockerfile.prod
+      args:
+        VITE_API_BASE_URL: ""
+    ports:
+      - "${HTTPS_BIND_ADDRESS:-127.0.0.1}:${HTTPS_PORT:-8443}:8443"
+    volumes:
+      - "${TLS_CERT_DIR:?TLS_CERT_DIR is required}:/run/secrets/tls:ro"
+      - static_data:/srv/static:ro
+      - media_data:/srv/media:ro
+    networks:
+      - edge
+      - private
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-check-certificate -qO- https://127.0.0.1:8443/health/ >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
+        reservations:
+          cpus: "0.10"
+          memory: 64M
+    restart: unless-stopped
+
+  backup:
+    image: postgres:18.6-alpine3.23
+    profiles: ["ops"]
+    environment: *postgres-environment
+    command: ["/opt/task-management/backup-postgres.sh", "/backups"]
+    volumes:
+      - ./scripts:/opt/task-management:ro
+      - "${BACKUP_DIR:-../backups}:/backups"
+    networks:
+      - private
+    depends_on:
+      db:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+  restore:
+    image: postgres:18.6-alpine3.23
+    profiles: ["ops"]
+    environment:
+      <<: *postgres-environment
+      TARGET_DATABASE: "${TARGET_DATABASE:-task_management_restore_drill}"
+      ALLOW_RESTORE: "${ALLOW_RESTORE:-NO}"
+    command: ["/opt/task-management/restore-postgres.sh", "${RESTORE_DUMP:-/backups/required.dump}"]
+    volumes:
+      - ./scripts:/opt/task-management:ro
+      - "${BACKUP_DIR:-../backups}:/backups"
+    networks:
+      - private
+    depends_on:
+      db:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  edge:
+  private:
+    internal: true
+
+volumes:
+  postgres_data:
+  static_data:
+  media_data:
