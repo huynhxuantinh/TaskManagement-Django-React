@@ -98,3 +98,33 @@ jobs:
           retention-days: 14
       - run: docker compose -f infra/compose.e2e.yaml down -v
         if: always()
+
+  production-smoke:
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    env:
+      DJANGO_SECRET_KEY: ci-production-only-secret-abcdefghijklmnopqrstuvwxyz-1234567890
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+      POSTGRES_DB: task_management_prod_ci
+      POSTGRES_USER: task_management
+      POSTGRES_PASSWORD: production-ci-database-password
+      CSRF_TRUSTED_ORIGINS: https://localhost:8443
+      TLS_CERT_DIR: /tmp/task-management-tls
+      BACKUP_DIR: /tmp/task-management-backups
+      HTTPS_PORT: "8443"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create ephemeral rehearsal certificate
+        run: |
+          mkdir -p "$TLS_CERT_DIR" "$BACKUP_DIR"
+          openssl req -x509 -newkey rsa:2048 -nodes \
+            -keyout "$TLS_CERT_DIR/privkey.pem" \
+            -out "$TLS_CERT_DIR/fullchain.pem" \
+            -days 1 -subj "/CN=localhost" \
+            -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+      - run: docker compose -f infra/compose.prod.yaml config --quiet
+      - run: docker compose -f infra/compose.prod.yaml up --build -d --wait --scale backend=2
+      - run: curl --fail --insecure https://localhost:8443/ready/
+      - run: docker compose -f infra/compose.prod.yaml ps
+      - run: docker compose -f infra/compose.prod.yaml down -v
+        if: always()
