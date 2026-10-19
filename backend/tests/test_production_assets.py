@@ -63,6 +63,16 @@ def test_playwright_can_opt_into_self_signed_rehearsal_tls():
     assert "E2E_IGNORE_HTTPS_ERRORS" in config
 
 
+def test_ci_builds_and_smokes_the_production_stack():
+    workflow = (
+        REPOSITORY_ROOT / ".github" / "workflows" / "new-stack-ci.yml"
+    ).read_text(encoding="utf-8")
+
+    assert "production-smoke:" in workflow
+    assert "compose.prod.yaml" in workflow
+    assert "curl --fail --insecure" in workflow
+
+
 def test_reverse_proxy_terminates_tls_and_serves_all_runtime_assets():
     nginx = (REPOSITORY_ROOT / "infra" / "nginx" / "nginx.conf").read_text(
         encoding="utf-8"
