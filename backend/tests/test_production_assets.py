@@ -51,7 +51,15 @@ def test_production_images_build_assets_and_drop_root():
 def test_root_docker_context_excludes_secrets_data_and_build_artifacts():
     dockerignore = (REPOSITORY_ROOT / ".dockerignore").read_text(encoding="utf-8")
 
-    for excluded in (".git", ".env", "node_modules", "exports", "backups"):
+    for excluded in (
+        ".git",
+        ".env",
+        "node_modules",
+        "exports",
+        "backups",
+        "playwright-report",
+        "test-results",
+    ):
         assert excluded in dockerignore
 
 
