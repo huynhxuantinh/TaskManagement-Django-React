@@ -59,6 +59,7 @@ def test_reverse_proxy_terminates_tls_and_serves_all_runtime_assets():
     assert "location /media/" in nginx
     assert "Strict-Transport-Security" in nginx
     assert "X-Forwarded-Proto https" in nginx
+    assert "client_body_temp_path /tmp/client_temp" in nginx
 
 
 def test_backup_and_restore_scripts_verify_checksums_and_protect_source_database():
