@@ -25,9 +25,9 @@ def test_seed_demo_creates_stable_idempotent_e2e_dataset():
         'COMPLETED': 'Đã hoàn thành',
         'ON_HOLD': 'Tạm dừng',
     }
-    assert User.objects.get(email='admin1@task.com').check_password('Admin@123')
-    assert User.objects.get(email='manager1@task.com').check_password('Manager@123')
-    assert User.objects.get(email='employee1@task.com').check_password('Employee@123')
+    assert User.objects.get(email='admin1@task.com').check_password('123')
+    assert User.objects.get(email='manager1@task.com').check_password('123')
+    assert User.objects.get(email='employee1@task.com').check_password('123')
     expected_logins = {
         'admin': 'ADMIN',
         'qltask': 'MANAGER',
