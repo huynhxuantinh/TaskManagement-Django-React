@@ -2,6 +2,7 @@ export type RoleCode = 'ADMIN' | 'MANAGER' | 'EMPLOYEE'
 
 export interface User {
   id: number
+  username?: string | null
   full_name: string
   email: string
   role: RoleCode

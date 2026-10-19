@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.contrib.auth import authenticate
 from django.db import IntegrityError, transaction
+from django.db.models import Q
 from django.middleware.csrf import get_token, rotate_token
 from drf_spectacular.utils import extend_schema
 from rest_framework.exceptions import AuthenticationFailed
@@ -96,13 +97,17 @@ class LoginView(GenericAPIView):
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        identifier = serializer.validated_data["email"].strip().lower()
+        matched_user = User.objects.filter(
+            Q(username__iexact=identifier) | Q(email__iexact=identifier)
+        ).only("email").first()
         user = authenticate(
             request=request,
-            email=serializer.validated_data["email"].strip().lower(),
+            email=matched_user.email if matched_user else identifier,
             password=serializer.validated_data["password"],
         )
         if user is None:
-            return failure("Email hoặc mật khẩu không đúng.", status=401)
+            return failure("Tên đăng nhập hoặc mật khẩu không đúng.", status=401)
         refresh = RefreshToken.for_user(user)
         rotate_token(request._request)
         get_token(request._request)

@@ -51,6 +51,7 @@ class UserManager(BaseUserManager):
 
 class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(max_length=100, unique=True)
+    username = models.CharField(max_length=50, null=True, blank=True)
     full_name = models.CharField(max_length=100)
     role = models.ForeignKey(Role, on_delete=models.PROTECT, related_name="users")
     is_active = models.BooleanField(default=True)
@@ -66,12 +67,17 @@ class User(AbstractBaseUser, PermissionsMixin):
     class Meta:
         ordering = ["id"]
         constraints = [
-            models.UniqueConstraint(Lower("email"), name="accounts_user_email_ci_uniq")
+            models.UniqueConstraint(Lower("email"), name="accounts_user_email_ci_uniq"),
+            models.UniqueConstraint(
+                Lower("username"), name="accounts_user_username_ci_uniq"
+            ),
         ]
         indexes = [models.Index(fields=["role", "is_active"], name="user_role_active_idx")]
 
     def save(self, *args, **kwargs):
         self.email = self.email.strip().lower()
+        if self.username:
+            self.username = self.username.strip().lower()
         super().save(*args, **kwargs)
 
     def get_full_name(self):

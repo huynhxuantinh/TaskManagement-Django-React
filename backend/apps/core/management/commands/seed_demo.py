@@ -32,21 +32,22 @@ class Command(BaseCommand):
 
         users = {}
         account_rows = (
-            ('admin', 'admin1@task.com', 'Quản trị viên', Role.Code.ADMIN, 'Admin@123'),
-            ('manager', 'manager1@task.com', 'Nguyễn Quản lý', Role.Code.MANAGER, 'Manager@123'),
-            ('employee', 'employee1@task.com', 'Trần Nhân viên', Role.Code.EMPLOYEE, 'Employee@123'),
+            ('admin', 'admin', 'admin1@task.com', 'Quản trị viên', Role.Code.ADMIN),
+            ('manager', 'qltask', 'manager1@task.com', 'Nguyễn Quản lý', Role.Code.MANAGER),
+            ('employee', 'user', 'employee1@task.com', 'Trần Nhân viên', Role.Code.EMPLOYEE),
         )
-        for key, email, full_name, role_code, password in account_rows:
+        for key, username, email, full_name, role_code in account_rows:
             user, _ = User.objects.update_or_create(
                 email=email,
                 defaults={
+                    'username': username,
                     'full_name': full_name,
                     'role': roles[role_code],
                     'is_active': True,
                     'is_staff': role_code == Role.Code.ADMIN,
                 },
             )
-            user.set_password(password)
+            user.set_password('123')
             user.save(update_fields=['password'])
             users[key] = user
 
