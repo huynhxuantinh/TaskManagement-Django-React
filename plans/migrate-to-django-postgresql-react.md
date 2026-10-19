@@ -25,6 +25,7 @@ Các miền nghiệp vụ được giữ: User/Role, Project, ProjectMember, Tas
 - S8 hoàn thành ngày 2026-10-19: React app shell, auth store, refresh cookie flow, route guards, login/register/profile và design system responsive đã build/test xanh.
 - S9 hoàn thành ngày 2026-10-19: Projects/Team/Tasks UI đã nối API thật, ẩn action theo role, CRUD/member/status flow và Playwright cho ba role chạy xanh.
 - S10 hoàn thành ngày 2026-10-19: Notifications/Reports/Admin/Profile/Avatar/Preferences UI, seed cố định, compose E2E và CI Playwright đã chạy xanh trên stack PostgreSQL sạch.
+- S11 hoàn thành phần production hardening và rehearsal ngày 2026-10-19: image pin digest, container non-root/read-only, HTTPS reverse proxy, migration advisory lock, 2 backend replica, backup/restore và Playwright HTTPS đều đạt. Final cutover chưa chạy vì còn chờ xác nhận maintenance window, RPO 0/RTO 30 phút và dữ liệu export cuối.
 
 ### Quyết định bảo mật bắt buộc
 

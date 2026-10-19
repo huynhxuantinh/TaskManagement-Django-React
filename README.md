@@ -8,7 +8,7 @@ Dự án hỗ trợ quản lý công việc theo nhóm, phân chia nhiệm vụ,
 
 Đây là dự án được xây dựng nhằm rèn luyện kỹ năng phát triển phần mềm full-stack, thiết kế hệ thống và triển khai kiến trúc backend thực tế.
 
-> **Trạng thái migration:** stack mới `React + Django REST Framework + PostgreSQL` trong `frontend/`, `backend/`, `infra/` đã hoàn thành chức năng và E2E. Stack ASP.NET/SQL Server được giữ làm đối chiếu đến bước cutover S11.
+> **Trạng thái migration:** stack mới `React + Django REST Framework + PostgreSQL` trong `frontend/`, `backend/`, `infra/` đã hoàn thành chức năng, E2E và production rehearsal. Stack ASP.NET/SQL Server vẫn được giữ làm đối chiếu; chưa đổi traffic thật.
 
 Chạy môi trường mới:
 
@@ -22,6 +22,8 @@ docker compose -f infra/compose.dev.yaml exec backend python manage.py seed_demo
 - Tài khoản demo: `admin1@task.com / Admin@123`, `manager1@task.com / Manager@123`, `employee1@task.com / Employee@123`
 
 Các hành vi legacy đã loại bỏ: nhận diện Starbucks, frontend tự tạo notification tùy ý và invite bằng mật khẩu cố định.
+
+Production dùng `infra/compose.prod.yaml`: TLS reverse proxy, 2 backend replica, migration có advisory lock, image non-root/read-only và backup/restore có checksum. Xem [cutover runbook](docs/cutover-runbook.md) và [biên bản rehearsal](docs/production-rehearsal-2026-10-19.md). Không dùng file `.env` trong repo cho production.
 
 ---
 

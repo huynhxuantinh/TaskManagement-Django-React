@@ -1,6 +1,33 @@
-# Cutover runbook — draft
+# Cutover runbook
 
 Mục tiêu đề xuất: **RPO 0**, **RTO 30 phút** cho hệ thống nội bộ. Hai giá trị này phải được người dùng xác nhận trước cutover thật.
+
+Không chạy phần **Final cutover** nếu chưa có xác nhận maintenance window, RPO/RTO và người chịu trách nhiệm GO/NO-GO. Rehearsal không được đổi traffic thật.
+
+## Triển khai production
+
+- Sao chép `infra/.env.prod.example` ra thư mục bí mật ngoài repository, điền secret thật và đường dẫn TLS/backup tuyệt đối.
+- Chứng thư TLS phải có `fullchain.pem` và `privkey.pem`; không commit hai file này.
+- DB/backend chỉ nằm trên mạng `private`; chỉ proxy công khai cổng HTTPS.
+- `migration` là one-shot job dùng PostgreSQL advisory lock. Backend replica không tự migrate.
+
+```bash
+docker compose --env-file /secure/task-management.env -f infra/compose.prod.yaml config --quiet
+docker compose --env-file /secure/task-management.env -f infra/compose.prod.yaml pull
+docker compose --env-file /secure/task-management.env -f infra/compose.prod.yaml up --build -d --wait --scale backend=2
+curl --fail https://tasks.example.internal/ready/
+docker compose --env-file /secure/task-management.env -f infra/compose.prod.yaml ps
+```
+
+Backup và restore drill vào DB mới, tuyệt đối không đặt `TARGET_DATABASE` trùng `POSTGRES_DB`:
+
+```bash
+docker compose --env-file /secure/task-management.env -f infra/compose.prod.yaml --profile ops run --rm backup
+ALLOW_RESTORE=YES TARGET_DATABASE=task_management_restore_drill RESTORE_DUMP=/backups/<file>.dump \
+  docker compose --env-file /secure/task-management.env -f infra/compose.prod.yaml --profile ops run --rm restore
+```
+
+Sau restore, chạy `database_manifest()` trên DB nguồn và DB drill; `counts` và toàn bộ canonical SHA-256 phải giống nhau.
 
 ## Điều kiện trước cutover
 
@@ -20,6 +47,8 @@ Mục tiêu đề xuất: **RPO 0**, **RTO 30 phút** cho hệ thống nội b�
 5. Chạy login bằng một BCrypt hash thật và xác minh rehash Argon2.
 6. Chạy smoke/API/OpenAPI/Playwright ba role.
 7. Ghi thời gian từng bước để xác nhận RTO.
+
+Biên bản gần nhất: `docs/production-rehearsal-2026-10-19.md`.
 
 ## Final cutover
 
@@ -70,3 +99,11 @@ Nếu reverse sync chưa được diễn tập, ưu tiên sửa hoặc restore P
 - Test/coverage/build/E2E reports.
 - Thời điểm write-freeze, switch traffic, mở write và kết thúc theo dõi.
 - Người đưa ra quyết định GO/NO-GO.
+
+## Dọn rehearsal
+
+Chỉ xóa volume của đúng project rehearsal sau khi đã lưu evidence và xác minh backup. Không chạy `down -v` trên production:
+
+```bash
+docker compose -p task-management-s11-drill -f infra/compose.prod.yaml down -v
+```
