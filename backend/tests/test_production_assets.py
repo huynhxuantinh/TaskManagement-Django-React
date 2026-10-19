@@ -70,7 +70,7 @@ def test_backup_and_restore_scripts_verify_checksums_and_protect_source_database
     assert "pg_dump" in backup
     assert "--format=custom" in backup
     assert "sha256sum" in backup
-    assert "sha256sum --check" in restore
+    assert "sha256sum -c" in restore
     assert "ALLOW_RESTORE" in restore
     assert 'TARGET_DATABASE" = "$POSTGRES_DB' in restore
     assert "pg_restore" in restore
