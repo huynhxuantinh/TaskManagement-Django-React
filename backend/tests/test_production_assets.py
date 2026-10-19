@@ -40,6 +40,13 @@ def test_production_images_build_assets_and_drop_root():
     assert "USER nginx" in frontend
 
 
+def test_root_docker_context_excludes_secrets_data_and_build_artifacts():
+    dockerignore = (REPOSITORY_ROOT / ".dockerignore").read_text(encoding="utf-8")
+
+    for excluded in (".git", ".env", "node_modules", "exports", "backups"):
+        assert excluded in dockerignore
+
+
 def test_reverse_proxy_terminates_tls_and_serves_all_runtime_assets():
     nginx = (REPOSITORY_ROOT / "infra" / "nginx" / "nginx.conf").read_text(
         encoding="utf-8"
