@@ -1,9 +1,14 @@
 import { expect, test, type Page } from '@playwright/test'
 
 async function login(page: Page, role: 'Admin' | 'Manager' | 'Employee') {
-  const labels = { Admin: 'Quản trị viên', Manager: 'Quản lý', Employee: 'Nhân viên' } as const
+  const accounts = {
+    Admin: { username: 'admin', password: '123' },
+    Manager: { username: 'qltask', password: '123' },
+    Employee: { username: 'user', password: '123' },
+  } as const
   await page.goto('/login')
-  await page.getByRole('button', { name: labels[role], exact: true }).click()
+  await page.getByLabel('Tên đăng nhập hoặc email').fill(accounts[role].username)
+  await page.getByLabel('Mật khẩu').fill(accounts[role].password)
   await page.locator('form button').click()
   await expect(page).toHaveURL(/\/dashboard$/)
 }

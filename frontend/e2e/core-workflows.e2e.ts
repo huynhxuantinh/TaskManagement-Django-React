@@ -1,20 +1,16 @@
 import { expect, test, type Page } from '@playwright/test'
 
 const accounts = {
-  Admin: { email: 'admin1@task.com', password: 'Admin@123' },
-  Manager: { email: 'manager1@task.com', password: 'Manager@123' },
-  Employee: { email: 'employee1@task.com', password: 'Employee@123' },
-} as const
-const roleLabels = {
-  Admin: 'Quản trị viên',
-  Manager: 'Quản lý',
-  Employee: 'Nhân viên',
+  Admin: { email: 'admin', password: '123' },
+  Manager: { email: 'qltask', password: '123' },
+  Employee: { email: 'user', password: '123' },
 } as const
 const apiBaseUrl = process.env.E2E_API_BASE_URL ?? 'http://localhost:8010'
 
 async function login(page: Page, role: keyof typeof accounts) {
   await page.goto('/login')
-  await page.getByRole('button', { name: roleLabels[role], exact: true }).click()
+  await page.getByLabel('Tên đăng nhập hoặc email').fill(accounts[role].email)
+  await page.getByLabel('Mật khẩu').fill(accounts[role].password)
   await page.locator('form button').click()
   await expect(page).toHaveURL(/\/dashboard$/)
 }

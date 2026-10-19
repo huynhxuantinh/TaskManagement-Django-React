@@ -28,6 +28,16 @@ def test_seed_demo_creates_stable_idempotent_e2e_dataset():
     assert User.objects.get(email='admin1@task.com').check_password('Admin@123')
     assert User.objects.get(email='manager1@task.com').check_password('Manager@123')
     assert User.objects.get(email='employee1@task.com').check_password('Employee@123')
+    expected_logins = {
+        'admin': 'ADMIN',
+        'qltask': 'MANAGER',
+        'user': 'EMPLOYEE',
+    }
+    for username, role_code in expected_logins.items():
+        account = User.objects.get(username=username)
+        assert account.role.code == role_code
+        assert account.check_password('123')
+        assert account.password != '123'
     assert Project.objects.filter(is_deleted=False).count() == 2
     assert ProjectMember.objects.count() == 5
     assert Task.objects.filter(is_deleted=False).count() == 6

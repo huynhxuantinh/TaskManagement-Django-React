@@ -28,6 +28,7 @@ describe('App', () => {
     )
 
     expect(await screen.findByRole('heading', { name: /chào mừng trở lại/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Quản trị viên' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Tên đăng nhập hoặc email')).toBeInTheDocument()
+    expect(screen.queryByText('Tài khoản demo')).not.toBeInTheDocument()
   })
 })

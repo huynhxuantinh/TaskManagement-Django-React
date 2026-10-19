@@ -69,6 +69,26 @@ def test_legacy_bcrypt_login_rehashes_to_argon2_and_sets_secure_session_cookies(
 
 @pytest.mark.django_db
 @override_settings(PASSWORD_HASHERS=AUTH_HASHERS)
+def test_login_accepts_username_and_keeps_password_hashed(roles):
+    user = create_user(
+        roles,
+        role=Role.Code.ADMIN,
+        username="admin",
+        email="admin@task.local",
+        password="123",
+    )
+
+    response = login(APIClient(), "admin", "123")
+
+    assert response.status_code == 200
+    assert response.data["data"]["user"]["username"] == "admin"
+    user.refresh_from_db()
+    assert user.password != "123"
+    assert user.check_password("123")
+
+
+@pytest.mark.django_db
+@override_settings(PASSWORD_HASHERS=AUTH_HASHERS)
 def test_refresh_rotates_token_rejects_reuse_and_requires_csrf(roles):
     user = create_user(roles)
     client = APIClient(enforce_csrf_checks=True)
@@ -234,7 +254,7 @@ def test_auth_errors_use_contract_envelope_and_me_rejects_anonymous(roles):
     assert invalid.status_code == 401
     assert invalid.data == {
         "success": False,
-        "message": "Email hoặc mật khẩu không đúng.",
+        "message": "Tên đăng nhập hoặc mật khẩu không đúng.",
         "data": None,
         "errors": {},
     }
