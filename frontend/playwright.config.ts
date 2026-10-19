@@ -13,6 +13,7 @@ export default defineConfig({
     trace: process.env.CI ? 'on-first-retry' : 'retain-on-failure',
     screenshot: 'only-on-failure',
     ...devices['Desktop Chrome'],
+    ignoreHTTPSErrors: process.env.E2E_IGNORE_HTTPS_ERRORS === 'true',
     channel: process.env.CI ? undefined : 'msedge',
   },
 })
