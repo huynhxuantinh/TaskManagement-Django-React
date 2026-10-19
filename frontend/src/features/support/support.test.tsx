@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { NotificationCard } from './NotificationCard'
 import { PreferenceToggle } from './PreferenceToggle'
@@ -14,6 +14,8 @@ const notification: Notification = {
   is_read: false,
   created_at: '2026-10-19T09:00:00Z',
 }
+
+afterEach(cleanup)
 
 describe('support workflows', () => {
   it('cho phép đánh dấu thông báo chưa đọc', () => {

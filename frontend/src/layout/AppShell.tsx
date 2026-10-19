@@ -4,6 +4,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { Icon } from '../components/Icon'
 import { Button } from '../components/ui/Button'
+import { apiAssetUrl } from '../lib/api'
 import type { RoleCode } from '../types/api'
 
 const navigation: Array<{
@@ -85,7 +86,7 @@ function Sidebar({ close }: { close?: () => void }) {
       <div className="border-t border-white/10 p-3">
         <NavLink to="/profile" onClick={close} className="flex items-center gap-3 rounded-xl p-3 hover:bg-white/8">
           {user.avatar_url ? (
-            <img src={user.avatar_url} alt="" className="size-10 rounded-full object-cover" />
+            <img src={apiAssetUrl(user.avatar_url)} alt="" className="size-10 rounded-full object-cover" />
           ) : (
             <span className="grid size-10 place-items-center rounded-full bg-[var(--accent)] text-xs font-black text-slate-950">{initials(user.full_name)}</span>
           )}

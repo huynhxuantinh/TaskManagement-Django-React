@@ -61,6 +61,54 @@ export interface Task {
   created_at: string
 }
 
+export interface Notification {
+  id: number
+  message: string
+  type: string
+  is_priority: boolean
+  is_read: boolean
+  created_at: string
+}
+
+export interface NotificationPreference {
+  type: string
+  is_priority: boolean
+}
+
+export interface WorkloadRow {
+  user: User
+  total_tasks: number
+  active_tasks: number
+  completed_before_deadline: number
+  is_available: boolean
+}
+
+export interface ProjectReport {
+  project_id: number
+  project_name: string
+  total_tasks: number
+  completed_tasks: number
+  progress: number
+  task_distribution: Array<{ code: string; name: string; count: number }>
+}
+
+export interface Contributor {
+  user: Pick<User, 'id' | 'full_name' | 'email'>
+  completed_tasks: number
+  total_tasks: number
+}
+
+export interface ReportMessage {
+  id: number
+  project: { id: number; name: string }
+  sender: User
+  receiver: User
+  title: string
+  content: string
+  is_read: boolean
+  created_at: string
+}
+
 export interface DashboardSummary {
   project_count: number
   task_count: number

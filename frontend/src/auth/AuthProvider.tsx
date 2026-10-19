@@ -94,9 +94,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [user],
   )
 
+  const uploadAvatar = useCallback(async (file: File) => {
+    if (!user) return
+    const body = new FormData()
+    body.append('file', file)
+    const updated = await apiRequest<User>(`/api/v1/users/${user.id}/avatar/`, {
+      method: 'POST',
+      body,
+    })
+    setUser(updated)
+  }, [user])
+
+  const changePassword = useCallback(async (input: { current_password: string; new_password: string }) => {
+    await apiRequest<null>('/api/v1/auth/change-password/', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    })
+    expireSession()
+  }, [expireSession])
+
   const value = useMemo(
-    () => ({ user, status, login, register, logout, updateProfile }),
-    [user, status, login, register, logout, updateProfile],
+    () => ({ user, status, login, register, logout, updateProfile, uploadAvatar, changePassword }),
+    [user, status, login, register, logout, updateProfile, uploadAvatar, changePassword],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

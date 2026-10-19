@@ -20,6 +20,8 @@ export interface AuthContextValue {
   register: (input: RegisterInput) => Promise<void>
   logout: () => Promise<void>
   updateProfile: (input: { full_name: string }) => Promise<void>
+  uploadAvatar: (file: File) => Promise<void>
+  changePassword: (input: { current_password: string; new_password: string }) => Promise<void>
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null)

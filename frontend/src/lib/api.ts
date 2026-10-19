@@ -2,6 +2,11 @@ import type { ApiEnvelope } from '../types/api'
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 
+export function apiAssetUrl(path: string) {
+  if (!path || /^https?:\/\//i.test(path)) return path
+  return `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`
+}
+
 let accessToken: string | null = null
 let refreshPromise: Promise<string> | null = null
 let authExpiredHandler: (() => void) | null = null
