@@ -28,7 +28,7 @@ fi
 
 (
     cd "$(dirname "$dump_file")"
-    sha256sum --check "$(basename "$checksum_file")"
+    sha256sum -c "$(basename "$checksum_file")"
 )
 
 database_exists="$(psql --dbname=postgres --tuples-only --no-align \
