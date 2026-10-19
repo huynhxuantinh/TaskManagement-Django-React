@@ -30,19 +30,7 @@ frontend/coverage/
 playwright-report/
 test-results/
 
-# .NET / Visual Studio
-bin/
-obj/
-.vs/
-*.user
-*.suo
-
-# Runtime uploads
-TaskManagement.API/wwwroot/avatars/*
-!TaskManagement.API/wwwroot/avatars/.gitkeep
-
 # Local exports, backups, logs and OS files
-exports/
 backups/
 *.bak
 *.dump

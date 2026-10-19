@@ -18,8 +18,8 @@ from apps.tasks.models import Task, TaskStatus
 @pytest.fixture
 def report_roles(db):
     return {
-        code: Role.objects.create(code=code, name=label, legacy_id=index)
-        for index, (code, label) in enumerate(Role.Code.choices, start=1)
+        code: Role.objects.create(code=code, name=label)
+        for code, label in Role.Code.choices
     }
 
 
@@ -46,8 +46,8 @@ def report_users(report_roles):
 @pytest.fixture
 def report_statuses(db):
     return {
-        code: TaskStatus.objects.create(legacy_id=index, code=code, name=label)
-        for index, (code, label) in enumerate(TaskStatus.Code.choices, start=1)
+        code: TaskStatus.objects.create(code=code, name=label)
+        for code, label in TaskStatus.Code.choices
     }
 
 

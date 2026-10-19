@@ -13,8 +13,8 @@ from apps.tasks.models import Task, TaskStatus
 @pytest.fixture
 def project_roles(db):
     return {
-        code: Role.objects.create(code=code, name=label, legacy_id=index)
-        for index, (code, label) in enumerate(Role.Code.choices, start=4)
+        code: Role.objects.create(code=code, name=label)
+        for code, label in Role.Code.choices
     }
 
 
@@ -214,10 +214,8 @@ def test_member_add_list_remove_conflicts_and_management_scope(project_users):
 @pytest.mark.django_db
 def test_project_progress_uses_only_active_tasks(project_users):
     project = make_project(project_users["manager"])
-    todo = TaskStatus.objects.create(legacy_id=1, code="TODO", name="To Do")
-    done = TaskStatus.objects.create(
-        legacy_id=2, code="COMPLETED", name="Completed"
-    )
+    todo = TaskStatus.objects.create(code="TODO", name="To Do")
+    done = TaskStatus.objects.create(code="COMPLETED", name="Completed")
     Task.objects.create(title="Todo", project=project, status=todo)
     Task.objects.create(title="Done", project=project, status=done)
     Task.objects.create(

@@ -16,18 +16,14 @@ class Command(BaseCommand):
     @transaction.atomic
     def handle(self, *args, **options):
         roles = {
-            code: Role.objects.update_or_create(
-                code=code,
-                defaults={'name': label, 'legacy_id': index},
-            )[0]
-            for index, (code, label) in enumerate(Role.Code.choices, start=1)
+            code: Role.objects.update_or_create(code=code, defaults={'name': label})[0]
+            for code, label in Role.Code.choices
         }
         statuses = {
             code: TaskStatus.objects.update_or_create(
-                code=code,
-                defaults={'name': label, 'legacy_id': index},
+                code=code, defaults={'name': label}
             )[0]
-            for index, (code, label) in enumerate(TaskStatus.Code.choices, start=1)
+            for code, label in TaskStatus.Code.choices
         }
 
         users = {}
@@ -71,9 +67,31 @@ class Command(BaseCommand):
                 'is_deleted': False,
             },
         )
+        gamma, _ = Project.objects.update_or_create(
+            name='Ứng dụng quản lý nhân sự',
+            creator=users['manager'],
+            defaults={
+                'description': 'Số hóa hồ sơ nhân viên và quy trình phê duyệt nội bộ.',
+                'start_date': date(2026, 10, 15),
+                'end_date': date(2027, 2, 28),
+                'is_deleted': False,
+            },
+        )
+        delta, _ = Project.objects.update_or_create(
+            name='Tự động hóa kiểm thử',
+            creator=users['admin'],
+            defaults={
+                'description': 'Xây dựng bộ kiểm thử tự động cho các luồng nghiệp vụ chính.',
+                'start_date': date(2026, 10, 18),
+                'end_date': date(2026, 12, 31),
+                'is_deleted': False,
+            },
+        )
         for project, members in (
             (alpha, (users['admin'], users['manager'], users['employee'])),
             (beta, (users['admin'], users['employee'])),
+            (gamma, (users['manager'], users['employee'])),
+            (delta, (users['admin'], users['manager'], users['employee'])),
         ):
             for user in members:
                 ProjectMember.objects.get_or_create(project=project, user=user)
@@ -85,6 +103,12 @@ class Command(BaseCommand):
             (beta, 'Chốt chỉ số dashboard', users['admin'], 'COMPLETED', 2, date(2026, 10, 16)),
             (beta, 'Tích hợp báo cáo dự án', users['employee'], 'IN_PROGRESS', 2, date(2026, 11, 8)),
             (beta, 'Viết runbook triển khai', users['admin'], 'TODO', 1, date(2026, 11, 20)),
+            (gamma, 'Phân tích quy trình nhân sự', users['manager'], 'COMPLETED', 2, date(2026, 10, 22)),
+            (gamma, 'Thiết kế màn hình hồ sơ', users['employee'], 'IN_PROGRESS', 2, date(2026, 11, 12)),
+            (gamma, 'Xây dựng luồng phê duyệt', users['employee'], 'TODO', 3, date(2026, 11, 30)),
+            (delta, 'Viết kiểm thử API', users['admin'], 'IN_PROGRESS', 3, date(2026, 11, 5)),
+            (delta, 'Viết kiểm thử giao diện', users['employee'], 'TODO', 2, date(2026, 11, 15)),
+            (delta, 'Tích hợp kiểm thử vào CI', users['manager'], 'ON_HOLD', 2, date(2026, 12, 5)),
         )
         for project, title, assignee, status_code, priority, deadline in task_rows:
             Task.objects.update_or_create(

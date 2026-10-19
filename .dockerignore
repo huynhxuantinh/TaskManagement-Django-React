@@ -1,6 +1,5 @@
 .git
 .github
-.vs
 .env
 .env.*
 **/.env
@@ -14,17 +13,9 @@
 **/coverage
 **/playwright-report
 **/test-results
-**/bin
-**/obj
 backend
-TaskManagement.API
-TaskManagement.API.Tests
-TaskManagement.Web
-tools
 exports
 backups
-docs
-plans
 *.bak
 *.dump
 *.log

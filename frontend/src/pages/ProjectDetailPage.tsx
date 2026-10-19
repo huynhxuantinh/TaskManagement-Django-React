@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { useAuth } from '../auth/AuthContext'
 import { MembersPanel } from '../features/core/MembersPanel'
+import { ProjectDashboard } from '../features/core/ProjectDashboard'
 import { ProjectActions } from '../features/core/ProjectActions'
 import { ProjectForm } from '../features/core/ProjectForm'
 import { Modal } from '../components/ui/Modal'
@@ -10,7 +11,7 @@ import { StatePanel } from '../components/ui/StatePanel'
 import { useToast } from '../components/ui/ToastContext'
 import { useApiResource } from '../hooks/useApiResource'
 import { apiRequest } from '../lib/api'
-import type { Project } from '../types/api'
+import type { Paginated, Project, ProjectReport, Task } from '../types/api'
 
 export function ProjectDetailPage() {
   const { projectId } = useParams()
@@ -19,6 +20,8 @@ export function ProjectDetailPage() {
   const notify = useToast()
   const [editing, setEditing] = useState(false)
   const { data: project, setData: setProject, loading, error } = useApiResource<Project>(projectId ? `/api/v1/projects/${projectId}/` : null)
+  const { data: report, loading: reportLoading, error: reportError } = useApiResource<ProjectReport>(projectId ? `/api/v1/reports/projects/${projectId}/` : null)
+  const { data: tasks, loading: tasksLoading, error: tasksError } = useApiResource<Paginated<Task>>(projectId ? `/api/v1/tasks/?project=${projectId}&page_size=100&ordering=deadline` : null)
 
   async function remove() {
     if (!project || !window.confirm(`Xóa dự án “${project.name}”?`)) return
@@ -43,6 +46,16 @@ export function ProjectDetailPage() {
           <ProjectActions user={user} project={project} onEdit={() => setEditing(true)} onDelete={() => void remove()} />
         </div>
       </section>
+      <ProjectDashboard
+        projectId={project.id}
+        report={report}
+        tasks={tasks?.results ?? []}
+        taskCount={tasks?.count ?? 0}
+        showAllTasks={user.role !== 'EMPLOYEE'}
+        loading={reportLoading || tasksLoading}
+        reportError={reportError}
+        tasksError={tasksError}
+      />
       <MembersPanel project={project} user={user} />
       <Modal open={editing} title="Cập nhật dự án" onClose={() => setEditing(false)}>
         <ProjectForm project={project} onCancel={() => setEditing(false)} onSaved={(saved) => { setProject(saved); setEditing(false); notify('Đã cập nhật dự án.') }} />

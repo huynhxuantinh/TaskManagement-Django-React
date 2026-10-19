@@ -57,6 +57,12 @@ test('Manager giao và chỉnh sửa công việc trong dự án mình quản l�
 
 test('Employee chỉ cập nhật trạng thái và API vẫn chặn tạo dự án', async ({ page, request }) => {
   await login(page, 'Employee')
+  await page.goto('/projects')
+  await page.getByRole('link', { name: /Tự động hóa kiểm thử/i }).click()
+  await expect(page.getByRole('heading', { name: 'Tổng quan dự án' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Công việc của bạn' })).toBeVisible()
+  await expect(page.getByRole('link', { name: /Xem trang công việc/i })).toHaveAttribute('href', /\/tasks\?project=\d+/)
+
   await page.goto('/tasks')
   await expect(page.getByRole('button', { name: /Giao công việc/i })).toHaveCount(0)
   await expect(page.locator('select[aria-label^="Trạng thái"]').first()).toBeVisible()

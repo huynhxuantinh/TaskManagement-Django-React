@@ -71,7 +71,6 @@ MEDIA_ROOT = BASE_DIR / "media"
 PASSWORD_HASHERS = [
     "django.contrib.auth.hashers.Argon2PasswordHasher",
     "django.contrib.auth.hashers.PBKDF2PasswordHasher",
-    "django.contrib.auth.hashers.BCryptPasswordHasher",
 ]
 AUTH_PASSWORD_VALIDATORS = [
     {

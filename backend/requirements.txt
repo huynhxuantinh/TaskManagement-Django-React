@@ -2,9 +2,7 @@ asgiref==3.12.1
 argon2-cffi==25.1.0
 argon2-cffi-bindings==26.1.0
 attrs==26.1.0
-bcrypt==5.0.0
 cffi==2.1.1
-cryptography==50.0.2
 Django==5.2.18
 django-cors-headers==4.9.0
 djangorestframework==3.18.3

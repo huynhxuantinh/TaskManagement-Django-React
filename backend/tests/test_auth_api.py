@@ -12,18 +12,15 @@ from apps.accounts.throttles import LoginRateThrottle
 
 AUTH_HASHERS = [
     "django.contrib.auth.hashers.Argon2PasswordHasher",
-    "django.contrib.auth.hashers.BCryptPasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2PasswordHasher",
 ]
-LEGACY_ADMIN_HASH = (
-    "$2a$11$i4CsdatACSA5qUHGLfUAreXQSdNS5lspvbXxAM0OACDWd3jQjhSua"
-)
 
 
 @pytest.fixture
 def roles(db):
     return {
-        code: Role.objects.create(code=code, name=label, legacy_id=index)
-        for index, (code, label) in enumerate(Role.Code.choices, start=4)
+        code: Role.objects.create(code=code, name=label)
+        for code, label in Role.Code.choices
     }
 
 
@@ -40,31 +37,6 @@ def login(client, email, password):
         {"email": email, "password": password},
         format="json",
     )
-
-
-@pytest.mark.django_db
-@override_settings(PASSWORD_HASHERS=AUTH_HASHERS)
-def test_legacy_bcrypt_login_rehashes_to_argon2_and_sets_secure_session_cookies(roles):
-    user = User.objects.create(
-        email="admin1@task.com",
-        full_name="Admin One",
-        role=roles[Role.Code.ADMIN],
-        password=f"bcrypt${LEGACY_ADMIN_HASH}",
-    )
-    client = APIClient(enforce_csrf_checks=True)
-
-    response = login(client, user.email, "Admin@123")
-
-    assert response.status_code == 200
-    assert response.data["success"] is True
-    assert response.data["data"]["access"]
-    assert response.data["data"]["user"]["role"] == "ADMIN"
-    assert "password" not in response.data["data"]["user"]
-    assert client.cookies["refresh_token"]["httponly"] is True
-    assert client.cookies["refresh_token"]["samesite"] == "Lax"
-    assert "csrftoken" in client.cookies
-    user.refresh_from_db()
-    assert user.password.startswith("argon2$")
 
 
 @pytest.mark.django_db

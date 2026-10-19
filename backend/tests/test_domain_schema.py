@@ -10,7 +10,7 @@ from apps.tasks.models import Task, TaskStatus
 
 @pytest.mark.django_db
 def test_user_email_is_normalized_and_case_insensitively_unique():
-    role = Role.objects.create(code=Role.Code.ADMIN, name="Admin", legacy_id=4)
+    role = Role.objects.create(code=Role.Code.ADMIN, name="Admin")
     User.objects.create_user(
         email="Admin@Example.COM",
         full_name="Admin",
@@ -31,7 +31,7 @@ def test_user_email_is_normalized_and_case_insensitively_unique():
 
 @pytest.mark.django_db
 def test_project_member_and_task_constraints_are_enforced():
-    role = Role.objects.create(code=Role.Code.MANAGER, name="Manager", legacy_id=5)
+    role = Role.objects.create(code=Role.Code.MANAGER, name="Manager")
     user = User.objects.create_user(
         email="manager@example.com",
         full_name="Manager",
@@ -52,7 +52,6 @@ def test_project_member_and_task_constraints_are_enforced():
     status = TaskStatus.objects.create(
         code=TaskStatus.Code.TODO,
         name="To Do",
-        legacy_id=5,
     )
     with pytest.raises(IntegrityError), transaction.atomic():
         Task.objects.create(

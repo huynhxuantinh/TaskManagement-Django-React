@@ -38,9 +38,9 @@ def test_seed_demo_creates_stable_idempotent_e2e_dataset():
         assert account.role.code == role_code
         assert account.check_password('123')
         assert account.password != '123'
-    assert Project.objects.filter(is_deleted=False).count() == 2
-    assert ProjectMember.objects.count() == 5
-    assert Task.objects.filter(is_deleted=False).count() == 6
+    assert Project.objects.filter(is_deleted=False).count() == 4
+    assert ProjectMember.objects.count() == 10
+    assert Task.objects.filter(is_deleted=False).count() == 12
     assert Notification.objects.count() >= 3
     assert Notification.objects.filter(message__icontains='Deadline').count() == 0
     assert ReportMessage.objects.count() == 1

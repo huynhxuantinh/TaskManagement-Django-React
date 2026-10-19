@@ -1,4 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
 import { useAuth } from '../auth/AuthContext'
 import { Button } from '../components/ui/Button'
@@ -17,11 +18,12 @@ const selectClass = 'min-h-12 rounded-xl border border-slate-300 bg-white px-3 t
 const priorities: Record<number, string> = { 1: 'Thấp', 2: 'Trung bình', 3: 'Cao' }
 
 export function TasksPage() {
+  const [searchParams] = useSearchParams()
   const { user } = useAuth()
   const notify = useToast()
   const [query, setQuery] = useState('')
   const [search, setSearch] = useState('')
-  const [projectFilter, setProjectFilter] = useState('')
+  const [projectFilter, setProjectFilter] = useState(searchParams.get('project') ?? '')
   const [statusFilter, setStatusFilter] = useState('')
   const [priorityFilter, setPriorityFilter] = useState('')
   const [creating, setCreating] = useState(false)
