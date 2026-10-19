@@ -37,8 +37,15 @@ def test_production_images_build_assets_and_drop_root():
     assert "USER app" in backend
     assert "gunicorn" in backend
     assert "collectstatic" in backend
+    assert backend.count("@sha256:") == 2
     assert "npm run build" in frontend
     assert "USER nginx" in frontend
+    assert frontend.count("@sha256:") == 2
+
+    compose = (REPOSITORY_ROOT / "infra" / "compose.prod.yaml").read_text(
+        encoding="utf-8"
+    )
+    assert "postgres:18.6-alpine3.23@sha256:" in compose
 
 
 def test_root_docker_context_excludes_secrets_data_and_build_artifacts():
