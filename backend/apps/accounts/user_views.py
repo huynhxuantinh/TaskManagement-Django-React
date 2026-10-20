@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -19,7 +20,12 @@ from .user_serializers import (
     UserListResponseSerializer,
     UserSelfUpdateSerializer,
 )
-from .user_services import complete_preferences, save_avatar, upsert_preferences
+from .user_services import (
+    complete_preferences,
+    deactivate_and_reassign_tasks,
+    save_avatar,
+    upsert_preferences,
+)
 
 
 @extend_schema_view(
@@ -63,6 +69,7 @@ class UserViewSet(ModelViewSet):
     def retrieve(self, request, *args, **kwargs):
         return success(UserSerializer(self.get_object()).data, "Lấy người dùng thành công.")
 
+    @transaction.atomic
     def partial_update(self, request, *args, **kwargs):
         user = self.get_object()
         serializer_class = (
@@ -72,6 +79,17 @@ class UserViewSet(ModelViewSet):
         )
         serializer = serializer_class(user, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
+        replacement = serializer.validated_data.pop("reassign_to", None)
+        if (
+            has_role(request.user, Role.Code.ADMIN)
+            and user.is_active
+            and serializer.validated_data.get("is_active") is False
+        ):
+            deactivate_and_reassign_tasks(user, replacement, request.user)
+        elif replacement is not None:
+            raise ValidationError(
+                {"reassign_to_id": "Chỉ dùng khi vô hiệu hóa tài khoản."}
+            )
         serializer.save()
         user = User.objects.select_related("role").get(pk=user.pk)
         return success(UserSerializer(user).data, "Cập nhật người dùng thành công.")

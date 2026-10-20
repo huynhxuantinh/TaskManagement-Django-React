@@ -71,14 +71,18 @@ def workload(user):
         assigned_tasks__project__is_deleted=False,
     )
     if has_role(user, Role.Code.MANAGER):
-        users = users.filter(project_memberships__project__creator=user).distinct()
-        task_filter &= Q(assigned_tasks__project__creator=user)
+        users = users.filter(
+            project_memberships__project__memberships__user=user,
+            project_memberships__project__is_deleted=False,
+        ).distinct()
+        task_filter &= Q(assigned_tasks__project__memberships__user=user)
     completed_filter = task_filter & Q(
         assigned_tasks__status__code=TaskStatus.Code.COMPLETED
     )
     before_deadline_filter = completed_filter & Q(
         assigned_tasks__deadline__isnull=False,
-        assigned_tasks__created_at__date__lte=F("assigned_tasks__deadline"),
+        assigned_tasks__completed_at__isnull=False,
+        assigned_tasks__completed_at__date__lte=F("assigned_tasks__deadline"),
     )
     return users.select_related("role").annotate(
         total_tasks=Count("assigned_tasks", filter=task_filter, distinct=True),

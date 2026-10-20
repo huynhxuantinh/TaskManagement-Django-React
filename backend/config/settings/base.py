@@ -100,8 +100,10 @@ REST_FRAMEWORK = {
     "PAGE_SIZE": 20,
     "DEFAULT_THROTTLE_RATES": {
         "login": os.getenv("AUTH_LOGIN_RATE", "5/min"),
+        "register": os.getenv("AUTH_REGISTER_RATE", "5/hour"),
         "refresh": os.getenv("AUTH_REFRESH_RATE", "30/min"),
     },
+    "NUM_PROXIES": 1,
 }
 
 SIMPLE_JWT = {
@@ -129,7 +131,7 @@ AUTH_REFRESH_COOKIE_NAME = "refresh_token"
 AUTH_REFRESH_COOKIE_PATH = "/api/v1/auth/"
 AUTH_COOKIE_SECURE = os.getenv("AUTH_COOKIE_SECURE", "false").lower() == "true"
 ALLOW_PUBLIC_REGISTRATION = (
-    os.getenv("ALLOW_PUBLIC_REGISTRATION", "true").lower() == "true"
+    os.getenv("ALLOW_PUBLIC_REGISTRATION", "false").lower() == "true"
 )
 
 LOGGING = {

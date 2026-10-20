@@ -12,11 +12,11 @@ Hệ thống quản lý dự án nội bộ, giao việc và theo dõi tiến đ
 
 ## Chức năng
 
-- Đăng nhập, đăng ký, hồ sơ cá nhân và ảnh đại diện
+- Đăng nhập, quản lý tài khoản nội bộ, hồ sơ cá nhân và ảnh đại diện
 - Quản lý người dùng và phân quyền
 - Quản lý dự án, thành viên và tiến độ
-- Giao việc, lọc công việc và cập nhật trạng thái
-- Thông báo và tùy chọn nhận thông báo
+- Giao việc, lọc công việc, cập nhật trạng thái và lịch sử thay đổi có người thực hiện
+- Thông báo, tùy chọn ưu tiên và nhắc hạn tự động trước 1 ngày/đã quá hạn
 - Dashboard, báo cáo khối lượng và trao đổi báo cáo
 
 ## Chạy bằng Docker
@@ -24,6 +24,12 @@ Hệ thống quản lý dự án nội bộ, giao việc và theo dõi tiến đ
 ```bash
 docker compose -f infra/compose.dev.yaml up --build -d
 docker compose -f infra/compose.dev.yaml exec backend python manage.py seed_demo
+```
+
+Service `scheduler` kiểm tra hạn công việc mỗi giờ. Có thể chạy thủ công một lần bằng:
+
+```bash
+docker compose -f infra/compose.dev.yaml exec backend python manage.py send_deadline_notifications
 ```
 
 Truy cập:
@@ -62,3 +68,5 @@ npm --prefix frontend run build
 Lệnh `seed_demo` có thể chạy nhiều lần mà không nhân bản dữ liệu. Bộ dữ liệu gồm 3 tài khoản, 4 dự án, 10 thành viên dự án, 12 công việc, thông báo, tùy chọn và báo cáo mẫu bằng tiếng Việt.
 
 Không sử dụng mật khẩu mẫu trong môi trường thật.
+
+Đăng ký công khai mặc định bị tắt và luôn bị khóa trong production. Quản trị viên tạo tài khoản nội bộ tại màn hình quản lý người dùng.

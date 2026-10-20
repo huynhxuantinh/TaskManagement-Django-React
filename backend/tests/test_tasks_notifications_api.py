@@ -7,7 +7,7 @@ from rest_framework.test import APIClient
 from apps.accounts.models import Role, User
 from apps.notifications.models import Notification, NotificationType
 from apps.projects.models import Project, ProjectMember
-from apps.tasks.models import Task, TaskStatus
+from apps.tasks.models import Task, TaskAuditLog, TaskStatus
 
 
 @pytest.fixture
@@ -81,7 +81,7 @@ def make_task(project, statuses, assignee, **overrides):
 
 
 @pytest.mark.django_db
-def test_task_create_enforces_role_membership_and_creates_notifications(
+def test_task_create_enforces_role_membership_and_only_notifies_assignment(
     task_users, task_statuses, task_project
 ):
     payload = {
@@ -115,11 +115,12 @@ def test_task_create_enforces_role_membership_and_creates_notifications(
     assert created.status_code == 201
     assert created.data["data"]["status"]["code"] == TaskStatus.Code.TODO
     assert created.data["data"]["assignee"]["id"] == task_users["employee"].id
+    assert created.data["data"]["updated_at"] is not None
+    creation_log = TaskAuditLog.objects.get(task_id=created.data["data"]["id"])
+    assert creation_log.action == TaskAuditLog.Action.CREATED
+    assert creation_log.actor == task_users["manager"]
     assert Notification.objects.filter(
         user=task_users["employee"], type=NotificationType.TASK_ASSIGNED
-    ).exists()
-    assert Notification.objects.filter(
-        user=task_users["employee"], type=NotificationType.DEADLINE_APPROACHING
     ).exists()
     assert set(
         Notification.objects.filter(user=task_users["employee"]).values_list(
@@ -127,7 +128,6 @@ def test_task_create_enforces_role_membership_and_creates_notifications(
         )
     ) == {
         'Bạn được giao công việc "Build task screen".',
-        'Công việc "Build task screen" sắp đến hạn vào ngày 25/10/2026.',
     }
 
 
@@ -166,6 +166,41 @@ def test_task_list_scope_filters_search_and_hides_deleted(
 
 
 @pytest.mark.django_db
+def test_task_list_supports_deadline_ranges_urgency_filters_and_csv_export(
+    task_users, task_statuses, task_project
+):
+    today = timezone.localdate()
+    overdue = make_task(
+        task_project, task_statuses, task_users["employee"], title="Overdue", deadline=today - timedelta(days=1)
+    )
+    soon = make_task(
+        task_project, task_statuses, task_users["employee"], title="Due soon", deadline=today + timedelta(days=2)
+    )
+    make_task(
+        task_project, task_statuses, task_users["employee"], title="Later", deadline=today + timedelta(days=5)
+    )
+
+    ranged = api_as(task_users["employee"]).get(
+        f"/api/v1/tasks/?deadline_from={today}&deadline_to={today + timedelta(days=2)}"
+    )
+    overdue_response = api_as(task_users["employee"]).get("/api/v1/tasks/?overdue=true")
+    soon_response = api_as(task_users["employee"]).get("/api/v1/tasks/?due_soon=true")
+    invalid_range = api_as(task_users["employee"]).get(
+        f"/api/v1/tasks/?deadline_from={today + timedelta(days=2)}&deadline_to={today}"
+    )
+    exported = api_as(task_users["employee"]).get("/api/v1/tasks/export/?due_soon=true")
+
+    assert {row["id"] for row in ranged.data["data"]["results"]} == {soon.id}
+    assert [row["id"] for row in overdue_response.data["data"]["results"]] == [overdue.id]
+    assert soon.id in {row["id"] for row in soon_response.data["data"]["results"]}
+    assert invalid_range.status_code == 400
+    assert exported.status_code == 200
+    assert exported["Content-Type"].startswith("text/csv")
+    assert "Due soon" in exported.content.decode("utf-8-sig")
+    assert "Later" not in exported.content.decode("utf-8-sig")
+
+
+@pytest.mark.django_db
 def test_task_detail_update_delete_permissions_and_soft_delete(
     task_users, task_statuses, task_project
 ):
@@ -201,32 +236,159 @@ def test_task_detail_update_delete_permissions_and_soft_delete(
 
 
 @pytest.mark.django_db
-def test_assignee_can_change_status_and_status_code_is_validated(
+def test_status_workflow_requires_note_and_limits_reopening(
     task_users, task_statuses, task_project
 ):
     task = make_task(task_project, task_statuses, task_users["employee"])
     url = f"/api/v1/tasks/{task.id}/status/"
 
     forbidden = api_as(task_users["manager2"]).patch(
-        url, {"status": TaskStatus.Code.COMPLETED}, format="json"
+        url, {"status": TaskStatus.Code.IN_PROGRESS, "note": "Bắt đầu."}, format="json"
     )
     invalid = api_as(task_users["employee"]).patch(
         url, {"status": "UNKNOWN"}, format="json"
     )
-    changed = api_as(task_users["employee"]).patch(
+    missing_note = api_as(task_users["employee"]).patch(
         url, {"status": TaskStatus.Code.IN_PROGRESS}, format="json"
+    )
+    skipped = api_as(task_users["employee"]).patch(
+        url, {"status": TaskStatus.Code.COMPLETED, "note": "Xong sớm."}, format="json"
+    )
+    changed = api_as(task_users["employee"]).patch(
+        url, {"status": TaskStatus.Code.IN_PROGRESS, "note": "Đã bắt đầu xử lý."}, format="json"
+    )
+    completed = api_as(task_users["employee"]).patch(
+        url, {"status": TaskStatus.Code.COMPLETED, "note": "Đã hoàn tất."}, format="json"
+    )
+    employee_reopen = api_as(task_users["employee"]).patch(
+        url, {"status": TaskStatus.Code.IN_PROGRESS, "note": "Cần mở lại."}, format="json"
+    )
+    manager_reopen = api_as(task_users["manager"]).patch(
+        url, {"status": TaskStatus.Code.IN_PROGRESS, "note": "Mở lại để bổ sung."}, format="json"
     )
 
     assert forbidden.status_code == 403
     assert invalid.status_code == 400
+    assert missing_note.status_code == 400
+    assert skipped.status_code == 400
     assert changed.status_code == 200
     assert changed.data["data"]["status"]["code"] == TaskStatus.Code.IN_PROGRESS
+    assert completed.status_code == 200
+    assert employee_reopen.status_code == 403
+    assert manager_reopen.status_code == 200
     assert Notification.objects.filter(
         user=task_users["manager"], type=NotificationType.STATUS_CHANGED
     ).exists()
-    assert Notification.objects.get(
-        user=task_users["manager"], type=NotificationType.STATUS_CHANGED
-    ).message == 'Công việc "Implement API" đã chuyển sang trạng thái Đang thực hiện.'
+    assert Notification.objects.filter(
+        user=task_users["manager"],
+        type=NotificationType.STATUS_CHANGED,
+        message='Công việc "Implement API" đã chuyển sang trạng thái Đang thực hiện.',
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_status_change_sets_and_clears_completed_at(
+    task_users, task_statuses, task_project
+):
+    task = make_task(task_project, task_statuses, task_users["employee"])
+    url = f"/api/v1/tasks/{task.id}/status/"
+    before_completion = timezone.now()
+
+    completed = api_as(task_users["employee"]).patch(
+        url, {"status": TaskStatus.Code.IN_PROGRESS, "note": "Đang thực hiện."}, format="json"
+    )
+    completed = api_as(task_users["employee"]).patch(
+        url, {"status": TaskStatus.Code.COMPLETED, "note": "Đã hoàn thành."}, format="json"
+    )
+
+    task.refresh_from_db()
+    assert completed.status_code == 200
+    assert task.completed_at is not None
+    assert task.completed_at >= before_completion
+    assert completed.data["data"]["completed_at"] is not None
+
+    reopened = api_as(task_users["manager"]).patch(
+        url, {"status": TaskStatus.Code.IN_PROGRESS, "note": "Mở lại để kiểm tra."}, format="json"
+    )
+
+    task.refresh_from_db()
+    assert reopened.status_code == 200
+    assert task.completed_at is None
+    assert reopened.data["data"]["completed_at"] is None
+
+
+@pytest.mark.django_db
+def test_task_history_records_actor_time_and_before_after_values(
+    task_users, task_statuses, task_project
+):
+    original_deadline = timezone.localdate() + timedelta(days=3)
+    task = make_task(
+        task_project,
+        task_statuses,
+        task_users["employee"],
+        deadline=original_deadline,
+    )
+    before_change = timezone.now()
+
+    updated = api_as(task_users["manager"]).patch(
+        f"/api/v1/tasks/{task.id}/",
+        {
+            "assignee_id": task_users["employee2"].id,
+            "deadline": "2026-11-01",
+        },
+        format="json",
+    )
+    changed = api_as(task_users["employee2"]).patch(
+        f"/api/v1/tasks/{task.id}/status/",
+        {"status": TaskStatus.Code.IN_PROGRESS, "note": "Bắt đầu xử lý."},
+        format="json",
+    )
+    repeated = api_as(task_users["employee2"]).patch(
+        f"/api/v1/tasks/{task.id}/status/",
+        {"status": TaskStatus.Code.IN_PROGRESS},
+        format="json",
+    )
+    history = api_as(task_users["manager"]).get(
+        f"/api/v1/tasks/{task.id}/history/"
+    )
+    hidden = api_as(task_users["outsider"]).get(
+        f"/api/v1/tasks/{task.id}/history/"
+    )
+
+    task.refresh_from_db()
+    assert updated.status_code == 200
+    assert changed.status_code == 200
+    assert repeated.status_code == 200
+    assert task.updated_at >= before_change
+    assert updated.data["data"]["updated_at"] is not None
+    assert history.status_code == 200
+    assert hidden.status_code == 404
+    assert history.data["data"]["count"] == 2
+    rows = history.data["data"]["results"]
+    assert [row["action"] for row in rows] == [
+        TaskAuditLog.Action.STATUS_CHANGED,
+        TaskAuditLog.Action.UPDATED,
+    ]
+    assert rows[0]["actor"]["id"] == task_users["employee2"].id
+    assert rows[0]["changes"] == {
+        "status": {"old": TaskStatus.Code.TODO, "new": TaskStatus.Code.IN_PROGRESS},
+        "note": {"old": None, "new": "Bắt đầu xử lý."},
+    }
+    assert rows[1]["actor"]["id"] == task_users["manager"].id
+    assert rows[1]["changes"] == {
+        "assignee": {
+            "old": {
+                "id": task_users["employee"].id,
+                "full_name": task_users["employee"].full_name,
+            },
+            "new": {
+                "id": task_users["employee2"].id,
+                "full_name": task_users["employee2"].full_name,
+            },
+        },
+        "deadline": {"old": original_deadline.isoformat(), "new": "2026-11-01"},
+    }
+    assert all(row["created_at"] for row in rows)
 
 
 @pytest.mark.django_db(transaction=True)

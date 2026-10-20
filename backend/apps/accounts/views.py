@@ -29,7 +29,8 @@ from .serializers import (
     UserSerializer,
     UserResponseSerializer,
 )
-from .throttles import LoginRateThrottle, RefreshRateThrottle
+from .user_services import deactivate_and_reassign_tasks
+from .throttles import LoginRateThrottle, RefreshRateThrottle, RegisterRateThrottle
 
 
 def _set_refresh_cookie(response, token):
@@ -59,10 +60,11 @@ def _blacklist_all(user):
 
 class RegisterView(GenericAPIView):
     permission_classes = [AllowAny]
+    throttle_classes = [RegisterRateThrottle]
     serializer_class = RegisterSerializer
 
     @extend_schema(
-        tags=["Auth"], request=RegisterSerializer, responses={201: UserResponseSerializer}
+        tags=["Auth"], request=RegisterSerializer, responses={202: EmptyResponseSerializer}
     )
     def post(self, request):
         if not settings.ALLOW_PUBLIC_REGISTRATION:
@@ -70,20 +72,22 @@ class RegisterView(GenericAPIView):
         serializer = RegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         email = serializer.validated_data["email"].strip().lower()
-        if User.objects.filter(email__iexact=email).exists():
-            return failure("Email đã tồn tại.", {"email": ["Email đã tồn tại."]}, 409)
         try:
             with transaction.atomic():
                 employee = Role.objects.get(code=Role.Code.EMPLOYEE)
-                user = User.objects.create_user(
+                User.objects.create_user(
                     email=email,
                     full_name=serializer.validated_data["full_name"],
                     password=serializer.validated_data["password"],
                     role=employee,
                 )
         except IntegrityError:
-            return failure("Email đã tồn tại.", {"email": ["Email đã tồn tại."]}, 409)
-        return success(UserSerializer(user).data, "Đăng ký thành công.", 201)
+            if not User.objects.filter(email__iexact=email).exists():
+                raise
+        return success(
+            message="Nếu thông tin đăng ký hợp lệ, tài khoản sẽ được tạo.",
+            status=202,
+        )
 
 
 class LoginView(GenericAPIView):
@@ -226,8 +230,11 @@ class DeactivateView(GenericAPIView):
             return failure(
                 "Mật khẩu không đúng.", {"password": ["Mật khẩu không đúng."]}
             )
-        request.user.is_active = False
-        request.user.save(update_fields=["is_active"])
+        deactivate_and_reassign_tasks(
+            request.user,
+            serializer.validated_data.get("reassign_to"),
+            request.user,
+        )
         _blacklist_all(request.user)
         response = success(message="Tài khoản đã được vô hiệu hóa.")
         _clear_refresh_cookie(response)

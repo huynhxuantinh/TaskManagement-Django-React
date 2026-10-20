@@ -1,7 +1,8 @@
-from datetime import date
+from datetime import date, datetime, time, timedelta
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.utils import timezone
 
 from apps.accounts.models import Role, User
 from apps.notifications.models import Notification, NotificationType, Preference
@@ -111,6 +112,13 @@ class Command(BaseCommand):
             (delta, 'Tích hợp kiểm thử vào CI', users['manager'], 'ON_HOLD', 2, date(2026, 12, 5)),
         )
         for project, title, assignee, status_code, priority, deadline in task_rows:
+            completed_at = (
+                timezone.make_aware(
+                    datetime.combine(deadline - timedelta(days=1), time(hour=16))
+                )
+                if status_code == TaskStatus.Code.COMPLETED
+                else None
+            )
             Task.objects.update_or_create(
                 project=project,
                 title=title,
@@ -120,15 +128,20 @@ class Command(BaseCommand):
                     'status': statuses[status_code],
                     'priority': priority,
                     'deadline': deadline,
+                    'completed_at': completed_at,
                     'is_deleted': False,
                 },
             )
 
         notification_rows = (
             (users['employee'], 'Bạn được giao công việc Xây dựng giao diện công việc.', NotificationType.TASK_ASSIGNED, True),
-            (users['employee'], 'Công việc "Kiểm thử phân quyền" sắp đến hạn.', NotificationType.DEADLINE_APPROACHING, True),
             (users['manager'], 'Tiến độ dự án vừa được cập nhật.', NotificationType.STATUS_CHANGED, False),
         )
+        Notification.objects.filter(
+            user=users['employee'],
+            message='Công việc "Kiểm thử phân quyền" sắp đến hạn.',
+            type=NotificationType.DEADLINE_APPROACHING,
+        ).delete()
         for user, message, notification_type, priority in notification_rows:
             Notification.objects.update_or_create(
                 user=user,
@@ -140,7 +153,12 @@ class Command(BaseCommand):
                 Preference.objects.get_or_create(
                     user=user,
                     type=notification_type,
-                    defaults={'is_priority': notification_type == NotificationType.DEADLINE_APPROACHING},
+                    defaults={
+                        'is_priority': notification_type in (
+                            NotificationType.DEADLINE_APPROACHING,
+                            NotificationType.DEADLINE_OVERDUE,
+                        )
+                    },
                 )
 
         ReportMessage.objects.update_or_create(

@@ -6,6 +6,7 @@ from django.test.utils import CaptureQueriesContext
 from rest_framework.test import APIClient
 
 from apps.accounts.models import Role, User
+from apps.notifications.models import Notification, NotificationType
 from apps.projects.models import Project, ProjectMember
 from apps.tasks.models import Task, TaskStatus
 
@@ -197,6 +198,11 @@ def test_member_add_list_remove_conflicts_and_management_scope(project_users):
     )
 
     assert added.status_code == 201
+    assert Notification.objects.filter(
+        user=employee,
+        type=NotificationType.PROJECT_ADDED,
+        message='Bạn đã được thêm vào dự án "Project".',
+    ).exists()
     assert duplicate.status_code == 409
     assert forbidden.status_code == 403
     assert members.status_code == 200

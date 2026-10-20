@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { Button } from '../components/ui/Button'
 import { Field } from '../components/ui/Field'
+import { publicRegistrationEnabled } from '../config'
 import { ApiError } from '../lib/api'
 
 export function LoginPage() {
@@ -41,7 +42,9 @@ export function LoginPage() {
         {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</p>}
         <Button className="w-full" disabled={submitting}>{submitting ? 'Đang xác thực…' : 'Đăng nhập'}</Button>
       </form>
-      <p className="mt-7 text-center text-sm text-slate-600">Chưa có tài khoản? <Link to="/register" className="font-bold text-slate-950 underline decoration-[var(--accent)] decoration-2 underline-offset-4">Đăng ký</Link></p>
+      {publicRegistrationEnabled && (
+        <p className="mt-7 text-center text-sm text-slate-600">Chưa có tài khoản? <Link to="/register" className="font-bold text-slate-950 underline decoration-[var(--accent)] decoration-2 underline-offset-4">Đăng ký</Link></p>
+      )}
     </div>
   )
 }

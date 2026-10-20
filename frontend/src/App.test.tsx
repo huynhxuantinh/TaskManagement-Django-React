@@ -30,5 +30,6 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: /chào mừng trở lại/i })).toBeInTheDocument()
     expect(screen.getByLabelText('Tên đăng nhập hoặc email')).toBeInTheDocument()
     expect(screen.queryByText('Tài khoản demo')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Đăng ký' })).not.toBeInTheDocument()
   })
 })

@@ -44,6 +44,8 @@ class Task(models.Model):
     deadline = models.DateField(null=True, blank=True)
     is_deleted = models.BooleanField(default=False)
     created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["id"]
@@ -62,3 +64,36 @@ class Task(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class TaskAuditLog(models.Model):
+    class Action(models.TextChoices):
+        CREATED = "CREATED", "Tạo công việc"
+        UPDATED = "UPDATED", "Cập nhật công việc"
+        STATUS_CHANGED = "STATUS_CHANGED", "Đổi trạng thái"
+        DELETED = "DELETED", "Xóa công việc"
+
+    task = models.ForeignKey(
+        Task,
+        on_delete=models.CASCADE,
+        related_name="audit_logs",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="task_audit_logs",
+    )
+    action = models.CharField(max_length=30, choices=Action.choices)
+    changes = models.JSONField(default=dict)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(
+                fields=["task", "created_at"],
+                name="task_audit_task_created_idx",
+            )
+        ]

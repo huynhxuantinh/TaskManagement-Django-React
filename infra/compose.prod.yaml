@@ -116,6 +116,37 @@ services:
       <<: *resource-limits
     restart: unless-stopped
 
+  scheduler:
+    image: "${BACKEND_IMAGE:-task-management-backend:local}"
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.prod
+    command: ["python", "manage.py", "send_deadline_notifications", "--loop", "--interval", "3600"]
+    environment: *backend-environment
+    networks:
+      - private
+    depends_on:
+      db:
+        condition: service_healthy
+      migration:
+        condition: service_completed_successfully
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+        reservations:
+          cpus: "0.05"
+          memory: 128M
+    restart: unless-stopped
+
   proxy:
     image: "${PROXY_IMAGE:-task-management-proxy:local}"
     build:
@@ -123,6 +154,7 @@ services:
       dockerfile: frontend/Dockerfile.prod
       args:
         VITE_API_BASE_URL: ""
+        VITE_ALLOW_PUBLIC_REGISTRATION: "false"
     ports:
       - "${HTTPS_BIND_ADDRESS:-127.0.0.1}:${HTTPS_PORT:-8443}:8443"
     volumes:

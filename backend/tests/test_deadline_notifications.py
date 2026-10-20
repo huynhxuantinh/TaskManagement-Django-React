@@ -1,0 +1,86 @@
+from datetime import timedelta
+
+import pytest
+from django.core.management import call_command
+from django.utils import timezone
+
+from apps.accounts.models import Role, User
+from apps.notifications.models import Notification, NotificationType, Preference
+from apps.projects.models import Project
+from apps.tasks.models import Task, TaskStatus
+
+
+@pytest.mark.django_db
+def test_deadline_command_sends_real_reminders_once_and_skips_inactive_tasks():
+    role = Role.objects.create(code=Role.Code.EMPLOYEE, name="Nhân viên")
+    manager_role = Role.objects.create(code=Role.Code.MANAGER, name="Quản lý")
+    assignee = User.objects.create_user(
+        email="employee@example.com", password="test", role=role
+    )
+    manager = User.objects.create_user(
+        email="manager@example.com", password="test", role=manager_role
+    )
+    project = Project.objects.create(name="Dự án", creator=manager)
+    deleted_project = Project.objects.create(
+        name="Dự án đã xóa", creator=manager, is_deleted=True
+    )
+    todo = TaskStatus.objects.create(code=TaskStatus.Code.TODO, name="Chưa thực hiện")
+    completed = TaskStatus.objects.create(
+        code=TaskStatus.Code.COMPLETED, name="Đã hoàn thành"
+    )
+    today = timezone.localdate()
+
+    for title, deadline, status, overrides in (
+        ("Còn một ngày", today + timedelta(days=1), todo, {}),
+        ("Đến hạn hôm nay", today, todo, {}),
+        ("Đã quá hạn", today - timedelta(days=1), todo, {}),
+        ("Còn xa", today + timedelta(days=2), todo, {}),
+        ("Đã xong", today - timedelta(days=1), completed, {}),
+        ("Đã xóa", today, todo, {"is_deleted": True}),
+        ("Dự án đã xóa", today, todo, {"project": deleted_project}),
+        ("Chưa giao", today, todo, {"assignee": None}),
+    ):
+        Task.objects.create(
+            title=title,
+            project=overrides.pop("project", project),
+            assignee=overrides.pop("assignee", assignee),
+            status=status,
+            deadline=deadline,
+            **overrides,
+        )
+
+    Preference.objects.create(
+        user=assignee,
+        type=NotificationType.DEADLINE_APPROACHING,
+        is_priority=False,
+    )
+
+    call_command("send_deadline_notifications", date=today.isoformat())
+    call_command("send_deadline_notifications", date=today.isoformat())
+
+    notifications = Notification.objects.filter(user=assignee).order_by("id")
+    assert notifications.count() == 3
+    assert list(notifications.values_list("type", "message", "is_priority")) == [
+        (
+            NotificationType.DEADLINE_APPROACHING,
+            f'Công việc "Còn một ngày" còn 1 ngày đến hạn ({today + timedelta(days=1):%d/%m/%Y}).',
+            False,
+        ),
+        (
+            NotificationType.DEADLINE_APPROACHING,
+            f'Công việc "Đến hạn hôm nay" đến hạn hôm nay ({today:%d/%m/%Y}).',
+            False,
+        ),
+        (
+            NotificationType.DEADLINE_OVERDUE,
+            f'Công việc "Đã quá hạn" đã quá hạn từ ngày {today - timedelta(days=1):%d/%m/%Y}.',
+            True,
+        ),
+    ]
+
+
+@pytest.mark.django_db
+def test_deadline_command_accepts_default_current_date():
+    call_command("send_deadline_notifications")
+
+    assert Notification.objects.count() == 0

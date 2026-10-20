@@ -7,11 +7,15 @@ task_detail = TaskViewSet.as_view(
     {"get": "retrieve", "patch": "partial_update", "delete": "destroy"}
 )
 task_status = TaskViewSet.as_view({"patch": "change_status"})
+task_history = TaskViewSet.as_view({"get": "history"})
+task_export = TaskViewSet.as_view({"get": "export"})
 
 urlpatterns = [
     path("metadata/task-statuses/", TaskStatusListView.as_view(), name="task-statuses"),
     path("tasks/", task_list, name="task-list"),
+    path("tasks/export/", task_export, name="task-export"),
     path("tasks/<int:pk>/", task_detail, name="task-detail"),
     path("tasks/<int:pk>/status/", task_status, name="task-change-status"),
+    path("tasks/<int:pk>/history/", task_history, name="task-history"),
 ]
 

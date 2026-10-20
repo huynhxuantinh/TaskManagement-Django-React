@@ -13,9 +13,16 @@ class UserSelfUpdateSerializer(serializers.ModelSerializer):
 
 
 class UserAdminUpdateSerializer(serializers.ModelSerializer):
+    reassign_to_id = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.filter(is_active=True),
+        source="reassign_to",
+        write_only=True,
+        required=False,
+    )
+
     class Meta:
         model = User
-        fields = ("full_name", "email", "is_active")
+        fields = ("full_name", "email", "is_active", "reassign_to_id")
 
     def validate_email(self, value):
         email = value.strip().lower()

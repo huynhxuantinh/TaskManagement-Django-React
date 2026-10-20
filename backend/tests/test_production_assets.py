@@ -11,7 +11,7 @@ def test_production_compose_keeps_data_services_private_and_migrations_one_shot(
     compose = yaml.safe_load(compose_path.read_text(encoding="utf-8"))
     services = compose["services"]
 
-    assert {"db", "migration", "backend", "proxy", "backup", "restore"} <= set(
+    assert {"db", "migration", "backend", "scheduler", "proxy", "backup", "restore"} <= set(
         services
     )
     assert "ports" not in services["db"]
@@ -23,6 +23,12 @@ def test_production_compose_keeps_data_services_private_and_migrations_one_shot(
     )
     assert services["backend"]["deploy"]["replicas"] == 2
     assert services["backend"]["read_only"] is True
+    assert "send_deadline_notifications" in " ".join(
+        services["scheduler"]["command"]
+    )
+    assert services["scheduler"]["depends_on"]["migration"]["condition"] == (
+        "service_completed_successfully"
+    )
     assert compose["networks"]["private"]["internal"] is True
 
 

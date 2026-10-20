@@ -65,4 +65,9 @@ describe('support workflows', () => {
     render(<NotificationCard notification={{ ...notification, type: 'DEADLINE_APPROACHING' }} onRead={vi.fn()} />)
     expect(screen.getByText('Sắp đến hạn')).toBeInTheDocument()
   })
+
+  it('hiển thị loại thông báo quá hạn bằng tiếng Việt', () => {
+    render(<NotificationCard notification={{ ...notification, type: 'DEADLINE_OVERDUE' }} onRead={vi.fn()} />)
+    expect(screen.getByText('Đã quá hạn')).toBeInTheDocument()
+  })
 })

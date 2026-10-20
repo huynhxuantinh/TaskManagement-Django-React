@@ -12,5 +12,9 @@ class LoginRateThrottle(AnonRateThrottle):
         }
 
 
+class RegisterRateThrottle(AnonRateThrottle):
+    scope = "register"
+
+
 class RefreshRateThrottle(AnonRateThrottle):
     scope = "refresh"

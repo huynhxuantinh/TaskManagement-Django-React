@@ -67,11 +67,26 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  scheduler:
+    build:
+      context: ../backend
+    command: ["python", "manage.py", "send_deadline_notifications", "--loop", "--interval", "3600"]
+    environment: *backend-environment
+    volumes:
+      - ../backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      migration:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
   frontend:
     build:
       context: ../frontend
     environment:
       VITE_API_BASE_URL: http://localhost:${BACKEND_PORT:-8010}
+      VITE_ALLOW_PUBLIC_REGISTRATION: ${ALLOW_PUBLIC_REGISTRATION:-false}
     ports:
       - "127.0.0.1:${FRONTEND_PORT:-5174}:5173"
     volumes:

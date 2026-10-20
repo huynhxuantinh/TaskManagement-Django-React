@@ -3,6 +3,7 @@ from uuid import uuid4
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.db import transaction
+from rest_framework.exceptions import ValidationError
 from rest_framework import serializers
 
 from apps.notifications.models import NotificationType, Preference
@@ -61,4 +62,43 @@ def complete_preferences(user):
         {"type": notification_type, "is_priority": stored.get(notification_type, False)}
         for notification_type in NotificationType.values
     ]
+
+
+@transaction.atomic
+def deactivate_and_reassign_tasks(user, replacement, actor):
+    from apps.projects.models import ProjectMember
+    from apps.tasks.models import Task, TaskStatus
+    from apps.tasks.services import TaskService
+
+    tasks = list(
+        Task.objects.filter(
+            assignee=user,
+            is_deleted=False,
+            project__is_deleted=False,
+        )
+        .exclude(status__code=TaskStatus.Code.COMPLETED)
+        .select_related("project", "assignee", "status")
+    )
+    if tasks and replacement is None:
+        raise ValidationError(
+            {"reassign_to_id": "Hãy chọn người nhận các công việc đang mở."}
+        )
+    if replacement is not None:
+        if replacement.pk == user.pk:
+            raise ValidationError(
+                {"reassign_to_id": "Người nhận phải khác tài khoản bị vô hiệu hóa."}
+            )
+        project_ids = {task.project_id for task in tasks}
+        membership_count = ProjectMember.objects.filter(
+            project_id__in=project_ids, user=replacement
+        ).count()
+        if membership_count != len(project_ids):
+            raise ValidationError(
+                {"reassign_to_id": "Người nhận phải là thành viên của mọi dự án có công việc cần chuyển."}
+            )
+        for task in tasks:
+            TaskService.update_task(task, {"assignee": replacement}, actor)
+    user.is_active = False
+    user.save(update_fields=["is_active"])
+    return len(tasks)
 

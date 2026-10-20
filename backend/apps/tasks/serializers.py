@@ -4,7 +4,7 @@ from rest_framework import serializers
 from apps.accounts.models import User
 from apps.projects.models import Project, ProjectMember
 
-from .models import Task, TaskStatus
+from .models import Task, TaskAuditLog, TaskStatus
 
 
 class TaskUserSerializer(serializers.ModelSerializer):
@@ -47,6 +47,8 @@ class TaskSerializer(serializers.ModelSerializer):
             "deadline",
             "is_overdue",
             "created_at",
+            "updated_at",
+            "completed_at",
         )
 
     def get_is_overdue(self, task) -> bool:
@@ -115,6 +117,7 @@ class TaskStatusUpdateSerializer(serializers.Serializer):
     status = serializers.SlugRelatedField(
         slug_field="code", queryset=TaskStatus.objects.all()
     )
+    note = serializers.CharField(required=False, max_length=500, trim_whitespace=True)
 
 
 class TaskFilterSerializer(serializers.Serializer):
@@ -123,6 +126,22 @@ class TaskFilterSerializer(serializers.Serializer):
     status = serializers.ChoiceField(required=False, choices=TaskStatus.Code.choices)
     priority = serializers.ChoiceField(required=False, choices=Task.Priority.choices)
     deadline = serializers.DateField(required=False)
+    deadline_from = serializers.DateField(required=False)
+    deadline_to = serializers.DateField(required=False)
+    overdue = serializers.BooleanField(required=False)
+    due_soon = serializers.BooleanField(required=False)
+
+    def validate(self, attrs):
+        if attrs.get("deadline_from") and attrs.get("deadline_to"):
+            if attrs["deadline_from"] > attrs["deadline_to"]:
+                raise serializers.ValidationError(
+                    {"deadline_to": "Phải sau hoặc bằng ngày bắt đầu."}
+                )
+        if attrs.get("overdue") and attrs.get("due_soon"):
+            raise serializers.ValidationError(
+                "Không thể lọc đồng thời quá hạn và sắp hạn."
+            )
+        return attrs
 
 
 class TaskResponseSerializer(serializers.Serializer):
@@ -142,4 +161,25 @@ class TaskListResponseSerializer(serializers.Serializer):
     success = serializers.BooleanField(read_only=True)
     message = serializers.CharField(read_only=True)
     data = TaskListDataSerializer(read_only=True)
+
+
+class TaskAuditLogSerializer(serializers.ModelSerializer):
+    actor = TaskUserSerializer(read_only=True)
+
+    class Meta:
+        model = TaskAuditLog
+        fields = ("id", "actor", "action", "changes", "created_at")
+
+
+class TaskAuditLogListDataSerializer(serializers.Serializer):
+    count = serializers.IntegerField(read_only=True)
+    next = serializers.URLField(read_only=True, allow_null=True)
+    previous = serializers.URLField(read_only=True, allow_null=True)
+    results = TaskAuditLogSerializer(many=True, read_only=True)
+
+
+class TaskAuditLogListResponseSerializer(serializers.Serializer):
+    success = serializers.BooleanField(read_only=True)
+    message = serializers.CharField(read_only=True)
+    data = TaskAuditLogListDataSerializer(read_only=True)
 

@@ -12,6 +12,7 @@ export const notificationTypeLabels: Record<string, string> = {
   STATUS_CHANGED: 'Thay đổi tiến độ',
   PROJECT_ADDED: 'Thêm vào dự án',
   DEADLINE_APPROACHING: 'Sắp đến hạn',
+  DEADLINE_OVERDUE: 'Đã quá hạn',
 }
 
 export const notificationPreferenceLabels: Record<string, string> = {
@@ -20,6 +21,7 @@ export const notificationPreferenceLabels: Record<string, string> = {
   STATUS_CHANGED: 'Khi trạng thái thay đổi',
   PROJECT_ADDED: 'Khi được thêm vào dự án',
   DEADLINE_APPROACHING: 'Khi sắp đến hạn',
+  DEADLINE_OVERDUE: 'Khi đã quá hạn',
 }
 
 export function roleLabel(role: RoleCode) {

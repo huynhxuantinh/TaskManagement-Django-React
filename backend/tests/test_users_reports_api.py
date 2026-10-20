@@ -9,9 +9,10 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import Role, User
-from apps.notifications.models import NotificationType, Preference
+from apps.notifications.models import Notification, NotificationType, Preference
 from apps.projects.models import Project, ProjectMember
 from apps.reports.models import ReportMessage
+from apps.tasks.models import TaskAuditLog
 from apps.tasks.models import Task, TaskStatus
 
 
@@ -70,6 +71,7 @@ def report_data(report_users, report_statuses):
             assignee=report_users["employee"],
             status=report_statuses[TaskStatus.Code.COMPLETED],
             deadline=today + timedelta(days=1),
+            completed_at=timezone.now(),
         ),
         Task.objects.create(
             title="Overdue",
@@ -149,6 +151,49 @@ def test_user_detail_update_and_role_change_enforce_self_or_admin(
 
 
 @pytest.mark.django_db
+def test_deactivating_user_requires_and_audits_task_reassignment(
+    report_users, report_statuses
+):
+    project = Project.objects.create(name="Transfer", creator=report_users["manager"])
+    ProjectMember.objects.bulk_create(
+        [
+            ProjectMember(project=project, user=report_users["manager"]),
+            ProjectMember(project=project, user=report_users["employee"]),
+            ProjectMember(project=project, user=report_users["employee2"]),
+        ]
+    )
+    task = Task.objects.create(
+        title="Needs transfer",
+        project=project,
+        assignee=report_users["employee"],
+        status=report_statuses[TaskStatus.Code.IN_PROGRESS],
+    )
+    url = f"/api/v1/users/{report_users['employee'].id}/"
+
+    missing_replacement = api_as(report_users["admin"]).patch(
+        url, {"is_active": False}, format="json"
+    )
+    deactivated = api_as(report_users["admin"]).patch(
+        url,
+        {"is_active": False, "reassign_to_id": report_users["employee2"].id},
+        format="json",
+    )
+
+    task.refresh_from_db()
+    report_users["employee"].refresh_from_db()
+    assert missing_replacement.status_code == 400
+    assert deactivated.status_code == 200
+    assert report_users["employee"].is_active is False
+    assert task.assignee_id == report_users["employee2"].id
+    assert TaskAuditLog.objects.filter(
+        task=task,
+        actor=report_users["admin"],
+        action=TaskAuditLog.Action.UPDATED,
+        changes__assignee__new__id=report_users["employee2"].id,
+    ).exists()
+
+
+@pytest.mark.django_db
 def test_preferences_are_owner_scoped_and_upserted(report_users):
     employee = report_users["employee"]
     url = f"/api/v1/users/{employee.id}/preferences/"
@@ -220,9 +265,67 @@ def test_workload_is_admin_or_manager_scoped(report_users, report_statuses, repo
     manager_rows = {row["user"]["id"]: row for row in manager.data["data"]}
     admin_rows = {row["user"]["id"]: row for row in admin.data["data"]}
     assert manager_rows[report_users["employee"].id]["total_tasks"] == 2
+    assert manager_rows[report_users["employee"].id]["completed_before_deadline"] == 1
     assert report_users["outsider"].id not in manager_rows
     assert admin_rows[report_users["employee"].id]["total_tasks"] == 3
     assert admin_rows[report_users["outsider"].id]["is_available"] is True
+
+
+@pytest.mark.django_db
+def test_workload_includes_projects_where_manager_is_a_member(
+    report_users, report_statuses
+):
+    project = Project.objects.create(
+        name="Shared project", creator=report_users["manager2"]
+    )
+    ProjectMember.objects.bulk_create(
+        [
+            ProjectMember(project=project, user=report_users["manager"]),
+            ProjectMember(project=project, user=report_users["employee"]),
+        ]
+    )
+    Task.objects.create(
+        title="Visible through membership",
+        project=project,
+        assignee=report_users["employee"],
+        status=report_statuses[TaskStatus.Code.IN_PROGRESS],
+    )
+
+    response = api_as(report_users["manager"]).get("/api/v1/reports/workload/")
+
+    assert response.status_code == 200
+    rows = {row["user"]["id"]: row for row in response.data["data"]}
+    assert rows[report_users["employee"].id]["total_tasks"] == 1
+
+
+@pytest.mark.django_db
+def test_workload_uses_completion_time_instead_of_creation_time(
+    report_users, report_statuses, report_data
+):
+    today = timezone.localdate()
+    Task.objects.create(
+        title="Created early but completed late",
+        project=report_data["managed"],
+        assignee=report_users["employee"],
+        status=report_statuses[TaskStatus.Code.COMPLETED],
+        created_at=timezone.now() - timedelta(days=10),
+        deadline=today - timedelta(days=5),
+        completed_at=timezone.now(),
+    )
+    Task.objects.create(
+        title="Historical completion time unknown",
+        project=report_data["managed"],
+        assignee=report_users["employee"],
+        status=report_statuses[TaskStatus.Code.COMPLETED],
+        created_at=timezone.now() - timedelta(days=10),
+        deadline=today + timedelta(days=5),
+        completed_at=None,
+    )
+
+    response = api_as(report_users["manager"]).get("/api/v1/reports/workload/")
+    rows = {row["user"]["id"]: row for row in response.data["data"]}
+
+    assert rows[report_users["employee"].id]["completed_before_deadline"] == 1
 
 
 @pytest.mark.django_db
@@ -279,6 +382,11 @@ def test_report_messages_validate_members_and_scope_sender_receiver(
     assert invalid_receiver.status_code == 400
     assert sent.status_code == 201
     assert message.sender == report_users["manager"]
+    assert Notification.objects.filter(
+        user=report_users["employee"],
+        type=NotificationType.GENERAL,
+        message='Bạn nhận được báo cáo "Weekly report" từ Manager.',
+    ).exists()
     assert sender_list.data["data"]["count"] == 1
     assert outsider_list.data["data"]["count"] == 0
     assert sender_read.status_code == 403

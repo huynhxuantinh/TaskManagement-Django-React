@@ -16,6 +16,7 @@ PRODUCTION_ENV_KEYS = (
     "POSTGRES_PASSWORD",
     "CORS_ALLOWED_ORIGINS",
     "CSRF_TRUSTED_ORIGINS",
+    "ALLOW_PUBLIC_REGISTRATION",
 )
 
 
@@ -38,6 +39,7 @@ print(json.dumps({
     "secure_csrf_cookie": settings.CSRF_COOKIE_SECURE,
     "secure_session_cookie": settings.SESSION_COOKIE_SECURE,
     "ssl_redirect": settings.SECURE_SSL_REDIRECT,
+    "public_registration": settings.ALLOW_PUBLIC_REGISTRATION,
 }))
 """
     return subprocess.run(
@@ -90,6 +92,7 @@ def test_production_settings_enable_https_proxy_security_and_same_origin():
         DJANGO_SECRET_KEY="s" * 64,
         DJANGO_ALLOWED_HOSTS="tasks.example.test",
         POSTGRES_PASSWORD="database-only-secret",
+        ALLOW_PUBLIC_REGISTRATION="true",
     )
 
     assert result.returncode == 0, result.stderr
@@ -103,6 +106,7 @@ def test_production_settings_enable_https_proxy_security_and_same_origin():
         "secure_csrf_cookie": True,
         "secure_session_cookie": True,
         "ssl_redirect": True,
+        "public_registration": False,
     }
 
 

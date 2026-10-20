@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Task Management API
+  title: API quản lý công việc
   version: 1.0.0
 paths:
   /api/v1/auth/change-password/:
@@ -148,11 +148,11 @@ paths:
       - jwtAuth: []
       - {}
       responses:
-        '201':
+        '202':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserResponse'
+                $ref: '#/components/schemas/EmptyResponse'
           description: ''
   /api/v1/dashboard/summary/:
     get:
@@ -676,6 +676,26 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/tasks/{id}/history/:
+    get:
+      operationId: v1_tasks_history_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Tasks
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskAuditLogListResponse'
+          description: ''
   /api/v1/tasks/{id}/status/:
     patch:
       operationId: v1_tasks_status_partial_update
@@ -707,6 +727,16 @@ paths:
               schema:
                 $ref: '#/components/schemas/TaskResponse'
           description: ''
+  /api/v1/tasks/export/:
+    get:
+      operationId: v1_tasks_export_retrieve
+      tags:
+      - Tasks
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/v1/users/:
     get:
       operationId: v1_users_list
@@ -940,6 +970,18 @@ components:
       - data
       - message
       - success
+    ActionEnum:
+      enum:
+      - CREATED
+      - UPDATED
+      - STATUS_CHANGED
+      - DELETED
+      type: string
+      description: |-
+        * `CREATED` - Tạo công việc
+        * `UPDATED` - Cập nhật công việc
+        * `STATUS_CHANGED` - Đổi trạng thái
+        * `DELETED` - Xóa công việc
     AddMember:
       type: object
       properties:
@@ -1082,6 +1124,9 @@ components:
         password:
           type: string
           writeOnly: true
+        reassign_to_id:
+          type: integer
+          writeOnly: true
       required:
       - password
     Distribution:
@@ -1121,7 +1166,6 @@ components:
       properties:
         email:
           type: string
-          format: email
           maxLength: 100
         password:
           type: string
@@ -1397,6 +1441,9 @@ components:
       properties:
         status:
           $ref: '#/components/schemas/TaskStatusCodeEnum'
+        note:
+          type: string
+          maxLength: 500
     PatchedTaskUpdate:
       type: object
       properties:
@@ -1424,6 +1471,10 @@ components:
         id:
           type: integer
           readOnly: true
+        username:
+          type: string
+          nullable: true
+          maxLength: 50
         full_name:
           type: string
           maxLength: 100
@@ -1491,9 +1542,9 @@ components:
       - 3
       type: integer
       description: |-
-        * `1` - Low
-        * `2` - Medium
-        * `3` - High
+        * `1` - Thấp
+        * `2` - Trung bình
+        * `3` - Cao
     Project:
       type: object
       properties:
@@ -1861,9 +1912,9 @@ components:
       - EMPLOYEE
       type: string
       description: |-
-        * `ADMIN` - Admin
-        * `MANAGER` - Manager
-        * `EMPLOYEE` - Employee
+        * `ADMIN` - Quản trị viên
+        * `MANAGER` - Quản lý
+        * `EMPLOYEE` - Nhân viên
     Task:
       type: object
       properties:
@@ -1903,6 +1954,14 @@ components:
         created_at:
           type: string
           format: date-time
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
       required:
       - assignee
       - id
@@ -1910,6 +1969,70 @@ components:
       - project
       - status
       - title
+      - updated_at
+    TaskAuditLog:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        actor:
+          allOf:
+          - $ref: '#/components/schemas/TaskUser'
+          readOnly: true
+        action:
+          $ref: '#/components/schemas/ActionEnum'
+        changes: {}
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - action
+      - actor
+      - id
+    TaskAuditLogListData:
+      type: object
+      properties:
+        count:
+          type: integer
+          readOnly: true
+        next:
+          type: string
+          format: uri
+          readOnly: true
+          nullable: true
+        previous:
+          type: string
+          format: uri
+          readOnly: true
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskAuditLog'
+          readOnly: true
+      required:
+      - count
+      - next
+      - previous
+      - results
+    TaskAuditLogListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          readOnly: true
+        message:
+          type: string
+          readOnly: true
+        data:
+          allOf:
+          - $ref: '#/components/schemas/TaskAuditLogListData'
+          readOnly: true
+      required:
+      - data
+      - message
+      - success
     TaskCreate:
       type: object
       properties:
@@ -2029,10 +2152,10 @@ components:
       - ON_HOLD
       type: string
       description: |-
-        * `TODO` - To Do
-        * `IN_PROGRESS` - In Progress
-        * `COMPLETED` - Completed
-        * `ON_HOLD` - On Hold
+        * `TODO` - Chưa thực hiện
+        * `IN_PROGRESS` - Đang thực hiện
+        * `COMPLETED` - Đã hoàn thành
+        * `ON_HOLD` - Tạm dừng
     TaskUser:
       type: object
       properties:
@@ -2065,19 +2188,25 @@ components:
       - STATUS_CHANGED
       - PROJECT_ADDED
       - DEADLINE_APPROACHING
+      - DEADLINE_OVERDUE
       type: string
       description: |-
-        * `GENERAL` - General
-        * `TASK_ASSIGNED` - Task assigned
-        * `STATUS_CHANGED` - Status changed
-        * `PROJECT_ADDED` - Project added
-        * `DEADLINE_APPROACHING` - Deadline approaching
+        * `GENERAL` - Hệ thống
+        * `TASK_ASSIGNED` - Giao việc
+        * `STATUS_CHANGED` - Thay đổi trạng thái
+        * `PROJECT_ADDED` - Thêm vào dự án
+        * `DEADLINE_APPROACHING` - Sắp đến hạn
+        * `DEADLINE_OVERDUE` - Đã quá hạn
     User:
       type: object
       properties:
         id:
           type: integer
           readOnly: true
+        username:
+          type: string
+          nullable: true
+          maxLength: 50
         full_name:
           type: string
           maxLength: 100

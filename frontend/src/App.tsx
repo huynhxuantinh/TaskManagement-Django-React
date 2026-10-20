@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 
 import { ProtectedRoute, PublicOnlyRoute, RoleRoute } from './auth/RouteGuards'
+import { publicRegistrationEnabled } from './config'
 import { AppShell } from './layout/AppShell'
 import { AdminPage } from './pages/AdminPage'
 import { AuthLayout } from './pages/AuthLayout'
@@ -21,7 +22,12 @@ export default function App() {
       <Route element={<PublicOnlyRoute />}>
         <Route element={<AuthLayout />}>
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
+          <Route
+            path="/register"
+            element={
+              publicRegistrationEnabled ? <RegisterPage /> : <Navigate to="/login" replace />
+            }
+          />
         </Route>
       </Route>
       <Route element={<ProtectedRoute />}>

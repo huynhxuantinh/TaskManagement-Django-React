@@ -2,7 +2,7 @@ import pytest
 from django.core.management import call_command
 
 from apps.accounts.models import Role, User
-from apps.notifications.models import Notification
+from apps.notifications.models import Notification, NotificationType
 from apps.projects.models import Project, ProjectMember
 from apps.reports.models import ReportMessage
 from apps.tasks.models import Task, TaskStatus
@@ -41,7 +41,13 @@ def test_seed_demo_creates_stable_idempotent_e2e_dataset():
     assert Project.objects.filter(is_deleted=False).count() == 4
     assert ProjectMember.objects.count() == 10
     assert Task.objects.filter(is_deleted=False).count() == 12
-    assert Notification.objects.count() >= 3
+    assert Notification.objects.count() == 2
+    assert not Notification.objects.filter(
+        type__in=(
+            NotificationType.DEADLINE_APPROACHING,
+            NotificationType.DEADLINE_OVERDUE,
+        )
+    ).exists()
     assert Notification.objects.filter(message__icontains='Deadline').count() == 0
     assert ReportMessage.objects.count() == 1
 

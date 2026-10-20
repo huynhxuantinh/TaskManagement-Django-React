@@ -9,6 +9,8 @@ from apps.accounts.models import Role
 from apps.accounts.permissions import has_role
 from apps.core.api import success
 from apps.core.pagination import StandardPagination
+from apps.notifications.models import NotificationType
+from apps.notifications.services import create_notification
 from apps.tasks.serializers import TaskSerializer
 
 from .models import ReportMessage
@@ -136,6 +138,11 @@ class ReportMessageListCreateView(APIView):
         )
         serializer.is_valid(raise_exception=True)
         message = serializer.save(sender=request.user)
+        create_notification(
+            message.receiver,
+            NotificationType.GENERAL,
+            f'Bạn nhận được báo cáo "{message.title}" từ {request.user.full_name}.',
+        )
         message = self.get_queryset(request.user).get(pk=message.pk)
         return success(
             ReportMessageSerializer(message).data,

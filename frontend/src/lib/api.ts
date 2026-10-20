@@ -134,3 +134,23 @@ export async function apiRequest<T>(
   return envelope.data
 }
 
+export async function apiDownload(path: string, authRetry = true): Promise<Blob> {
+  const headers = new Headers()
+  if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`)
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    credentials: 'include',
+    headers,
+  })
+  if (
+    response.status === 401 &&
+    authRetry &&
+    !path.startsWith('/api/v1/auth/login') &&
+    !path.startsWith('/api/v1/auth/register')
+  ) {
+    await refreshAccessToken()
+    return apiDownload(path, false)
+  }
+  if (!response.ok) await parseEnvelope(response)
+  return response.blob()
+}
+

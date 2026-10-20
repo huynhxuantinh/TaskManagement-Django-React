@@ -1,5 +1,8 @@
 from django.db import IntegrityError, transaction
 
+from apps.notifications.models import NotificationType
+from apps.notifications.services import create_notification
+
 from .models import Project, ProjectMember
 
 
@@ -30,6 +33,11 @@ class ProjectService:
             raise MembershipConflict from error
         if not created:
             raise MembershipConflict
+        create_notification(
+            user,
+            NotificationType.PROJECT_ADDED,
+            f'Bạn đã được thêm vào dự án "{project.name}".',
+        )
         return membership
 
     @staticmethod

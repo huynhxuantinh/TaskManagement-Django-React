@@ -1,4 +1,9 @@
+import csv
+from datetime import timedelta
+
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.filters import OrderingFilter, SearchFilter
@@ -14,6 +19,8 @@ from apps.projects.permissions import can_manage_project
 
 from .models import Task, TaskStatus
 from .serializers import (
+    TaskAuditLogListResponseSerializer,
+    TaskAuditLogSerializer,
     TaskCreateSerializer,
     TaskFilterSerializer,
     TaskListResponseSerializer,
@@ -79,22 +86,58 @@ class TaskViewSet(ModelViewSet):
             "status": "status__code",
             "priority": "priority",
             "deadline": "deadline",
+            "deadline_from": "deadline__gte",
+            "deadline_to": "deadline__lte",
         }
+        special_filters = {"overdue", "due_soon"}
         raw_filters = {
             key: self.request.query_params[key]
-            for key in mappings
+            for key in (*mappings, *special_filters)
             if key in self.request.query_params
         }
         serializer = TaskFilterSerializer(data=raw_filters)
         serializer.is_valid(raise_exception=True)
         for parameter, value in serializer.validated_data.items():
-            queryset = queryset.filter(**{mappings[parameter]: value})
+            if parameter in mappings:
+                queryset = queryset.filter(**{mappings[parameter]: value})
+        today = timezone.localdate()
+        if serializer.validated_data.get("overdue"):
+            queryset = queryset.filter(deadline__lt=today).exclude(
+                status__code=TaskStatus.Code.COMPLETED
+            )
+        if serializer.validated_data.get("due_soon"):
+            queryset = queryset.filter(
+                deadline__gte=today, deadline__lte=today + timedelta(days=3)
+            ).exclude(status__code=TaskStatus.Code.COMPLETED)
         return queryset
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
         return self.get_paginated_response(TaskSerializer(page, many=True).data)
+
+    @extend_schema(tags=["Tasks"], responses={200: None})
+    def export(self, request):
+        response = HttpResponse(content_type="text/csv; charset=utf-8")
+        response["Content-Disposition"] = 'attachment; filename="cong-viec.csv"'
+        response.write("\ufeff")
+        writer = csv.writer(response)
+        writer.writerow(
+            ["ID", "Công việc", "Dự án", "Người thực hiện", "Trạng thái", "Ưu tiên", "Hạn hoàn thành"]
+        )
+        for task in self.filter_queryset(self.get_queryset()):
+            writer.writerow(
+                [
+                    task.id,
+                    task.title,
+                    task.project.name,
+                    task.assignee.full_name if task.assignee else "",
+                    task.status.name,
+                    task.priority,
+                    task.deadline.isoformat() if task.deadline else "",
+                ]
+            )
+        return response
 
     def retrieve(self, request, *args, **kwargs):
         return success(TaskSerializer(self.get_object()).data, "Lấy công việc thành công.")
@@ -106,7 +149,7 @@ class TaskViewSet(ModelViewSet):
         serializer.is_valid(raise_exception=True)
         project = serializer.validated_data["project"]
         self._require_manager(project)
-        task = TaskService.create_task(serializer.validated_data)
+        task = TaskService.create_task(serializer.validated_data, request.user)
         task = task_queryset().get(pk=task.pk)
         return success(TaskSerializer(task).data, "Tạo công việc thành công.", 201)
 
@@ -115,16 +158,22 @@ class TaskViewSet(ModelViewSet):
         self._require_manager(task.project)
         serializer = TaskUpdateSerializer(task, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        task = TaskService.update_task(task, serializer.validated_data)
+        task = TaskService.update_task(task, serializer.validated_data, request.user)
         task = task_queryset().get(pk=task.pk)
         return success(TaskSerializer(task).data, "Cập nhật công việc thành công.")
 
     def destroy(self, request, *args, **kwargs):
         task = self.get_object()
         self._require_manager(task.project)
-        task.is_deleted = True
-        task.save(update_fields=["is_deleted"])
+        TaskService.delete_task(task, request.user)
         return Response(status=204)
+
+    @extend_schema(tags=["Tasks"], responses={200: TaskAuditLogListResponseSerializer})
+    def history(self, request, pk=None):
+        task = self.get_object()
+        queryset = task.audit_logs.select_related("actor", "actor__role")
+        page = self.paginate_queryset(queryset)
+        return self.get_paginated_response(TaskAuditLogSerializer(page, many=True).data)
 
     @extend_schema(
         tags=["Tasks"], request=TaskStatusUpdateSerializer, responses={200: TaskResponseSerializer}
@@ -139,7 +188,10 @@ class TaskViewSet(ModelViewSet):
         serializer = TaskStatusUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         task = TaskService.change_status(
-            task, serializer.validated_data["status"], request.user
+            task,
+            serializer.validated_data["status"],
+            request.user,
+            serializer.validated_data.get("note", ""),
         )
         task = task_queryset().get(pk=task.pk)
         return success(TaskSerializer(task).data, "Cập nhật trạng thái thành công.")

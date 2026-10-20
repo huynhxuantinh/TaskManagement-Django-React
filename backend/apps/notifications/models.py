@@ -9,6 +9,7 @@ class NotificationType(models.TextChoices):
     STATUS_CHANGED = "STATUS_CHANGED", "Thay đổi trạng thái"
     PROJECT_ADDED = "PROJECT_ADDED", "Thêm vào dự án"
     DEADLINE_APPROACHING = "DEADLINE_APPROACHING", "Sắp đến hạn"
+    DEADLINE_OVERDUE = "DEADLINE_OVERDUE", "Đã quá hạn"
 
 
 class Notification(models.Model):
@@ -22,6 +23,7 @@ class Notification(models.Model):
     is_priority = models.BooleanField(default=False)
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(default=timezone.now)
+    dedupe_key = models.CharField(max_length=100, null=True, blank=True, unique=True)
 
     class Meta:
         ordering = ["id"]

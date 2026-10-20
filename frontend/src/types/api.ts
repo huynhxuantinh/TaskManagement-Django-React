@@ -60,6 +60,16 @@ export interface Task {
   deadline: string | null
   is_overdue: boolean
   created_at: string
+  updated_at: string
+  completed_at: string | null
+}
+
+export interface TaskAuditLog {
+  id: number
+  actor: Pick<User, 'id' | 'full_name' | 'email'> | null
+  action: 'CREATED' | 'UPDATED' | 'STATUS_CHANGED' | 'DELETED'
+  changes: Record<string, { old: unknown; new: unknown }>
+  created_at: string
 }
 
 export interface Notification {

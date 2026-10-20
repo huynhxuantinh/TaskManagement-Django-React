@@ -7,7 +7,7 @@ from rest_framework.test import APIClient
 
 from apps.accounts.models import Role, User
 from apps.accounts.permissions import IsAdmin, IsAdminOrManager, IsSelfOrAdmin
-from apps.accounts.throttles import LoginRateThrottle
+from apps.accounts.throttles import LoginRateThrottle, RegisterRateThrottle
 
 
 AUTH_HASHERS = [
@@ -179,8 +179,24 @@ def test_deactivate_disables_account_and_existing_tokens(roles):
 
 
 @pytest.mark.django_db
-@override_settings(PASSWORD_HASHERS=AUTH_HASHERS)
-def test_register_always_creates_employee_and_rejects_duplicate_email(roles):
+def test_register_is_disabled_by_default(roles):
+    response = APIClient().post(
+        "/api/v1/auth/register/",
+        {
+            "email": "blocked@example.com",
+            "full_name": "Blocked User",
+            "password": "StrongPass@123",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 403
+    assert not User.objects.filter(email="blocked@example.com").exists()
+
+
+@pytest.mark.django_db
+@override_settings(PASSWORD_HASHERS=AUTH_HASHERS, ALLOW_PUBLIC_REGISTRATION=True)
+def test_register_creates_employee_without_disclosing_existing_email(roles):
     client = APIClient()
     payload = {
         "email": "new@example.com",
@@ -192,11 +208,38 @@ def test_register_always_creates_employee_and_rejects_duplicate_email(roles):
     created = client.post("/api/v1/auth/register/", payload, format="json")
     duplicate = client.post("/api/v1/auth/register/", payload, format="json")
 
-    assert created.status_code == 201
-    assert created.data["data"]["role"] == "EMPLOYEE"
+    assert created.status_code == 202
     assert User.objects.get(email="new@example.com").role.code == "EMPLOYEE"
-    assert duplicate.status_code == 409
-    assert duplicate.data["success"] is False
+    assert duplicate.status_code == 202
+    assert duplicate.data == created.data == {
+        "success": True,
+        "message": "Nếu thông tin đăng ký hợp lệ, tài khoản sẽ được tạo.",
+        "data": None,
+    }
+    assert User.objects.filter(email="new@example.com").count() == 1
+
+
+@pytest.mark.django_db
+@override_settings(ALLOW_PUBLIC_REGISTRATION=True)
+def test_register_is_rate_limited_per_ip(roles, monkeypatch):
+    cache.clear()
+    monkeypatch.setattr(RegisterRateThrottle, "get_rate", lambda _self: "2/min")
+    client = APIClient()
+
+    def register(number):
+        return client.post(
+            "/api/v1/auth/register/",
+            {
+                "email": f"user{number}@example.com",
+                "full_name": f"User {number}",
+                "password": "StrongPass@123",
+            },
+            format="json",
+        )
+
+    assert register(1).status_code == 202
+    assert register(2).status_code == 202
+    assert register(3).status_code == 429
 
 
 @pytest.mark.django_db

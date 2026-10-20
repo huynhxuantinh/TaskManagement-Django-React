@@ -57,6 +57,12 @@ class ChangePasswordSerializer(serializers.Serializer):
 
 class DeactivateSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True, trim_whitespace=False)
+    reassign_to_id = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.filter(is_active=True),
+        source="reassign_to",
+        write_only=True,
+        required=False,
+    )
 
 
 class LoginDataSerializer(serializers.Serializer):
