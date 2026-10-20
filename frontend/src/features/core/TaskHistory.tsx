@@ -15,6 +15,7 @@ const fieldLabels: Record<string, string> = {
   priority: 'Ưu tiên',
   deadline: 'Hạn chót',
   status: 'Trạng thái',
+  note: 'Ghi chú',
   is_deleted: 'Đã xóa',
 }
 

@@ -46,6 +46,11 @@ def task_queryset():
     )
 
 
+def csv_safe(value):
+    value = str(value or "")
+    return f"'{value}" if value.startswith(("=", "+", "-", "@")) else value
+
+
 @extend_schema_view(
     list=extend_schema(tags=["Tasks"], responses={200: TaskListResponseSerializer}),
     retrieve=extend_schema(tags=["Tasks"], responses={200: TaskResponseSerializer}),
@@ -114,7 +119,7 @@ class TaskViewSet(ModelViewSet):
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
-        return self.get_paginated_response(TaskSerializer(page, many=True).data)
+        return self.get_paginated_response(TaskSerializer(page, many=True, context={"request": request}).data)
 
     @extend_schema(tags=["Tasks"], responses={200: None})
     def export(self, request):
@@ -129,18 +134,18 @@ class TaskViewSet(ModelViewSet):
             writer.writerow(
                 [
                     task.id,
-                    task.title,
-                    task.project.name,
-                    task.assignee.full_name if task.assignee else "",
-                    task.status.name,
-                    task.priority,
+                    csv_safe(task.title),
+                    csv_safe(task.project.name),
+                    csv_safe(task.assignee.full_name if task.assignee else ""),
+                    csv_safe(task.status.name),
+                    task.get_priority_display(),
                     task.deadline.isoformat() if task.deadline else "",
                 ]
             )
         return response
 
     def retrieve(self, request, *args, **kwargs):
-        return success(TaskSerializer(self.get_object()).data, "Lấy công việc thành công.")
+        return success(TaskSerializer(self.get_object(), context={"request": request}).data, "Lấy công việc thành công.")
 
     def create(self, request, *args, **kwargs):
         if not has_role(request.user, Role.Code.ADMIN, Role.Code.MANAGER):
@@ -151,7 +156,7 @@ class TaskViewSet(ModelViewSet):
         self._require_manager(project)
         task = TaskService.create_task(serializer.validated_data, request.user)
         task = task_queryset().get(pk=task.pk)
-        return success(TaskSerializer(task).data, "Tạo công việc thành công.", 201)
+        return success(TaskSerializer(task, context={"request": request}).data, "Tạo công việc thành công.", 201)
 
     def partial_update(self, request, *args, **kwargs):
         task = self.get_object()
@@ -160,7 +165,7 @@ class TaskViewSet(ModelViewSet):
         serializer.is_valid(raise_exception=True)
         task = TaskService.update_task(task, serializer.validated_data, request.user)
         task = task_queryset().get(pk=task.pk)
-        return success(TaskSerializer(task).data, "Cập nhật công việc thành công.")
+        return success(TaskSerializer(task, context={"request": request}).data, "Cập nhật công việc thành công.")
 
     def destroy(self, request, *args, **kwargs):
         task = self.get_object()
@@ -194,7 +199,7 @@ class TaskViewSet(ModelViewSet):
             serializer.validated_data.get("note", ""),
         )
         task = task_queryset().get(pk=task.pk)
-        return success(TaskSerializer(task).data, "Cập nhật trạng thái thành công.")
+        return success(TaskSerializer(task, context={"request": request}).data, "Cập nhật trạng thái thành công.")
 
     def _require_manager(self, project):
         if not can_manage_project(self.request.user, project):

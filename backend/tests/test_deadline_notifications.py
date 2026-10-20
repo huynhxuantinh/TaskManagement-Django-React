@@ -84,3 +84,24 @@ def test_deadline_command_accepts_default_current_date():
     call_command("send_deadline_notifications")
 
     assert Notification.objects.count() == 0
+
+
+def test_deadline_loop_closes_connections_only_after_sleep(monkeypatch):
+    from apps.tasks.management.commands import send_deadline_notifications as command_module
+
+    events = []
+
+    def send(_reference_date):
+        events.append("send")
+        if events.count("send") == 2:
+            raise KeyboardInterrupt
+        return 0
+
+    monkeypatch.setattr(command_module, "send_deadline_notifications", send)
+    monkeypatch.setattr(command_module.time, "sleep", lambda _seconds: events.append("sleep"))
+    monkeypatch.setattr(command_module, "close_old_connections", lambda: events.append("close"))
+
+    with pytest.raises(KeyboardInterrupt):
+        call_command("send_deadline_notifications", loop=True, interval=1)
+
+    assert events == ["send", "sleep", "close", "send"]

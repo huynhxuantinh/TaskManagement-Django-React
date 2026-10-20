@@ -1962,7 +1962,14 @@ components:
           type: string
           format: date-time
           nullable: true
+        allowed_transitions:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+          readOnly: true
       required:
+      - allowed_transitions
       - assignee
       - id
       - is_overdue

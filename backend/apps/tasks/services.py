@@ -2,27 +2,14 @@ from datetime import timedelta
 
 from django.db import transaction
 from django.utils import timezone
-from rest_framework.exceptions import PermissionDenied, ValidationError
-
-from apps.accounts.models import Role
 from apps.notifications.models import NotificationType
 from apps.notifications.services import create_notification
 
 from .models import Task, TaskAuditLog, TaskStatus
+from .workflow import validate_transition
 
 
 AUDITED_TASK_FIELDS = ("title", "description", "assignee", "priority", "deadline")
-
-ALLOWED_STATUS_TRANSITIONS = {
-    TaskStatus.Code.TODO: {TaskStatus.Code.IN_PROGRESS},
-    TaskStatus.Code.IN_PROGRESS: {
-        TaskStatus.Code.ON_HOLD,
-        TaskStatus.Code.COMPLETED,
-    },
-    TaskStatus.Code.ON_HOLD: {TaskStatus.Code.IN_PROGRESS},
-    TaskStatus.Code.COMPLETED: {TaskStatus.Code.IN_PROGRESS},
-}
-
 
 def audit_value(field, value):
     if field == "assignee":
@@ -78,7 +65,8 @@ def send_deadline_notifications(reference_date=None):
             message,
             default_priority=True,
             dedupe_key=(
-                f"deadline:{task.id}:{task.assignee_id}:{task.deadline}:{stage}"
+                f"deadline:{task.id}:{task.assignee_id}:{task.deadline}:{stage}:"
+                f"{today if stage == 'overdue' else task.deadline}"
             ),
         )
         processed += 1
@@ -160,22 +148,7 @@ class TaskService:
         if task.status_id == new_status.id:
             return task
         old_status = task.status.code
-        if new_status.code not in ALLOWED_STATUS_TRANSITIONS.get(old_status, set()):
-            raise ValidationError(
-                {"status": "Trạng thái mới không hợp lệ với tiến trình hiện tại."}
-            )
-        if was_completed and actor.role.code not in {
-            Role.Code.ADMIN,
-            Role.Code.MANAGER,
-        }:
-            raise PermissionDenied(
-                "Chỉ quản trị viên hoặc quản lý được phép mở lại công việc đã hoàn thành."
-            )
-        note = note.strip()
-        if not note:
-            raise ValidationError(
-                {"note": "Vui lòng nhập ghi chú cho lần thay đổi trạng thái này."}
-            )
+        note = validate_transition(task, new_status, actor, note)
         if is_completed and not was_completed:
             task.completed_at = timezone.now()
         elif not is_completed:
@@ -188,7 +161,7 @@ class TaskService:
             action=TaskAuditLog.Action.STATUS_CHANGED,
             changes={
                 "status": {"old": old_status, "new": new_status.code},
-                "note": {"old": None, "new": note},
+                **({"note": {"old": None, "new": note}} if note else {}),
             },
         )
         recipients = {task.project.creator_id, task.assignee_id}

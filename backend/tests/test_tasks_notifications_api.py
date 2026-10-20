@@ -1,4 +1,6 @@
+import csv
 from datetime import date, timedelta
+from io import StringIO
 
 import pytest
 from django.utils import timezone
@@ -201,6 +203,30 @@ def test_task_list_supports_deadline_ranges_urgency_filters_and_csv_export(
 
 
 @pytest.mark.django_db
+def test_task_csv_export_escapes_formula_values(task_users, task_statuses, task_project):
+    task_project.name = "@Malicious project"
+    task_project.save(update_fields=["name"])
+    assignee = task_users["employee"]
+    assignee.full_name = "+Malicious assignee"
+    assignee.save(update_fields=["full_name"])
+    make_task(
+        task_project,
+        task_statuses,
+        assignee,
+        title='=HYPERLINK("http://evil","click")',
+    )
+
+    response = api_as(assignee).get("/api/v1/tasks/export/")
+    rows = list(csv.reader(StringIO(response.content.decode("utf-8-sig"))))
+
+    assert rows[1][1:4] == [
+        '\'=HYPERLINK("http://evil","click")',
+        "'@Malicious project",
+        "'+Malicious assignee",
+    ]
+
+
+@pytest.mark.django_db
 def test_task_detail_update_delete_permissions_and_soft_delete(
     task_users, task_statuses, task_project
 ):
@@ -252,7 +278,7 @@ def test_status_workflow_requires_note_and_limits_reopening(
         url, {"status": TaskStatus.Code.IN_PROGRESS}, format="json"
     )
     skipped = api_as(task_users["employee"]).patch(
-        url, {"status": TaskStatus.Code.COMPLETED, "note": "Xong sớm."}, format="json"
+        url, {"status": TaskStatus.Code.ON_HOLD}, format="json"
     )
     changed = api_as(task_users["employee"]).patch(
         url, {"status": TaskStatus.Code.IN_PROGRESS, "note": "Đã bắt đầu xử lý."}, format="json"
@@ -269,7 +295,7 @@ def test_status_workflow_requires_note_and_limits_reopening(
 
     assert forbidden.status_code == 403
     assert invalid.status_code == 400
-    assert missing_note.status_code == 400
+    assert missing_note.status_code == 200
     assert skipped.status_code == 400
     assert changed.status_code == 200
     assert changed.data["data"]["status"]["code"] == TaskStatus.Code.IN_PROGRESS

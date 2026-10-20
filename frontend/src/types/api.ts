@@ -49,6 +49,11 @@ export interface TaskStatus {
   name: string
 }
 
+export interface TaskTransition {
+  code: string
+  note_required: boolean
+}
+
 export interface Task {
   id: number
   title: string
@@ -62,6 +67,7 @@ export interface Task {
   created_at: string
   updated_at: string
   completed_at: string | null
+  allowed_transitions: TaskTransition[]
 }
 
 export interface TaskAuditLog {

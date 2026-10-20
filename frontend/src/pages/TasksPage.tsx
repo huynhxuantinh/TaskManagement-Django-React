@@ -10,10 +10,10 @@ import { useToast } from '../components/ui/ToastContext'
 import { TaskForm } from '../features/core/TaskForm'
 import { TaskHistory } from '../features/core/TaskHistory'
 import { TaskStatusSelect } from '../features/core/TaskStatusSelect'
-import { allowedTaskStatusCodes, canChangeTaskStatus, canCreateProjects, canManageProject } from '../features/core/permissions'
+import { canCreateProjects, canManageProject } from '../features/core/permissions'
 import { useApiResource } from '../hooks/useApiResource'
 import { apiDownload, apiRequest } from '../lib/api'
-import type { Paginated, Project, Task, TaskStatus } from '../types/api'
+import type { Paginated, Project, Task, TaskStatus, TaskTransition } from '../types/api'
 
 const selectClass = 'min-h-12 rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold outline-none focus:border-slate-700 focus:ring-2 focus:ring-[var(--accent-soft)]'
 const priorities: Record<number, string> = { 1: 'Thấp', 2: 'Trung bình', 3: 'Cao' }
@@ -33,7 +33,7 @@ export function TasksPage() {
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<Task | undefined>()
   const [historyTask, setHistoryTask] = useState<Task | undefined>()
-  const [statusChange, setStatusChange] = useState<{ task: Task; status: string } | undefined>()
+  const [statusChange, setStatusChange] = useState<{ task: Task; transition: TaskTransition } | undefined>()
   const [statusNote, setStatusNote] = useState('')
   const params = new URLSearchParams({ page_size: '100' })
   if (search) params.set('search', search)
@@ -72,7 +72,7 @@ export function TasksPage() {
   async function submitStatusChange(event: FormEvent) {
     event.preventDefault()
     if (!statusChange || !statusNote.trim()) return
-    if (await changeStatus(statusChange.task, statusChange.status, statusNote.trim())) {
+    if (await changeStatus(statusChange.task, statusChange.transition.code, statusNote.trim())) {
       setStatusChange(undefined)
       setStatusNote('')
     }
@@ -128,11 +128,10 @@ export function TasksPage() {
         {data?.results.map((task) => {
           const project = projectById.get(task.project.id)
           const manageable = Boolean(user && project && canManageProject(user, project))
-          const allowedStatuses = user ? allowedTaskStatusCodes(user, task) : []
           return (
             <article key={task.id} className={`grid gap-4 rounded-2xl border bg-white p-5 shadow-[var(--shadow)] md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center ${task.is_overdue ? 'border-red-300' : 'border-slate-200'}`}>
               <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className={`size-2.5 rounded-full ${task.priority === 3 ? 'bg-red-500' : task.priority === 2 ? 'bg-amber-400' : 'bg-slate-300'}`} /><h3 className="truncate font-extrabold text-slate-950">{task.title}</h3>{task.is_overdue && <span className="rounded-full bg-red-50 px-2 py-1 text-[10px] font-black uppercase text-red-700">Quá hạn</span>}</div><p className="mt-2 line-clamp-1 text-sm text-slate-500">{task.project.name} · {task.assignee?.full_name ?? 'Chưa phân công'} · {priorities[task.priority]}</p></div>
-              {user && <TaskStatusSelect task={task} statuses={statuses ?? [task.status]} canChange={canChangeTaskStatus(user, task, project)} allowedStatusCodes={allowedStatuses} onChange={(status) => { setStatusChange({ task, status }); setStatusNote('') }} />}
+              {user && <TaskStatusSelect task={task} statuses={statuses ?? [task.status]} onChange={(transition) => { setStatusChange({ task, transition }); setStatusNote('') }} />}
               <div className="flex justify-end gap-1"><Button variant="ghost" onClick={() => setHistoryTask(task)}>Lịch sử</Button>{manageable && <><Button variant="ghost" onClick={() => setEditing(task)}>Sửa</Button><Button variant="ghost" className="!text-red-700" onClick={() => void remove(task)}>Xóa</Button></>}</div>
             </article>
           )
@@ -145,8 +144,8 @@ export function TasksPage() {
       <Modal open={Boolean(statusChange)} title="Ghi chú thay đổi trạng thái" onClose={() => { setStatusChange(undefined); setStatusNote('') }}>
         <form className="space-y-4" onSubmit={submitStatusChange}>
           <p className="text-sm text-slate-600">Ghi chú này được lưu vào lịch sử công việc.</p>
-          <label className="block text-sm font-bold">Ghi chú<textarea required maxLength={500} value={statusNote} onChange={(event) => setStatusNote(event.target.value)} className="mt-2 min-h-28 w-full rounded-xl border border-slate-300 p-3 font-normal outline-none focus:border-slate-700 focus:ring-2 focus:ring-[var(--accent-soft)]" placeholder="Nêu lý do hoặc kết quả cập nhật..." /></label>
-          <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => { setStatusChange(undefined); setStatusNote('') }}>Hủy</Button><Button type="submit" disabled={!statusNote.trim()}>Cập nhật</Button></div>
+          <label className="block text-sm font-bold">Ghi chú{statusChange?.transition.note_required ? ' *' : ''}<textarea required={statusChange?.transition.note_required} maxLength={500} value={statusNote} onChange={(event) => setStatusNote(event.target.value)} className="mt-2 min-h-28 w-full rounded-xl border border-slate-300 p-3 font-normal outline-none focus:border-slate-700 focus:ring-2 focus:ring-[var(--accent-soft)]" placeholder="Nêu lý do hoặc kết quả cập nhật..." /></label>
+          <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => { setStatusChange(undefined); setStatusNote('') }}>Hủy</Button><Button type="submit" disabled={Boolean(statusChange?.transition.note_required && !statusNote.trim())}>Cập nhật</Button></div>
         </form>
       </Modal>
     </div>

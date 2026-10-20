@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { ProjectActions } from './ProjectActions'
 import { TaskStatusSelect } from './TaskStatusSelect'
-import { allowedTaskStatusCodes, canChangeTaskStatus, canCreateProjects, canManageProject } from './permissions'
+import { canCreateProjects, canManageProject } from './permissions'
 import type { Project, Task, TaskStatus, User } from '../../types/api'
 
 const user = (role: User['role'], id = 1): User => ({
@@ -48,6 +48,7 @@ const task: Task = {
   created_at: '',
   updated_at: '',
   completed_at: null,
+  allowed_transitions: [{ code: 'IN_PROGRESS', note_required: false }],
 }
 
 afterEach(cleanup)
@@ -73,31 +74,20 @@ describe('core workflow permissions', () => {
 
   it('cho người được phân công cập nhật trạng thái task', () => {
     const onChange = vi.fn()
-    render(<TaskStatusSelect task={task} statuses={statuses} canChange allowedStatusCodes={['IN_PROGRESS']} onChange={onChange} />)
+    render(<TaskStatusSelect task={task} statuses={statuses} onChange={onChange} />)
     fireEvent.change(screen.getByLabelText(/trạng thái tích hợp api/i), {
       target: { value: 'IN_PROGRESS' },
     })
-    expect(onChange).toHaveBeenCalledWith('IN_PROGRESS')
+    expect(onChange).toHaveBeenCalledWith({ code: 'IN_PROGRESS', note_required: false })
   })
 
-  it('xác định đầy đủ quyền cập nhật trạng thái task', () => {
-    expect(canChangeTaskStatus(user('ADMIN'), task, project)).toBe(true)
-    expect(canChangeTaskStatus(user('EMPLOYEE', 3), task, project)).toBe(true)
-    expect(canChangeTaskStatus(user('MANAGER', 2), { ...task, assignee: null }, project)).toBe(true)
-    expect(canChangeTaskStatus(user('MANAGER', 8), { ...task, assignee: null }, project)).toBe(false)
-    expect(canChangeTaskStatus(user('EMPLOYEE', 8), { ...task, assignee: null })).toBe(false)
+  it('quyền đổi trạng thái được API trả về theo từng task', () => {
+    expect(task.allowed_transitions).toEqual([{ code: 'IN_PROGRESS', note_required: false }])
     expect(canManageProject(user('EMPLOYEE', 2), project)).toBe(false)
   })
 
-  it('chỉ cho phép trạng thái tiếp theo hợp lệ và chỉ quản lý được mở lại', () => {
-    expect(allowedTaskStatusCodes(user('EMPLOYEE', 3), task)).toEqual(['IN_PROGRESS'])
-    const completedTask = { ...task, status: statuses[2] }
-    expect(allowedTaskStatusCodes(user('EMPLOYEE', 3), completedTask)).toEqual([])
-    expect(allowedTaskStatusCodes(user('MANAGER', 2), completedTask)).toEqual(['IN_PROGRESS'])
-  })
-
   it('hiện trạng thái dạng nhãn khi không có quyền thay đổi', () => {
-    render(<TaskStatusSelect task={task} statuses={statuses} canChange={false} allowedStatusCodes={[]} onChange={vi.fn()} />)
+    render(<TaskStatusSelect task={{ ...task, allowed_transitions: [] }} statuses={statuses} onChange={vi.fn()} />)
     expect(screen.getByText('Cần làm')).toBeInTheDocument()
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
   })

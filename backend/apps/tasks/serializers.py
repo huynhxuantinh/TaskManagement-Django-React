@@ -1,10 +1,12 @@
 from django.utils import timezone
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from apps.accounts.models import User
 from apps.projects.models import Project, ProjectMember
 
 from .models import Task, TaskAuditLog, TaskStatus
+from .workflow import allowed_transitions
 
 
 class TaskUserSerializer(serializers.ModelSerializer):
@@ -33,6 +35,7 @@ class TaskSerializer(serializers.ModelSerializer):
     assignee = TaskUserSerializer(read_only=True)
     status = TaskStatusSerializer(read_only=True)
     is_overdue = serializers.SerializerMethodField()
+    allowed_transitions = serializers.SerializerMethodField()
 
     class Meta:
         model = Task
@@ -49,6 +52,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "completed_at",
+            "allowed_transitions",
         )
 
     def get_is_overdue(self, task) -> bool:
@@ -57,6 +61,11 @@ class TaskSerializer(serializers.ModelSerializer):
             and task.deadline < timezone.localdate()
             and task.status.code != TaskStatus.Code.COMPLETED
         )
+
+    @extend_schema_field(serializers.ListField(child=serializers.DictField()))
+    def get_allowed_transitions(self, task):
+        request = self.context.get("request")
+        return allowed_transitions(task, request.user) if request else []
 
 
 class AssigneeMembershipMixin:

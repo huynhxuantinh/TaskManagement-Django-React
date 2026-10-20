@@ -20,7 +20,6 @@ class Command(BaseCommand):
             raise CommandError("Chu kỳ phải lớn hơn 0 giây.")
         reference_date = self._parse_date(options.get("date"))
         while True:
-            close_old_connections()
             processed = send_deadline_notifications(reference_date)
             self.stdout.write(
                 self.style.SUCCESS(f"Đã kiểm tra {processed} công việc cần nhắc hạn.")
@@ -28,6 +27,7 @@ class Command(BaseCommand):
             if not options["loop"]:
                 break
             time.sleep(options["interval"])
+            close_old_connections()
 
     @staticmethod
     def _parse_date(value):
