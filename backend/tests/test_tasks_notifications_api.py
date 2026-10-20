@@ -215,15 +215,21 @@ def test_task_csv_export_escapes_formula_values(task_users, task_statuses, task_
         assignee,
         title='=HYPERLINK("http://evil","click")',
     )
+    make_task(task_project, task_statuses, assignee, title="\t=1+1")
+    make_task(task_project, task_statuses, assignee, title="\r=1+1")
 
     response = api_as(assignee).get("/api/v1/tasks/export/")
     rows = list(csv.reader(StringIO(response.content.decode("utf-8-sig"))))
 
-    assert rows[1][1:4] == [
+    formula_row = next(
+        row for row in rows[1:] if row[1] == '\'=HYPERLINK("http://evil","click")'
+    )
+    assert formula_row[1:4] == [
         '\'=HYPERLINK("http://evil","click")',
         "'@Malicious project",
         "'+Malicious assignee",
     ]
+    assert {row[1] for row in rows[1:]} >= {"'\t=1+1", "'\r=1+1"}
 
 
 @pytest.mark.django_db
@@ -310,6 +316,69 @@ def test_status_workflow_requires_note_and_limits_reopening(
         type=NotificationType.STATUS_CHANGED,
         message='Công việc "Implement API" đã chuyển sang trạng thái Đang thực hiện.',
     ).exists()
+
+
+@pytest.mark.django_db
+def test_optional_status_note_accepts_blank_value(
+    task_users, task_statuses, task_project
+):
+    task = make_task(task_project, task_statuses, task_users["employee"])
+
+    changed = api_as(task_users["employee"]).patch(
+        f"/api/v1/tasks/{task.id}/status/",
+        {"status": TaskStatus.Code.IN_PROGRESS, "note": ""},
+        format="json",
+    )
+
+    assert changed.status_code == 200
+    log = TaskAuditLog.objects.get(task=task, action=TaskAuditLog.Action.STATUS_CHANGED)
+    assert "note" not in log.changes
+
+
+@pytest.mark.django_db
+def test_allowed_transitions_match_status_change_permission(
+    task_users, task_statuses, task_project
+):
+    task = make_task(task_project, task_statuses, task_users["employee"])
+    url = f"/api/v1/tasks/{task.id}/"
+
+    visible = api_as(task_users["manager2"]).get(url)
+    blocked = api_as(task_users["manager2"]).patch(
+        f"{url}status/",
+        {"status": TaskStatus.Code.IN_PROGRESS},
+        format="json",
+    )
+    allowed = api_as(task_users["employee"]).get(url)
+
+    assert visible.status_code == 200
+    assert visible.data["data"]["allowed_transitions"] == []
+    assert blocked.status_code == 403
+    assert {item["code"] for item in allowed.data["data"]["allowed_transitions"]} == {
+        TaskStatus.Code.IN_PROGRESS,
+        TaskStatus.Code.ON_HOLD,
+        TaskStatus.Code.COMPLETED,
+    }
+
+
+@pytest.mark.django_db
+def test_invalid_completed_transition_returns_bad_request_for_manager(
+    task_users, task_statuses, task_project
+):
+    task = make_task(
+        task_project,
+        task_statuses,
+        task_users["employee"],
+        status=task_statuses[TaskStatus.Code.COMPLETED],
+    )
+
+    response = api_as(task_users["manager"]).patch(
+        f"/api/v1/tasks/{task.id}/status/",
+        {"status": TaskStatus.Code.TODO},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "status" in response.data["errors"]
 
 
 @pytest.mark.django_db

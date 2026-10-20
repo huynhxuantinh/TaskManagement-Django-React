@@ -11,6 +11,7 @@ import { TaskForm } from '../features/core/TaskForm'
 import { TaskHistory } from '../features/core/TaskHistory'
 import { TaskStatusSelect } from '../features/core/TaskStatusSelect'
 import { canCreateProjects, canManageProject } from '../features/core/permissions'
+import { buildStatusChangePayload } from '../features/core/statusChange'
 import { useApiResource } from '../hooks/useApiResource'
 import { apiDownload, apiRequest } from '../lib/api'
 import type { Paginated, Project, Task, TaskStatus, TaskTransition } from '../types/api'
@@ -59,7 +60,7 @@ export function TasksPage() {
 
   async function changeStatus(task: Task, status: string, note: string) {
     try {
-      const saved = await apiRequest<Task>(`/api/v1/tasks/${task.id}/status/`, { method: 'PATCH', body: JSON.stringify({ status, note }) })
+      const saved = await apiRequest<Task>(`/api/v1/tasks/${task.id}/status/`, { method: 'PATCH', body: JSON.stringify(buildStatusChangePayload(status, note)) })
       setData((current) => current ? { ...current, results: current.results.map((item) => item.id === saved.id ? saved : item) } : current)
       notify('Đã cập nhật trạng thái.')
       return true
@@ -71,8 +72,10 @@ export function TasksPage() {
 
   async function submitStatusChange(event: FormEvent) {
     event.preventDefault()
-    if (!statusChange || !statusNote.trim()) return
-    if (await changeStatus(statusChange.task, statusChange.transition.code, statusNote.trim())) {
+    if (!statusChange) return
+    const note = statusNote.trim()
+    if (statusChange.transition.note_required && !note) return
+    if (await changeStatus(statusChange.task, statusChange.transition.code, note)) {
       setStatusChange(undefined)
       setStatusNote('')
     }

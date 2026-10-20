@@ -31,6 +31,7 @@ from .serializers import (
     TaskUpdateSerializer,
 )
 from .services import TaskService
+from .workflow import can_change_task_status
 
 
 def task_queryset():
@@ -48,7 +49,7 @@ def task_queryset():
 
 def csv_safe(value):
     value = str(value or "")
-    return f"'{value}" if value.startswith(("=", "+", "-", "@")) else value
+    return f"'{value}" if value.startswith(("=", "+", "-", "@", "\t", "\r", "\n")) else value
 
 
 @extend_schema_view(
@@ -185,10 +186,7 @@ class TaskViewSet(ModelViewSet):
     )
     def change_status(self, request, pk=None):
         task = self.get_object()
-        if not (
-            can_manage_project(request.user, task.project)
-            or task.assignee_id == request.user.id
-        ):
+        if not can_change_task_status(task, request.user):
             raise PermissionDenied("Bạn không có quyền đổi trạng thái công việc này.")
         serializer = TaskStatusUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

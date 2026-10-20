@@ -126,7 +126,9 @@ class TaskStatusUpdateSerializer(serializers.Serializer):
     status = serializers.SlugRelatedField(
         slug_field="code", queryset=TaskStatus.objects.all()
     )
-    note = serializers.CharField(required=False, max_length=500, trim_whitespace=True)
+    note = serializers.CharField(
+        required=False, allow_blank=True, max_length=500, trim_whitespace=True
+    )
 
 
 class TaskFilterSerializer(serializers.Serializer):
