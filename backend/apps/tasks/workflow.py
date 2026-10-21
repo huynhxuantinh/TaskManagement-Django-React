@@ -31,10 +31,20 @@ def can_change_task_status(task, actor):
     return can_manage_project(actor, task.project) or task.assignee_id == actor.id
 
 
+def unfinished_subtasks_count(task):
+    return getattr(
+        task,
+        "unfinished_subtasks_count",
+        task.subtasks.filter(is_deleted=False).exclude(status__code=TaskStatus.Code.COMPLETED).count(),
+    )
+
+
 def allowed_transitions(task, actor):
     if not can_change_task_status(task, actor):
         return []
-    codes = TRANSITIONS.get(task.status.code, set())
+    codes = set(TRANSITIONS.get(task.status.code, set()))
+    if unfinished_subtasks_count(task):
+        codes.discard(TaskStatus.Code.COMPLETED)
     if task.status.code == TaskStatus.Code.COMPLETED and actor.role.code not in {
         Role.Code.ADMIN,
         Role.Code.MANAGER,
@@ -48,6 +58,16 @@ def allowed_transitions(task, actor):
 
 
 def validate_transition(task, new_status, actor, note):
+    if new_status.code == TaskStatus.Code.COMPLETED:
+        count = unfinished_subtasks_count(task)
+        if count:
+            raise ValidationError({"status": f"Còn {count} công việc con chưa hoàn thành."})
+    if (
+        task.parent_id
+        and task.parent.status.code == TaskStatus.Code.COMPLETED
+        and new_status.code == TaskStatus.Code.IN_PROGRESS
+    ):
+        raise ValidationError({"status": "Hãy mở lại công việc cha trước."})
     allowed = {item["code"]: item for item in allowed_transitions(task, actor)}
     if new_status.code not in allowed:
         if (

@@ -154,9 +154,16 @@ class TaskService:
     def change_status(task, new_status, actor, note=""):
         task = (
             Task.objects.select_for_update(of=("self",))
-            .select_related("project", "project__creator", "assignee", "status")
+            .select_related("project", "project__creator", "assignee", "status", "parent__status")
             .get(pk=task.pk)
         )
+        unfinished_subtasks = list(
+            task.subtasks.filter(is_deleted=False)
+            .exclude(status__code=TaskStatus.Code.COMPLETED)
+            .order_by("id")
+            .select_for_update(of=("self",))
+        )
+        task.unfinished_subtasks_count = len(unfinished_subtasks)
         was_completed = task.status.code == TaskStatus.Code.COMPLETED
         is_completed = new_status.code == TaskStatus.Code.COMPLETED
         if task.status_id == new_status.id:

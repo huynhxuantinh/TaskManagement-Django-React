@@ -94,6 +94,8 @@ class AssigneeMembershipMixin:
         if parent:
             if parent.is_deleted or parent.project_id != project.id:
                 raise serializers.ValidationError({"parent": ["Công việc cha phải thuộc cùng dự án và chưa bị xóa."]})
+            if parent.status.code == TaskStatus.Code.COMPLETED:
+                raise serializers.ValidationError({"parent": ["Hãy mở lại công việc cha trước."]})
             if parent.parent_id:
                 raise serializers.ValidationError({"parent": ["Chỉ hỗ trợ một cấp công việc con."]})
             if self.instance and parent.pk == self.instance.pk:
