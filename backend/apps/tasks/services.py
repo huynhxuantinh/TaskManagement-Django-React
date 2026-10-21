@@ -63,7 +63,11 @@ class ChecklistService:
     @transaction.atomic
     def update(task_id, item_id, values, actor):
         task = ChecklistService.locked_task(task_id)
-        item = TaskChecklistItem.objects.get(task=task, pk=item_id)
+        try:
+            item = TaskChecklistItem.objects.get(task=task, pk=item_id)
+        except TaskChecklistItem.DoesNotExist as error:
+            from rest_framework.exceptions import NotFound
+            raise NotFound("Không tìm thấy mục checklist.") from error
         old = {field: getattr(item, field) for field in ("title", "is_completed")}
         for field in old:
             if field in values:
@@ -79,7 +83,11 @@ class ChecklistService:
     @transaction.atomic
     def delete(task_id, item_id, actor):
         task = ChecklistService.locked_task(task_id)
-        item = TaskChecklistItem.objects.get(task=task, pk=item_id)
+        try:
+            item = TaskChecklistItem.objects.get(task=task, pk=item_id)
+        except TaskChecklistItem.DoesNotExist as error:
+            from rest_framework.exceptions import NotFound
+            raise NotFound("Không tìm thấy mục checklist.") from error
         changes = {"item": {"id": item.id, "title": item.title}}
         item.delete()
         TaskAuditLog.objects.create(task=task, actor=actor, action=TaskAuditLog.Action.CHECKLIST_DELETED, changes=changes)

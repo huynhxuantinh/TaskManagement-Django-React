@@ -357,6 +357,20 @@ def test_checklist_position_is_server_managed(task_users, task_statuses, task_pr
 
 
 @pytest.mark.django_db
+def test_deleting_same_checklist_item_twice_returns_not_found(
+    task_users, task_statuses, task_project
+):
+    task = make_task(task_project, task_statuses, task_users["employee"])
+    created = api_as(task_users["employee"]).post(
+        f"/api/v1/tasks/{task.id}/checklist/", {"title": "Item"}, format="json"
+    )
+    url = f"/api/v1/tasks/{task.id}/checklist/{created.data['data']['id']}/"
+
+    assert api_as(task_users["employee"]).delete(url).status_code == 204
+    assert api_as(task_users["employee"]).delete(url).status_code == 404
+
+
+@pytest.mark.django_db
 def test_status_workflow_requires_note_and_limits_reopening(
     task_users, task_statuses, task_project
 ):
