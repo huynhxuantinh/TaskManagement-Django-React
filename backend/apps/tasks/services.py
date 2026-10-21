@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from django.db import transaction
+from django.db.models import Count, Max
 from django.utils import timezone
 from apps.notifications.models import NotificationType
 from apps.notifications.services import create_notification
@@ -28,11 +29,15 @@ def audit_value(field, value):
 class ChecklistService:
     @staticmethod
     def locked_task(task_id):
-        task = Task.objects.select_for_update(of=("self",)).select_related("status").get(pk=task_id)
-        if task.is_deleted:
-            raise ValueError("Task deleted")
+        from rest_framework.exceptions import NotFound, ValidationError
+
+        try:
+            task = Task.objects.select_for_update(of=("self",)).select_related("status", "project").get(pk=task_id)
+        except Task.DoesNotExist as error:
+            raise NotFound("Không tìm thấy công việc.") from error
+        if task.is_deleted or task.project.is_deleted:
+            raise NotFound("Không tìm thấy công việc.")
         if task.status.code == TaskStatus.Code.COMPLETED:
-            from rest_framework.exceptions import ValidationError
             raise ValidationError({"checklist": "Hãy mở lại công việc trước khi sửa checklist."})
         return task
 
@@ -40,10 +45,14 @@ class ChecklistService:
     @transaction.atomic
     def create(task_id, values, actor):
         task = ChecklistService.locked_task(task_id)
-        if task.checklist_items.count() >= 100:
+        totals = task.checklist_items.aggregate(count=Count("id"), max_position=Max("position"))
+        if totals["count"] >= 100:
             from rest_framework.exceptions import ValidationError
             raise ValidationError({"checklist": "Mỗi công việc tối đa 100 mục checklist."})
-        item = TaskChecklistItem.objects.create(task=task, position=task.checklist_items.count(), **values)
+        max_position = totals["max_position"]
+        item = TaskChecklistItem.objects.create(
+            task=task, position=(max_position + 1 if max_position is not None else 0), **values
+        )
         TaskAuditLog.objects.create(task=task, actor=actor, action=TaskAuditLog.Action.CHECKLIST_CREATED, changes={"item": {"id": item.id, "title": item.title}})
         return item
 

@@ -32,7 +32,7 @@ from .serializers import (
     TaskStatusUpdateSerializer,
     TaskUpdateSerializer,
 )
-from .services import TaskService
+from .services import ChecklistService, TaskService
 from .workflow import can_change_task_status
 
 
@@ -225,27 +225,33 @@ class TaskStatusListView(APIView):
 class TaskChecklistView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def get_task(self, request, pk):
-        task = get_object_or_404(task_queryset(), pk=pk)
-        if not can_change_task_status(task, request.user):
+    def get_task(self, request, pk, require_change=False):
+        queryset = task_queryset()
+        if not has_role(request.user, Role.Code.ADMIN):
+            if has_role(request.user, Role.Code.MANAGER):
+                queryset = queryset.filter(project__memberships__user=request.user).distinct()
+            else:
+                queryset = queryset.filter(assignee=request.user)
+        task = get_object_or_404(queryset, pk=pk)
+        if require_change and not can_change_task_status(task, request.user):
             raise PermissionDenied("Bạn không có quyền cập nhật checklist công việc này.")
         return task
 
     def get(self, request, pk):
-        task = self.get_task(request, pk)
+        task = self.get_task(request, pk, require_change=True)
         return success(TaskChecklistItemSerializer(task.checklist_items.all(), many=True).data, "Lấy checklist thành công.")
 
     def post(self, request, pk):
-        task = self.get_task(request, pk)
+        task = self.get_task(request, pk, require_change=True)
         serializer = TaskChecklistItemSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        item = serializer.save(task=task)
+        item = ChecklistService.create(task.id, serializer.validated_data, request.user)
         return success(TaskChecklistItemSerializer(item).data, "Thêm mục checklist thành công.", 201)
 
 
 class TaskChecklistItemView(TaskChecklistView):
-    def get_item(self, request, pk, item_id):
-        task = self.get_task(request, pk)
+    def get_item(self, request, pk, item_id, require_change=True):
+        task = self.get_task(request, pk, require_change=require_change)
         return get_object_or_404(task.checklist_items, pk=item_id)
 
     def patch(self, request, pk, item_id):
