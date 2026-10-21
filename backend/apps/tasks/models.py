@@ -79,12 +79,15 @@ class Task(models.Model):
 
     @property
     def effective_progress(self):
-        if self.status.code == TaskStatus.Code.COMPLETED:
-            return 100
-        checklist = list(self.checklist_items.all())
-        if not checklist:
-            return self.progress
-        return round(sum(item.is_completed for item in checklist) * 100 / len(checklist))
+        from .progress import task_progress_summary
+
+        return task_progress_summary(self)["progress"]
+
+    @property
+    def effective_estimated_hours(self):
+        from .progress import task_progress_summary
+
+        return task_progress_summary(self)["estimated_hours"]
 
 
 class TaskChecklistItem(models.Model):

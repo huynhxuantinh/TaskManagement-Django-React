@@ -37,6 +37,9 @@ class TaskSerializer(serializers.ModelSerializer):
     is_overdue = serializers.SerializerMethodField()
     allowed_transitions = serializers.SerializerMethodField()
     effective_progress = serializers.IntegerField(read_only=True)
+    effective_estimated_hours = serializers.DecimalField(
+        max_digits=10, decimal_places=2, read_only=True
+    )
     parent_id = serializers.IntegerField(read_only=True, allow_null=True)
     checklist_total = serializers.SerializerMethodField()
     checklist_done = serializers.SerializerMethodField()
@@ -56,6 +59,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "estimated_hours",
             "progress",
             "effective_progress",
+            "effective_estimated_hours",
             "checklist_total",
             "checklist_done",
             "deadline",

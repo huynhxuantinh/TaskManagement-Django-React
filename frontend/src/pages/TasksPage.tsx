@@ -8,6 +8,7 @@ import { Modal } from '../components/ui/Modal'
 import { StatePanel } from '../components/ui/StatePanel'
 import { useToast } from '../components/ui/ToastContext'
 import { TaskForm } from '../features/core/TaskForm'
+import { TaskDetails } from '../features/core/TaskDetails'
 import { TaskHistory } from '../features/core/TaskHistory'
 import { TaskStatusSelect } from '../features/core/TaskStatusSelect'
 import { canCreateProjects, canManageProject } from '../features/core/permissions'
@@ -34,6 +35,7 @@ export function TasksPage() {
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<Task | undefined>()
   const [historyTask, setHistoryTask] = useState<Task | undefined>()
+  const [detailTask, setDetailTask] = useState<Task | undefined>()
   const [statusChange, setStatusChange] = useState<{ task: Task; transition: TaskTransition } | undefined>()
   const [statusNote, setStatusNote] = useState('')
   const params = new URLSearchParams({ page_size: '100' })
@@ -52,6 +54,19 @@ export function TasksPage() {
     if (!user) return []
     return projectsData?.results.filter((project) => canManageProject(user, project)) ?? []
   }, [projectsData, user])
+  const orderedTasks = useMemo(() => {
+    const rows = data?.results ?? []
+    const ids = new Set(rows.map((task) => task.id))
+    const children = new Map<number, Task[]>()
+    for (const task of rows) {
+      if (task.parent_id && ids.has(task.parent_id)) {
+        children.set(task.parent_id, [...(children.get(task.parent_id) ?? []), task])
+      }
+    }
+    return rows
+      .filter((task) => !task.parent_id || !ids.has(task.parent_id))
+      .flatMap((task) => [task, ...(children.get(task.id) ?? [])])
+  }, [data])
 
   function submitSearch(event: FormEvent) {
     event.preventDefault()
@@ -128,14 +143,18 @@ export function TasksPage() {
       {loading && <div className="h-72 animate-pulse rounded-2xl bg-white" />}
       {!loading && data?.results.length === 0 && <StatePanel eyebrow="Danh sách công việc" title="Không có công việc phù hợp" description="Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm." />}
       <section className="grid gap-3" aria-label="Danh sách công việc">
-        {data?.results.map((task) => {
+        {orderedTasks.map((task) => {
           const project = projectById.get(task.project.id)
           const manageable = Boolean(user && project && canManageProject(user, project))
           return (
-            <article key={task.id} className={`grid gap-4 rounded-2xl border bg-white p-5 shadow-[var(--shadow)] md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center ${task.is_overdue ? 'border-red-300' : 'border-slate-200'}`}>
-              <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className={`size-2.5 rounded-full ${task.priority === 3 ? 'bg-red-500' : task.priority === 2 ? 'bg-amber-400' : 'bg-slate-300'}`} /><h3 className="truncate font-extrabold text-slate-950">{task.title}</h3>{task.is_overdue && <span className="rounded-full bg-red-50 px-2 py-1 text-[10px] font-black uppercase text-red-700">Quá hạn</span>}</div><p className="mt-2 line-clamp-1 text-sm text-slate-500">{task.project.name} · {task.assignee?.full_name ?? 'Chưa phân công'} · {priorities[task.priority]}</p></div>
+            <article key={task.id} className={`grid gap-4 rounded-2xl border bg-white p-5 shadow-[var(--shadow)] md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center ${task.parent_id ? 'ml-5 border-l-4 border-l-sky-200 md:ml-10' : ''} ${task.is_overdue ? 'border-red-300' : 'border-slate-200'}`}>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2"><span className={`size-2.5 rounded-full ${task.priority === 3 ? 'bg-red-500' : task.priority === 2 ? 'bg-amber-400' : 'bg-slate-300'}`} /><h3 className="truncate font-extrabold text-slate-950">{task.title}</h3>{task.parent_id && <span className="rounded-full bg-sky-50 px-2 py-1 text-[10px] font-black uppercase text-sky-700">Task con</span>}{task.is_overdue && <span className="rounded-full bg-red-50 px-2 py-1 text-[10px] font-black uppercase text-red-700">Quá hạn</span>}</div>
+                <p className="mt-2 line-clamp-1 text-sm text-slate-500">{task.project.name} · {task.assignee?.full_name ?? 'Chưa phân công'} · {priorities[task.priority]} · {task.effective_estimated_hours ? `${task.effective_estimated_hours} giờ` : 'Chưa ước lượng'}</p>
+                <div className="mt-3 flex items-center gap-3"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${task.effective_progress}%` }} /></div><span className="font-mono text-xs font-black text-slate-600">{task.effective_progress}%</span></div>
+              </div>
               {user && <TaskStatusSelect task={task} statuses={statuses ?? [task.status]} onChange={(transition) => { setStatusChange({ task, transition }); setStatusNote('') }} />}
-              <div className="flex justify-end gap-1"><Button variant="ghost" onClick={() => setHistoryTask(task)}>Lịch sử</Button>{manageable && <><Button variant="ghost" onClick={() => setEditing(task)}>Sửa</Button><Button variant="ghost" className="!text-red-700" onClick={() => void remove(task)}>Xóa</Button></>}</div>
+              <div className="flex justify-end gap-1"><Button variant="ghost" onClick={() => setDetailTask(task)}>Chi tiết</Button><Button variant="ghost" onClick={() => setHistoryTask(task)}>Lịch sử</Button>{manageable && <><Button variant="ghost" onClick={() => setEditing(task)}>Sửa</Button><Button variant="ghost" className="!text-red-700" onClick={() => void remove(task)}>Xóa</Button></>}</div>
             </article>
           )
         })}
@@ -144,6 +163,7 @@ export function TasksPage() {
       <Modal open={creating} title="Giao công việc mới" onClose={() => setCreating(false)}><TaskForm projects={manageableProjects} statuses={statuses ?? []} onCancel={() => setCreating(false)} onSaved={() => { setCreating(false); reload(); notify('Đã tạo công việc.') }} /></Modal>
       <Modal open={Boolean(editing)} title="Cập nhật công việc" onClose={() => setEditing(undefined)}>{editing && <TaskForm task={editing} projects={projectsData?.results ?? []} statuses={statuses ?? []} onCancel={() => setEditing(undefined)} onSaved={() => { setEditing(undefined); reload(); notify('Đã cập nhật công việc.') }} />}</Modal>
       <Modal open={Boolean(historyTask)} title={`Lịch sử · ${historyTask?.title ?? ''}`} onClose={() => setHistoryTask(undefined)}>{historyTask && <TaskHistory task={historyTask} />}</Modal>
+      <Modal open={Boolean(detailTask)} title={`Chi tiết · ${detailTask?.title ?? ''}`} onClose={() => setDetailTask(undefined)}>{detailTask && <TaskDetails taskId={detailTask.id} onChanged={reload} />}</Modal>
       <Modal open={Boolean(statusChange)} title="Ghi chú thay đổi trạng thái" onClose={() => { setStatusChange(undefined); setStatusNote('') }}>
         <form className="space-y-4" onSubmit={submitStatusChange}>
           <p className="text-sm text-slate-600">Ghi chú này được lưu vào lịch sử công việc.</p>

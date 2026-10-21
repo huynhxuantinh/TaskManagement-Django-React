@@ -146,7 +146,11 @@ class Command(BaseCommand):
             Notification.objects.update_or_create(
                 user=user,
                 message=message,
-                defaults={'type': notification_type, 'is_priority': priority},
+                defaults={
+                    'type': notification_type,
+                    'is_priority': priority,
+                    'is_read': False,
+                },
             )
         for user in users.values():
             for notification_type in NotificationType.values:

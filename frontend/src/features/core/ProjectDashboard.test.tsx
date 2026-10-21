@@ -11,6 +11,7 @@ const report: ProjectReport = {
   total_tasks: 6,
   completed_tasks: 2,
   progress: 33,
+  missing_estimate_count: 2,
   task_distribution: [
     { code: 'COMPLETED', name: 'Đã hoàn thành', count: 2 },
     { code: 'IN_PROGRESS', name: 'Đang thực hiện', count: 1 },
@@ -31,6 +32,7 @@ const task: Task = {
   estimated_hours: null,
   progress: 0,
   effective_progress: 0,
+  effective_estimated_hours: null,
   checklist_total: 0,
   checklist_done: 0,
   deadline: '2026-11-15',
@@ -53,6 +55,7 @@ describe('ProjectDashboard', () => {
 
     expect(screen.getByText('Tổng quan dự án')).toBeInTheDocument()
     expect(screen.getByText('33% tiến độ')).toBeInTheDocument()
+    expect(screen.getByText(/2 công việc chưa có giờ ước lượng/i)).toBeInTheDocument()
     expect(screen.getByText('Viết kiểm thử giao diện')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /xem trang công việc/i })).toHaveAttribute('href', '/tasks?project=4')
   })

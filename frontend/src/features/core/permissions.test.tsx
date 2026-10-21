@@ -26,6 +26,7 @@ const project: Project = {
   creator: user('MANAGER', 2),
   member_count: 3,
   progress: 40,
+  missing_estimate_count: 0,
   created_at: '',
 }
 
@@ -48,6 +49,7 @@ const task: Task = {
   estimated_hours: null,
   progress: 0,
   effective_progress: 0,
+  effective_estimated_hours: null,
   checklist_total: 0,
   checklist_done: 0,
   deadline: null,

@@ -19,6 +19,7 @@ class DashboardSerializer(serializers.Serializer):
     task_count = serializers.IntegerField(read_only=True)
     completed_task_count = serializers.IntegerField(read_only=True)
     overdue_task_count = serializers.IntegerField(read_only=True)
+    missing_estimate_count = serializers.IntegerField(read_only=True)
     team_count = serializers.IntegerField(read_only=True)
     task_distribution = DistributionSerializer(many=True, read_only=True)
     recent_tasks = TaskSerializer(many=True, read_only=True)
@@ -38,6 +39,7 @@ class ProjectReportSerializer(serializers.Serializer):
     total_tasks = serializers.IntegerField(read_only=True)
     completed_tasks = serializers.IntegerField(read_only=True)
     progress = serializers.IntegerField(read_only=True)
+    missing_estimate_count = serializers.IntegerField(read_only=True)
     task_distribution = DistributionSerializer(many=True, read_only=True)
 
 

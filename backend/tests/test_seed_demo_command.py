@@ -59,7 +59,9 @@ def test_seed_demo_creates_stable_idempotent_e2e_dataset():
         'notifications': Notification.objects.count(),
         'reports': ReportMessage.objects.count(),
     }
+    Notification.objects.update(is_read=True)
     call_command('seed_demo')
+    assert not Notification.objects.filter(is_read=True).exists()
     assert counts == {
         'users': User.objects.count(),
         'projects': Project.objects.count(),

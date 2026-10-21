@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 
 import pytest
 from django.db import connection
@@ -8,7 +9,7 @@ from rest_framework.test import APIClient
 from apps.accounts.models import Role, User
 from apps.notifications.models import Notification, NotificationType
 from apps.projects.models import Project, ProjectMember
-from apps.tasks.models import Task, TaskStatus
+from apps.tasks.models import Task, TaskChecklistItem, TaskStatus
 
 
 @pytest.fixture
@@ -235,6 +236,108 @@ def test_project_progress_uses_only_active_tasks(project_users):
     assert response.status_code == 200
     assert response.data["data"]["progress"] == 50
     assert response.data["data"]["member_count"] == 1
+
+
+@pytest.mark.django_db
+def test_project_progress_uses_average_weight_for_missing_estimates(project_users):
+    project = make_project(project_users["manager"])
+    todo = TaskStatus.objects.create(code="TODO", name="To Do")
+    done = TaskStatus.objects.create(code="COMPLETED", name="Completed")
+    empty = api_as(project_users["manager"]).get(
+        f"/api/v1/projects/{project.id}/"
+    )
+    Task.objects.create(
+        title="Estimated and done",
+        project=project,
+        status=done,
+        estimated_hours=Decimal("10"),
+    )
+    Task.objects.create(title="Missing estimate", project=project, status=todo)
+
+    response = api_as(project_users["manager"]).get(
+        f"/api/v1/projects/{project.id}/"
+    )
+
+    assert empty.data["data"]["progress"] == 0
+    assert response.data["data"]["progress"] == 50
+    assert response.data["data"]["missing_estimate_count"] == 1
+
+
+@pytest.mark.django_db
+def test_project_progress_uses_checklist_and_returns_to_manual_after_reopen(
+    project_users,
+):
+    project = make_project(project_users["manager"])
+    todo = TaskStatus.objects.create(code="TODO", name="To Do")
+    done = TaskStatus.objects.create(code="COMPLETED", name="Completed")
+    task = Task.objects.create(
+        title="Checklist task",
+        project=project,
+        status=todo,
+        progress=30,
+        estimated_hours=Decimal("4"),
+    )
+    TaskChecklistItem.objects.create(task=task, title="Done", is_completed=True)
+    TaskChecklistItem.objects.create(task=task, title="Open")
+
+    checklist_progress = api_as(project_users["manager"]).get(
+        f"/api/v1/projects/{project.id}/"
+    )
+    task.status = done
+    task.save(update_fields=["status"])
+    completed_progress = api_as(project_users["manager"]).get(
+        f"/api/v1/projects/{project.id}/"
+    )
+    task.status = todo
+    task.checklist_items.all().delete()
+    task.save(update_fields=["status"])
+    reopened_progress = api_as(project_users["manager"]).get(
+        f"/api/v1/projects/{project.id}/"
+    )
+
+    assert checklist_progress.data["data"]["progress"] == 50
+    assert completed_progress.data["data"]["progress"] == 100
+    assert reopened_progress.data["data"]["progress"] == 30
+
+
+@pytest.mark.django_db
+def test_parent_progress_and_hours_are_aggregated_from_children(project_users):
+    project = make_project(project_users["manager"])
+    todo = TaskStatus.objects.create(code="TODO", name="To Do")
+    done = TaskStatus.objects.create(code="COMPLETED", name="Completed")
+    parent = Task.objects.create(
+        title="Parent",
+        project=project,
+        status=todo,
+        progress=0,
+        estimated_hours=Decimal("100"),
+    )
+    Task.objects.create(
+        title="First child",
+        project=project,
+        parent=parent,
+        status=todo,
+        progress=50,
+        estimated_hours=Decimal("2"),
+    )
+    Task.objects.create(
+        title="Second child",
+        project=project,
+        parent=parent,
+        status=done,
+        estimated_hours=Decimal("6"),
+    )
+
+    project_response = api_as(project_users["manager"]).get(
+        f"/api/v1/projects/{project.id}/"
+    )
+    task_response = api_as(project_users["manager"]).get(
+        f"/api/v1/tasks/{parent.id}/"
+    )
+
+    assert project_response.data["data"]["progress"] == 88
+    assert task_response.data["data"]["effective_progress"] == 88
+    assert task_response.data["data"]["effective_estimated_hours"] == "8.00"
 
 
 @pytest.mark.django_db

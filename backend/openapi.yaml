@@ -1227,6 +1227,9 @@ components:
         overdue_task_count:
           type: integer
           readOnly: true
+        missing_estimate_count:
+          type: integer
+          readOnly: true
         team_count:
           type: integer
           readOnly: true
@@ -1242,6 +1245,7 @@ components:
           readOnly: true
       required:
       - completed_task_count
+      - missing_estimate_count
       - overdue_task_count
       - project_count
       - recent_tasks
@@ -1756,6 +1760,10 @@ components:
         progress:
           type: integer
           readOnly: true
+        missing_estimate_count:
+          type: integer
+          readOnly: true
+          default: 0
         created_at:
           type: string
           format: date-time
@@ -1763,6 +1771,7 @@ components:
       - creator
       - id
       - member_count
+      - missing_estimate_count
       - name
       - progress
     ProjectListData:
@@ -1842,6 +1851,9 @@ components:
         progress:
           type: integer
           readOnly: true
+        missing_estimate_count:
+          type: integer
+          readOnly: true
         task_distribution:
           type: array
           items:
@@ -1849,6 +1861,7 @@ components:
           readOnly: true
       required:
       - completed_tasks
+      - missing_estimate_count
       - progress
       - project_id
       - project_name
@@ -2145,6 +2158,11 @@ components:
         effective_progress:
           type: integer
           readOnly: true
+        effective_estimated_hours:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          readOnly: true
         checklist_total:
           type: integer
           readOnly: true
@@ -2180,6 +2198,7 @@ components:
       - assignee
       - checklist_done
       - checklist_total
+      - effective_estimated_hours
       - effective_progress
       - id
       - is_overdue
@@ -2413,6 +2432,11 @@ components:
         effective_progress:
           type: integer
           readOnly: true
+        effective_estimated_hours:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          readOnly: true
         checklist_total:
           type: integer
           readOnly: true
@@ -2454,6 +2478,7 @@ components:
       - checklist
       - checklist_done
       - checklist_total
+      - effective_estimated_hours
       - effective_progress
       - id
       - is_overdue

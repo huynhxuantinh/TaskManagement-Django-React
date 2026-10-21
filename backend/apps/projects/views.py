@@ -1,4 +1,4 @@
-from django.db.models import Count, Q
+from django.db.models import Count
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework.exceptions import PermissionDenied
@@ -10,6 +10,7 @@ from rest_framework.viewsets import ModelViewSet
 from apps.accounts.models import Role, User
 from apps.accounts.permissions import has_role
 from apps.core.api import failure, success
+from apps.tasks.progress import project_progress_summaries
 
 from .models import Project, ProjectMember
 from .permissions import can_create_project, can_manage_project
@@ -32,16 +33,18 @@ def project_queryset():
         .select_related("creator", "creator__role")
         .annotate(
             member_count=Count("memberships", distinct=True),
-            active_task_count=Count(
-                "tasks", filter=Q(tasks__is_deleted=False), distinct=True
-            ),
-            completed_task_count=Count(
-                "tasks",
-                filter=Q(tasks__is_deleted=False, tasks__status__code="COMPLETED"),
-                distinct=True,
-            ),
         )
     )
+
+
+def attach_project_progress(projects):
+    projects = list(projects)
+    summaries = project_progress_summaries([project.id for project in projects])
+    for project in projects:
+        summary = summaries[project.id]
+        project.weighted_progress = summary["progress"]
+        project.missing_estimate_count = summary["missing_count"]
+    return projects
 
 
 @extend_schema_view(
@@ -80,11 +83,12 @@ class ProjectViewSet(ModelViewSet):
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
-        serializer = ProjectSerializer(page, many=True)
+        serializer = ProjectSerializer(attach_project_progress(page), many=True)
         return self.get_paginated_response(serializer.data)
 
     def retrieve(self, request, *args, **kwargs):
-        return success(ProjectSerializer(self.get_object()).data, "Lấy dự án thành công.")
+        project = attach_project_progress([self.get_object()])[0]
+        return success(ProjectSerializer(project).data, "Lấy dự án thành công.")
 
     def create(self, request, *args, **kwargs):
         if not can_create_project(request.user):
@@ -92,7 +96,7 @@ class ProjectViewSet(ModelViewSet):
         serializer = ProjectWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         project = ProjectService.create_project(request.user, serializer.validated_data)
-        project = project_queryset().get(pk=project.pk)
+        project = attach_project_progress([project_queryset().get(pk=project.pk)])[0]
         return success(ProjectSerializer(project).data, "Tạo dự án thành công.", 201)
 
     def partial_update(self, request, *args, **kwargs):
@@ -103,7 +107,7 @@ class ProjectViewSet(ModelViewSet):
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        project = project_queryset().get(pk=project.pk)
+        project = attach_project_progress([project_queryset().get(pk=project.pk)])[0]
         return success(ProjectSerializer(project).data, "Cập nhật dự án thành công.")
 
     def destroy(self, request, *args, **kwargs):

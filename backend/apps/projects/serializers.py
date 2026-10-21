@@ -18,6 +18,7 @@ class ProjectSerializer(serializers.ModelSerializer):
     creator = ProjectUserSerializer(read_only=True)
     member_count = serializers.IntegerField(read_only=True)
     progress = serializers.SerializerMethodField()
+    missing_estimate_count = serializers.IntegerField(read_only=True, default=0)
 
     class Meta:
         model = Project
@@ -30,13 +31,12 @@ class ProjectSerializer(serializers.ModelSerializer):
             "creator",
             "member_count",
             "progress",
+            "missing_estimate_count",
             "created_at",
         )
 
     def get_progress(self, project) -> int:
-        total = getattr(project, "active_task_count", 0)
-        completed = getattr(project, "completed_task_count", 0)
-        return round(completed * 100 / total) if total else 0
+        return getattr(project, "weighted_progress", 0)
 
 
 class ProjectWriteSerializer(serializers.ModelSerializer):

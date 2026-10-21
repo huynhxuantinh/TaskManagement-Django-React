@@ -35,6 +35,7 @@ export interface Project {
   creator: User
   member_count: number
   progress: number
+  missing_estimate_count: number
   created_at: string
 }
 
@@ -75,6 +76,7 @@ export interface Task {
   estimated_hours: string | null
   progress: number
   effective_progress: number
+  effective_estimated_hours: string | null
   checklist_total: number
   checklist_done: number
   checklist?: TaskChecklistItem[]
@@ -130,6 +132,7 @@ export interface ProjectReport {
   total_tasks: number
   completed_tasks: number
   progress: number
+  missing_estimate_count: number
   task_distribution: Array<{ code: string; name: string; count: number }>
 }
 
@@ -155,6 +158,7 @@ export interface DashboardSummary {
   task_count: number
   completed_task_count: number
   overdue_task_count: number
+  missing_estimate_count: number
   team_count: number
   task_distribution: Array<{ code: string; name: string; count: number }>
   recent_tasks: Array<{

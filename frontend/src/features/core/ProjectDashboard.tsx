@@ -89,6 +89,11 @@ export function ProjectDashboard({
             <p className="mt-5 text-sm leading-6 text-slate-300">
               Đã hoàn thành {report.completed_tasks} trên tổng số {report.total_tasks} công việc.
             </p>
+            {report.missing_estimate_count > 0 && (
+              <p className="mt-3 rounded-xl bg-amber-300/15 px-3 py-2 text-sm font-semibold text-amber-100">
+                {report.missing_estimate_count} công việc chưa có giờ ước lượng; hệ thống đang dùng trọng số trung bình.
+              </p>
+            )}
           </article>
           <article className="rounded-3xl border border-slate-200 bg-white p-6">
             <p className="section-kicker">Phân bổ công việc</p>
@@ -126,6 +131,7 @@ export function ProjectDashboard({
                   {task.is_overdue && <span className="rounded-full bg-red-100 px-2 py-1 text-[10px] font-black uppercase text-red-700">Quá hạn</span>}
                 </div>
                 <p className="mt-1 text-xs text-slate-500">{task.assignee?.full_name ?? 'Chưa phân công'} · Ưu tiên {priorityLabels[task.priority]}</p>
+                <div className="mt-2 flex items-center gap-2"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${task.effective_progress}%` }} /></div><span className="font-mono text-[11px] font-bold text-slate-500">{task.effective_progress}%</span></div>
               </div>
               <span className={`w-fit rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${statusStyles[task.status.code] ?? 'bg-slate-100 text-slate-700'}`}>
                 {task.status.name}

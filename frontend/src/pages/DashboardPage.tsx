@@ -46,6 +46,7 @@ export function DashboardPage() {
     { label: 'Tổng công việc', value: summary?.task_count, icon: 'check' as const },
     { label: 'Đã hoàn thành', value: summary?.completed_task_count, icon: 'grid' as const },
     { label: 'Đang quá hạn', value: summary?.overdue_task_count, icon: 'chart' as const },
+    { label: 'Chưa ước lượng', value: summary?.missing_estimate_count, icon: 'check' as const },
   ]
 
   return (
@@ -64,7 +65,7 @@ export function DashboardPage() {
         </div>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Chỉ số tổng quan">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5" aria-label="Chỉ số tổng quan">
         {metrics.map((metric, index) => (
           <article
             key={metric.label}

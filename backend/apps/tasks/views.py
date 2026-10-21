@@ -2,7 +2,7 @@ import csv
 from datetime import timedelta
 
 from django.http import HttpResponse
-from django.db.models import Count, Q
+from django.db.models import Count, Prefetch, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view
@@ -42,6 +42,19 @@ from .workflow import can_change_task_status
 
 
 def task_queryset():
+    active_subtasks = (
+        Task.objects.filter(is_deleted=False)
+        .select_related("status")
+        .annotate(
+            checklist_total_count=Count("checklist_items", distinct=True),
+            checklist_done_count=Count(
+                "checklist_items",
+                filter=Q(checklist_items__is_completed=True),
+                distinct=True,
+            ),
+        )
+        .order_by("id")
+    )
     return Task.objects.filter(
         is_deleted=False, project__is_deleted=False
     ).select_related(
@@ -52,7 +65,10 @@ def task_queryset():
         "assignee__role",
         "status",
         "parent__status",
-    ).prefetch_related("checklist_items").annotate(
+    ).prefetch_related(
+        "checklist_items",
+        Prefetch("subtasks", queryset=active_subtasks, to_attr="active_subtasks"),
+    ).annotate(
         unfinished_subtasks_count=Count(
             "subtasks",
             filter=Q(subtasks__is_deleted=False)

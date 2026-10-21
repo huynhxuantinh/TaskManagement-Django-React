@@ -26,7 +26,7 @@ export function Modal({
         tabIndex={-1}
         onKeyDown={(event) => event.key === 'Escape' && onClose()}
         onMouseDown={(event) => event.stopPropagation()}
-        className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl outline-none"
+        className="max-h-[calc(100vh-2rem)] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl outline-none"
       >
         <h2 id="modal-title" className="text-xl font-extrabold text-slate-950">
           {title}

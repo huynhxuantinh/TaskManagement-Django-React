@@ -246,6 +246,7 @@ def test_dashboard_summary_is_scoped_by_role(report_users, report_statuses, repo
     assert admin.data["data"]["task_count"] == 4
     assert manager.data["data"]["project_count"] == 1
     assert manager.data["data"]["task_count"] == 3
+    assert manager.data["data"]["missing_estimate_count"] == 3
     assert employee.data["data"]["task_count"] == 3
     assert employee.data["data"]["overdue_task_count"] == 1
     assert len(employee.data["data"]["recent_tasks"]) == 3
@@ -342,6 +343,7 @@ def test_project_report_and_top_contributors_are_project_scoped(
     assert report.data["data"]["total_tasks"] == 3
     assert report.data["data"]["completed_tasks"] == 1
     assert report.data["data"]["progress"] == 33
+    assert report.data["data"]["missing_estimate_count"] == 3
     assert contributors.data["data"][0]["user"]["id"] == report_users["employee"].id
     assert contributors.data["data"][0]["completed_tasks"] == 1
 

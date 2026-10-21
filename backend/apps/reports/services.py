@@ -1,10 +1,11 @@
-from django.db.models import Count, F, Q
+from django.db.models import Count, F, Prefetch, Q
 from django.utils import timezone
 
 from apps.accounts.models import Role, User
 from apps.accounts.permissions import has_role
 from apps.projects.models import Project
 from apps.tasks.models import Task, TaskStatus
+from apps.tasks.progress import progress_task_queryset, project_progress_summaries
 
 
 def scoped_projects(user):
@@ -38,6 +39,9 @@ def dashboard_summary(user):
             "id",
             filter=Q(deadline__lt=today) & ~Q(status__code=TaskStatus.Code.COMPLETED),
         ),
+        missing_estimate_count=Count(
+            "id", filter=Q(estimated_hours__isnull=True)
+        ),
     )
     distribution = list(
         tasks.values("status__code", "status__name")
@@ -69,7 +73,14 @@ def dashboard_summary(user):
                     distinct=True,
                 ),
             )
-            .prefetch_related("checklist_items")
+            .prefetch_related(
+                "checklist_items",
+                Prefetch(
+                    "subtasks",
+                    queryset=progress_task_queryset().order_by("id"),
+                    to_attr="active_subtasks",
+                ),
+            )
             .order_by("-created_at", "-id")[:5]
         ),
     }
@@ -110,24 +121,25 @@ def workload(user):
 
 
 def project_report(project):
-    tasks = Task.objects.filter(project=project, is_deleted=False)
-    totals = tasks.aggregate(
-        total_tasks=Count("id"),
-        completed_tasks=Count(
-            "id", filter=Q(status__code=TaskStatus.Code.COMPLETED)
-        ),
-    )
-    total = totals["total_tasks"]
+    tasks = list(progress_task_queryset().filter(project=project).order_by("id"))
+    progress = project_progress_summaries([project.id], tasks)[project.id]
+    distribution = {}
+    for task in tasks:
+        row = distribution.setdefault(
+            task.status.code,
+            {"code": task.status.code, "name": task.status.name, "count": 0},
+        )
+        row["count"] += 1
     return {
         "project_id": project.id,
         "project_name": project.name,
-        **totals,
-        "progress": round(totals["completed_tasks"] * 100 / total) if total else 0,
-        "task_distribution": list(
-            tasks.values(code=F("status__code"), name=F("status__name"))
-            .annotate(count=Count("id"))
-            .order_by("code")
+        "total_tasks": len(tasks),
+        "completed_tasks": sum(
+            task.status.code == TaskStatus.Code.COMPLETED for task in tasks
         ),
+        "progress": progress["progress"],
+        "missing_estimate_count": progress["missing_count"],
+        "task_distribution": [distribution[code] for code in sorted(distribution)],
     }
 
 
