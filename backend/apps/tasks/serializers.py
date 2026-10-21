@@ -80,16 +80,35 @@ class AssigneeMembershipMixin:
         attrs = super().validate(attrs)
         project = attrs.get("project") or getattr(self.instance, "project", None)
         assignee = attrs.get("assignee", getattr(self.instance, "assignee", None))
+        parent = attrs.get("parent", getattr(self.instance, "parent", None))
+        deadline = attrs.get("deadline", getattr(self.instance, "deadline", None))
+        start_date = attrs.get("start_date", getattr(self.instance, "start_date", None))
         if assignee and project and not ProjectMember.objects.filter(
             project=project, user=assignee
         ).exists():
             raise serializers.ValidationError(
                 {"assignee_id": ["Người được giao phải là thành viên dự án."]}
             )
+        if start_date and deadline and start_date > deadline:
+            raise serializers.ValidationError({"start_date": ["Ngày bắt đầu phải trước hoặc bằng hạn hoàn thành."]})
+        if parent:
+            if parent.is_deleted or parent.project_id != project.id:
+                raise serializers.ValidationError({"parent": ["Công việc cha phải thuộc cùng dự án và chưa bị xóa."]})
+            if parent.parent_id or parent.subtasks.filter(is_deleted=False).exists():
+                raise serializers.ValidationError({"parent": ["Chỉ hỗ trợ một cấp công việc con."]})
+            if self.instance and parent.pk == self.instance.pk:
+                raise serializers.ValidationError({"parent": ["Không thể chọn chính công việc này làm cha."]})
+        if self.instance and self.instance.subtasks.filter(is_deleted=False).exists() and "parent" in attrs:
+            raise serializers.ValidationError({"parent": ["Công việc đang có công việc con không thể trở thành công việc con."]})
+        if self.instance and self.instance.checklist_items.exists() and "progress" in attrs:
+            raise serializers.ValidationError({"progress": ["Tiến độ được tính tự động từ checklist."]})
         return attrs
 
 
 class TaskCreateSerializer(AssigneeMembershipMixin, serializers.ModelSerializer):
+    parent = serializers.PrimaryKeyRelatedField(
+        queryset=Task.objects.filter(is_deleted=False), required=False, allow_null=True
+    )
     project_id = serializers.PrimaryKeyRelatedField(
         source="project", queryset=Project.objects.filter(is_deleted=False)
     )
@@ -121,6 +140,9 @@ class TaskCreateSerializer(AssigneeMembershipMixin, serializers.ModelSerializer)
 
 
 class TaskUpdateSerializer(AssigneeMembershipMixin, serializers.ModelSerializer):
+    parent = serializers.PrimaryKeyRelatedField(
+        queryset=Task.objects.filter(is_deleted=False), required=False, allow_null=True
+    )
     assignee_id = serializers.PrimaryKeyRelatedField(
         source="assignee",
         queryset=User.objects.filter(is_active=True),

@@ -16,8 +16,12 @@ def audit_value(field, value):
         if value is None:
             return None
         return {"id": value.id, "full_name": value.full_name}
-    if field == "deadline":
+    if field in {"deadline", "start_date"}:
         return value.isoformat() if value else None
+    if field == "estimated_hours":
+        return str(value) if value is not None else None
+    if field == "parent":
+        return {"id": value.id, "title": value.title} if value else None
     return value
 
 

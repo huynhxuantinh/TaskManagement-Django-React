@@ -9,6 +9,10 @@ const actionLabels: Record<TaskAuditLog['action'], string> = {
 }
 
 const fieldLabels: Record<string, string> = {
+  start_date: 'Ngày bắt đầu',
+  estimated_hours: 'Giờ ước lượng',
+  progress: 'Tiến độ',
+  parent: 'Công việc cha',
   title: 'Tiêu đề',
   description: 'Mô tả',
   assignee: 'Người nhận',

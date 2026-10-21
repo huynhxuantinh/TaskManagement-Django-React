@@ -2,6 +2,8 @@ from django.conf import settings
 from django.db import models
 from django.db.models import Q
 from django.core.validators import MaxValueValidator
+from django.core.validators import MinValueValidator
+from decimal import Decimal
 from django.utils import timezone
 
 from apps.projects.models import Project
@@ -47,7 +49,8 @@ class Task(models.Model):
     )
     start_date = models.DateField(null=True, blank=True)
     estimated_hours = models.DecimalField(
-        max_digits=8, decimal_places=2, null=True, blank=True
+        max_digits=8, decimal_places=2, null=True, blank=True,
+        validators=[MinValueValidator(Decimal("0.01"))]
     )
     progress = models.PositiveSmallIntegerField(default=0, validators=[MaxValueValidator(100)])
     deadline = models.DateField(null=True, blank=True)
