@@ -23,6 +23,7 @@ from .serializers import (
     TaskAuditLogListResponseSerializer,
     TaskAuditLogSerializer,
     TaskChecklistItemSerializer,
+    TaskChecklistOrderSerializer,
     TaskCreateSerializer,
     TaskFilterSerializer,
     TaskListResponseSerializer,
@@ -265,4 +266,13 @@ class TaskChecklistItemView(TaskChecklistView):
         self.get_item(request, pk, item_id)
         ChecklistService.delete(pk, item_id, request.user)
         return Response(status=204)
+
+
+class TaskChecklistOrderView(TaskChecklistView):
+    def put(self, request, pk):
+        task = self.get_task(request, pk, require_change=True)
+        serializer = TaskChecklistOrderSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        items = ChecklistService.reorder(task.id, serializer.validated_data["item_ids"], request.user)
+        return success(TaskChecklistItemSerializer(items, many=True).data, "Sắp xếp checklist thành công.")
 

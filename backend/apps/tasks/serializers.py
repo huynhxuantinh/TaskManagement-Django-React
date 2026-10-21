@@ -173,6 +173,10 @@ class TaskChecklistItemSerializer(serializers.ModelSerializer):
         read_only_fields = ("id", "position", "created_at")
 
 
+class TaskChecklistOrderSerializer(serializers.Serializer):
+    item_ids = serializers.ListField(child=serializers.IntegerField(min_value=1), allow_empty=True)
+
+
 class TaskFilterSerializer(serializers.Serializer):
     project = serializers.IntegerField(required=False, min_value=1)
     assignee = serializers.IntegerField(required=False, min_value=1)

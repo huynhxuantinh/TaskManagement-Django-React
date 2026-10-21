@@ -1,6 +1,6 @@
 from django.urls import path
 
-from .views import TaskChecklistItemView, TaskChecklistView, TaskStatusListView, TaskViewSet
+from .views import TaskChecklistItemView, TaskChecklistOrderView, TaskChecklistView, TaskStatusListView, TaskViewSet
 
 task_list = TaskViewSet.as_view({"get": "list", "post": "create"})
 task_detail = TaskViewSet.as_view(
@@ -18,6 +18,7 @@ urlpatterns = [
     path("tasks/<int:pk>/status/", task_status, name="task-change-status"),
     path("tasks/<int:pk>/history/", task_history, name="task-history"),
     path("tasks/<int:pk>/checklist/", TaskChecklistView.as_view(), name="task-checklist"),
+    path("tasks/<int:pk>/checklist/order/", TaskChecklistOrderView.as_view(), name="task-checklist-order"),
     path("tasks/<int:pk>/checklist/<int:item_id>/", TaskChecklistItemView.as_view(), name="task-checklist-item"),
 ]
 

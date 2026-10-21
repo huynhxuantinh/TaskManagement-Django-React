@@ -92,6 +92,27 @@ class ChecklistService:
         item.delete()
         TaskAuditLog.objects.create(task=task, actor=actor, action=TaskAuditLog.Action.CHECKLIST_DELETED, changes=changes)
 
+    @staticmethod
+    @transaction.atomic
+    def reorder(task_id, item_ids, actor):
+        from rest_framework.exceptions import ValidationError
+
+        task = ChecklistService.locked_task(task_id)
+        items = list(task.checklist_items.select_for_update(of=("self",)).order_by("position", "id"))
+        old_ids = [item.id for item in items]
+        if len(item_ids) != len(set(item_ids)) or set(item_ids) != set(old_ids):
+            raise ValidationError({"item_ids": "Danh sách mục checklist không hợp lệ."})
+        by_id = {item.id: item for item in items}
+        ordered = [by_id[item_id] for item_id in item_ids]
+        for position, item in enumerate(ordered):
+            item.position = position
+        TaskChecklistItem.objects.bulk_update(ordered, ["position"])
+        TaskAuditLog.objects.create(
+            task=task, actor=actor, action=TaskAuditLog.Action.CHECKLIST_REORDERED,
+            changes={"order": {"old": old_ids, "new": item_ids}},
+        )
+        return ordered
+
 
 @transaction.atomic
 def send_deadline_notifications(reference_date=None):
