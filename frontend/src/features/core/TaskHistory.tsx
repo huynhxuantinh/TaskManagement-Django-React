@@ -6,6 +6,10 @@ const actionLabels: Record<TaskAuditLog['action'], string> = {
   UPDATED: 'Cập nhật công việc',
   STATUS_CHANGED: 'Đổi trạng thái',
   DELETED: 'Xóa công việc',
+  CHECKLIST_CREATED: 'Thêm mục checklist',
+  CHECKLIST_UPDATED: 'Cập nhật mục checklist',
+  CHECKLIST_DELETED: 'Xóa mục checklist',
+  CHECKLIST_REORDERED: 'Sắp xếp checklist',
 }
 
 const fieldLabels: Record<string, string> = {
@@ -21,15 +25,35 @@ const fieldLabels: Record<string, string> = {
   status: 'Trạng thái',
   note: 'Ghi chú',
   is_deleted: 'Đã xóa',
+  item: 'Mục checklist',
+  order: 'Thứ tự checklist',
+  is_completed: 'Hoàn thành',
 }
 
 function displayValue(value: unknown) {
+  if (Array.isArray(value)) return value.join(', ')
   if (value === null || value === undefined || value === '') return 'Chưa có'
   if (typeof value === 'object' && 'full_name' in value) {
     return String((value as { full_name: unknown }).full_name)
   }
   if (typeof value === 'boolean') return value ? 'Có' : 'Không'
+  if (typeof value === 'object' && 'title' in value) {
+    return String((value as { title: unknown }).title)
+  }
+  if (typeof value === 'object') return JSON.stringify(value)
   return String(value)
+}
+
+function oldValue(change: unknown) {
+  return typeof change === 'object' && change !== null && 'old' in change
+    ? (change as { old: unknown }).old
+    : null
+}
+
+function newValue(change: unknown) {
+  return typeof change === 'object' && change !== null && 'new' in change
+    ? (change as { new: unknown }).new
+    : change
 }
 
 export function TaskHistory({ task }: { task: Task }) {
@@ -54,9 +78,9 @@ export function TaskHistory({ task }: { task: Task }) {
             {Object.entries(log.changes).map(([field, change]) => (
               <p key={field}>
                 <span className="font-semibold">{fieldLabels[field] ?? field}:</span>{' '}
-                <span className="text-slate-500">{displayValue(change.old)}</span>
+                <span className="text-slate-500">{displayValue(oldValue(change))}</span>
                 {' → '}
-                <span>{displayValue(change.new)}</span>
+                <span>{displayValue(newValue(change))}</span>
               </p>
             ))}
           </div>

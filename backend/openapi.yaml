@@ -629,7 +629,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TaskResponse'
+                $ref: '#/components/schemas/TaskDetailResponse'
           description: ''
     patch:
       operationId: v1_tasks_partial_update
@@ -676,6 +676,145 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/tasks/{id}/checklist/:
+    get:
+      operationId: tasks_checklist_list
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Task checklist
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskChecklistListResponse'
+          description: ''
+    post:
+      operationId: tasks_checklist_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Task checklist
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskChecklistItem'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TaskChecklistItem'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TaskChecklistItem'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskChecklistItemResponse'
+          description: ''
+  /api/v1/tasks/{id}/checklist/{item_id}/:
+    patch:
+      operationId: tasks_checklist_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: item_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Task checklist
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedTaskChecklistItem'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedTaskChecklistItem'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedTaskChecklistItem'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskChecklistItemResponse'
+          description: ''
+    delete:
+      operationId: tasks_checklist_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: item_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Task checklist
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/tasks/{id}/checklist/order/:
+    put:
+      operationId: tasks_checklist_reorder
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Task checklist
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskChecklistOrder'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TaskChecklistOrder'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TaskChecklistOrder'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskChecklistListResponse'
+          description: ''
   /api/v1/tasks/{id}/history/:
     get:
       operationId: v1_tasks_history_retrieve
@@ -976,12 +1115,20 @@ components:
       - UPDATED
       - STATUS_CHANGED
       - DELETED
+      - CHECKLIST_CREATED
+      - CHECKLIST_UPDATED
+      - CHECKLIST_DELETED
+      - CHECKLIST_REORDERED
       type: string
       description: |-
         * `CREATED` - Tạo công việc
         * `UPDATED` - Cập nhật công việc
         * `STATUS_CHANGED` - Đổi trạng thái
         * `DELETED` - Xóa công việc
+        * `CHECKLIST_CREATED` - Thêm checklist
+        * `CHECKLIST_UPDATED` - Cập nhật checklist
+        * `CHECKLIST_DELETED` - Xóa checklist
+        * `CHECKLIST_REORDERED` - Sắp xếp checklist
     AddMember:
       type: object
       properties:
@@ -1436,6 +1583,24 @@ components:
       properties:
         role:
           $ref: '#/components/schemas/RoleEnum'
+    PatchedTaskChecklistItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          maxLength: 300
+        is_completed:
+          type: boolean
+        position:
+          type: integer
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
     PatchedTaskStatusUpdate:
       type: object
       properties:
@@ -1465,6 +1630,22 @@ components:
           type: string
           format: date
           nullable: true
+        parent:
+          type: integer
+          nullable: true
+        start_date:
+          type: string
+          format: date
+          nullable: true
+        estimated_hours:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,2})?$
+          nullable: true
+        progress:
+          type: integer
+          maximum: 100
+          minimum: 0
     PatchedUser:
       type: object
       properties:
@@ -1944,6 +2125,32 @@ components:
           - $ref: '#/components/schemas/PriorityEnum'
           minimum: 0
           maximum: 32767
+        parent_id:
+          type: integer
+          readOnly: true
+          nullable: true
+        start_date:
+          type: string
+          format: date
+          nullable: true
+        estimated_hours:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,2})?$
+          nullable: true
+        progress:
+          type: integer
+          maximum: 100
+          minimum: 0
+        effective_progress:
+          type: integer
+          readOnly: true
+        checklist_total:
+          type: integer
+          readOnly: true
+        checklist_done:
+          type: integer
+          readOnly: true
         deadline:
           type: string
           format: date
@@ -1971,8 +2178,12 @@ components:
       required:
       - allowed_transitions
       - assignee
+      - checklist_done
+      - checklist_total
+      - effective_progress
       - id
       - is_overdue
+      - parent_id
       - project
       - status
       - title
@@ -2040,6 +2251,75 @@ components:
       - data
       - message
       - success
+    TaskChecklistItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          maxLength: 300
+        is_completed:
+          type: boolean
+        position:
+          type: integer
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - position
+      - title
+    TaskChecklistItemResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          readOnly: true
+        message:
+          type: string
+          readOnly: true
+        data:
+          allOf:
+          - $ref: '#/components/schemas/TaskChecklistItem'
+          readOnly: true
+      required:
+      - data
+      - message
+      - success
+    TaskChecklistListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          readOnly: true
+        message:
+          type: string
+          readOnly: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskChecklistItem'
+          readOnly: true
+      required:
+      - data
+      - message
+      - success
+    TaskChecklistOrder:
+      type: object
+      properties:
+        item_ids:
+          type: array
+          items:
+            type: integer
+            minimum: 1
+          maxItems: 100
+      required:
+      - item_ids
     TaskCreate:
       type: object
       properties:
@@ -2061,6 +2341,22 @@ components:
           - $ref: '#/components/schemas/PriorityEnum'
           minimum: 0
           maximum: 32767
+        parent:
+          type: integer
+          nullable: true
+        start_date:
+          type: string
+          format: date
+          nullable: true
+        estimated_hours:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,2})?$
+          nullable: true
+        progress:
+          type: integer
+          maximum: 100
+          minimum: 0
         deadline:
           type: string
           format: date
@@ -2068,6 +2364,121 @@ components:
       required:
       - project_id
       - title
+    TaskDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 500
+        project:
+          allOf:
+          - $ref: '#/components/schemas/TaskProject'
+          readOnly: true
+        assignee:
+          allOf:
+          - $ref: '#/components/schemas/TaskUser'
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/TaskStatus'
+          readOnly: true
+        priority:
+          allOf:
+          - $ref: '#/components/schemas/PriorityEnum'
+          minimum: 0
+          maximum: 32767
+        parent_id:
+          type: integer
+          readOnly: true
+          nullable: true
+        start_date:
+          type: string
+          format: date
+          nullable: true
+        estimated_hours:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,2})?$
+          nullable: true
+        progress:
+          type: integer
+          maximum: 100
+          minimum: 0
+        effective_progress:
+          type: integer
+          readOnly: true
+        checklist_total:
+          type: integer
+          readOnly: true
+        checklist_done:
+          type: integer
+          readOnly: true
+        deadline:
+          type: string
+          format: date
+          nullable: true
+        is_overdue:
+          type: boolean
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        allowed_transitions:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+          readOnly: true
+        checklist:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskChecklistItem'
+          readOnly: true
+      required:
+      - allowed_transitions
+      - assignee
+      - checklist
+      - checklist_done
+      - checklist_total
+      - effective_progress
+      - id
+      - is_overdue
+      - parent_id
+      - project
+      - status
+      - title
+      - updated_at
+    TaskDetailResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          readOnly: true
+        message:
+          type: string
+          readOnly: true
+        data:
+          allOf:
+          - $ref: '#/components/schemas/TaskDetail'
+          readOnly: true
+      required:
+      - data
+      - message
+      - success
     TaskListData:
       type: object
       properties:

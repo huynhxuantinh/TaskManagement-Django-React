@@ -23,8 +23,12 @@ from .serializers import (
     TaskAuditLogListResponseSerializer,
     TaskAuditLogSerializer,
     TaskChecklistItemSerializer,
+    TaskChecklistItemResponseSerializer,
+    TaskChecklistListResponseSerializer,
     TaskChecklistOrderSerializer,
     TaskCreateSerializer,
+    TaskDetailResponseSerializer,
+    TaskDetailSerializer,
     TaskFilterSerializer,
     TaskListResponseSerializer,
     TaskResponseSerializer,
@@ -64,7 +68,7 @@ def csv_safe(value):
 
 @extend_schema_view(
     list=extend_schema(tags=["Tasks"], responses={200: TaskListResponseSerializer}),
-    retrieve=extend_schema(tags=["Tasks"], responses={200: TaskResponseSerializer}),
+    retrieve=extend_schema(tags=["Tasks"], responses={200: TaskDetailResponseSerializer}),
     create=extend_schema(
         tags=["Tasks"], request=TaskCreateSerializer, responses={201: TaskResponseSerializer}
     ),
@@ -156,7 +160,7 @@ class TaskViewSet(ModelViewSet):
         return response
 
     def retrieve(self, request, *args, **kwargs):
-        return success(TaskSerializer(self.get_object(), context={"request": request}).data, "Lấy công việc thành công.")
+        return success(TaskDetailSerializer(self.get_object(), context={"request": request}).data, "Lấy công việc thành công.")
 
     def create(self, request, *args, **kwargs):
         if not has_role(request.user, Role.Code.ADMIN, Role.Code.MANAGER):
@@ -242,22 +246,21 @@ class TaskChecklistAccessMixin:
 class TaskChecklistView(TaskChecklistAccessMixin, APIView):
     permission_classes = [IsAuthenticated]
 
-    def get_task(self, request, pk, require_change=False):
-        queryset = task_queryset()
-        if not has_role(request.user, Role.Code.ADMIN):
-            if has_role(request.user, Role.Code.MANAGER):
-                queryset = queryset.filter(project__memberships__user=request.user).distinct()
-            else:
-                queryset = queryset.filter(assignee=request.user)
-        task = get_object_or_404(queryset, pk=pk)
-        if require_change and not can_change_task_status(task, request.user):
-            raise PermissionDenied("Bạn không có quyền cập nhật checklist công việc này.")
-        return task
-
+    @extend_schema(
+        operation_id="tasks_checklist_list",
+        tags=["Task checklist"],
+        responses={200: TaskChecklistListResponseSerializer},
+    )
     def get(self, request, pk):
         task = self.get_task(request, pk, require_change=False)
         return success(TaskChecklistItemSerializer(task.checklist_items.all(), many=True).data, "Lấy checklist thành công.")
 
+    @extend_schema(
+        operation_id="tasks_checklist_create",
+        tags=["Task checklist"],
+        request=TaskChecklistItemSerializer,
+        responses={201: TaskChecklistItemResponseSerializer},
+    )
     def post(self, request, pk):
         task = self.get_task(request, pk, require_change=True)
         serializer = TaskChecklistItemSerializer(data=request.data)
@@ -271,6 +274,12 @@ class TaskChecklistItemView(TaskChecklistAccessMixin, APIView):
         task = self.get_task(request, pk, require_change=require_change)
         return get_object_or_404(task.checklist_items, pk=item_id)
 
+    @extend_schema(
+        operation_id="tasks_checklist_partial_update",
+        tags=["Task checklist"],
+        request=TaskChecklistItemSerializer,
+        responses={200: TaskChecklistItemResponseSerializer},
+    )
     def patch(self, request, pk, item_id):
         item = self.get_item(request, pk, item_id)
         serializer = TaskChecklistItemSerializer(item, data=request.data, partial=True)
@@ -278,6 +287,11 @@ class TaskChecklistItemView(TaskChecklistAccessMixin, APIView):
         item = ChecklistService.update(pk, item.id, serializer.validated_data, request.user)
         return success(TaskChecklistItemSerializer(item).data, "Cập nhật checklist thành công.")
 
+    @extend_schema(
+        operation_id="tasks_checklist_destroy",
+        tags=["Task checklist"],
+        responses={204: None},
+    )
     def delete(self, request, pk, item_id):
         self.get_item(request, pk, item_id)
         ChecklistService.delete(pk, item_id, request.user)
@@ -285,6 +299,12 @@ class TaskChecklistItemView(TaskChecklistAccessMixin, APIView):
 
 
 class TaskChecklistOrderView(TaskChecklistAccessMixin, APIView):
+    @extend_schema(
+        operation_id="tasks_checklist_reorder",
+        tags=["Task checklist"],
+        request=TaskChecklistOrderSerializer,
+        responses={200: TaskChecklistListResponseSerializer},
+    )
     def put(self, request, pk):
         task = self.get_task(request, pk, require_change=True)
         serializer = TaskChecklistOrderSerializer(data=request.data)

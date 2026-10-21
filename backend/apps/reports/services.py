@@ -60,7 +60,16 @@ def dashboard_summary(user):
             {"code": row["status__code"], "name": row["status__name"], "count": row["count"]}
             for row in distribution
         ],
-        "recent_tasks": list(tasks.order_by("-created_at", "-id")[:5]),
+        "recent_tasks": list(
+            tasks.annotate(
+                checklist_total_count=Count("checklist_items", distinct=True),
+                checklist_done_count=Count(
+                    "checklist_items",
+                    filter=Q(checklist_items__is_completed=True),
+                    distinct=True,
+                ),
+            ).order_by("-created_at", "-id")[:5]
+        ),
     }
 
 

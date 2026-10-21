@@ -54,6 +54,14 @@ export interface TaskTransition {
   note_required: boolean
 }
 
+export interface TaskChecklistItem {
+  id: number
+  title: string
+  is_completed: boolean
+  position: number
+  created_at: string
+}
+
 export interface Task {
   id: number
   title: string
@@ -62,6 +70,14 @@ export interface Task {
   assignee: User | null
   status: TaskStatus
   priority: number
+  parent_id: number | null
+  start_date: string | null
+  estimated_hours: string | null
+  progress: number
+  effective_progress: number
+  checklist_total: number
+  checklist_done: number
+  checklist?: TaskChecklistItem[]
   deadline: string | null
   is_overdue: boolean
   created_at: string
@@ -73,8 +89,16 @@ export interface Task {
 export interface TaskAuditLog {
   id: number
   actor: Pick<User, 'id' | 'full_name' | 'email'> | null
-  action: 'CREATED' | 'UPDATED' | 'STATUS_CHANGED' | 'DELETED'
-  changes: Record<string, { old: unknown; new: unknown }>
+  action:
+    | 'CREATED'
+    | 'UPDATED'
+    | 'STATUS_CHANGED'
+    | 'DELETED'
+    | 'CHECKLIST_CREATED'
+    | 'CHECKLIST_UPDATED'
+    | 'CHECKLIST_DELETED'
+    | 'CHECKLIST_REORDERED'
+  changes: Record<string, unknown>
   created_at: string
 }
 

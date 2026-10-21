@@ -38,6 +38,8 @@ class TaskSerializer(serializers.ModelSerializer):
     allowed_transitions = serializers.SerializerMethodField()
     effective_progress = serializers.IntegerField(read_only=True)
     parent_id = serializers.IntegerField(read_only=True, allow_null=True)
+    checklist_total = serializers.SerializerMethodField()
+    checklist_done = serializers.SerializerMethodField()
 
     class Meta:
         model = Task
@@ -54,6 +56,8 @@ class TaskSerializer(serializers.ModelSerializer):
             "estimated_hours",
             "progress",
             "effective_progress",
+            "checklist_total",
+            "checklist_done",
             "deadline",
             "is_overdue",
             "created_at",
@@ -73,6 +77,16 @@ class TaskSerializer(serializers.ModelSerializer):
     def get_allowed_transitions(self, task):
         request = self.context.get("request")
         return allowed_transitions(task, request.user) if request else []
+
+    def get_checklist_total(self, task) -> int:
+        if hasattr(task, "checklist_total_count"):
+            return task.checklist_total_count
+        return len(task.checklist_items.all())
+
+    def get_checklist_done(self, task) -> int:
+        if hasattr(task, "checklist_done_count"):
+            return task.checklist_done_count
+        return sum(item.is_completed for item in task.checklist_items.all())
 
 
 class AssigneeMembershipMixin:
@@ -173,6 +187,13 @@ class TaskChecklistItemSerializer(serializers.ModelSerializer):
         read_only_fields = ("id", "position", "created_at")
 
 
+class TaskDetailSerializer(TaskSerializer):
+    checklist = TaskChecklistItemSerializer(source="checklist_items", many=True, read_only=True)
+
+    class Meta(TaskSerializer.Meta):
+        fields = TaskSerializer.Meta.fields + ("checklist",)
+
+
 class TaskChecklistOrderSerializer(serializers.Serializer):
     item_ids = serializers.ListField(
         child=serializers.IntegerField(min_value=1), allow_empty=True, max_length=100
@@ -207,6 +228,24 @@ class TaskResponseSerializer(serializers.Serializer):
     success = serializers.BooleanField(read_only=True)
     message = serializers.CharField(read_only=True)
     data = TaskSerializer(read_only=True)
+
+
+class TaskDetailResponseSerializer(serializers.Serializer):
+    success = serializers.BooleanField(read_only=True)
+    message = serializers.CharField(read_only=True)
+    data = TaskDetailSerializer(read_only=True)
+
+
+class TaskChecklistItemResponseSerializer(serializers.Serializer):
+    success = serializers.BooleanField(read_only=True)
+    message = serializers.CharField(read_only=True)
+    data = TaskChecklistItemSerializer(read_only=True)
+
+
+class TaskChecklistListResponseSerializer(serializers.Serializer):
+    success = serializers.BooleanField(read_only=True)
+    message = serializers.CharField(read_only=True)
+    data = TaskChecklistItemSerializer(many=True, read_only=True)
 
 
 class TaskListDataSerializer(serializers.Serializer):

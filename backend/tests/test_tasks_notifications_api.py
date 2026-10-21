@@ -1,8 +1,10 @@
 import csv
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 from io import StringIO
 
 import pytest
+from django.db import close_old_connections, connections
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -357,6 +359,157 @@ def test_checklist_position_is_server_managed(task_users, task_statuses, task_pr
 
 
 @pytest.mark.django_db
+def test_task_detail_embeds_checklist_while_list_only_returns_counts(
+    task_users, task_statuses, task_project
+):
+    task = make_task(task_project, task_statuses, task_users["employee"])
+    TaskChecklistItem.objects.create(task=task, title="First", is_completed=True, position=0)
+    TaskChecklistItem.objects.create(task=task, title="Second", position=1)
+    client = api_as(task_users["employee"])
+
+    listed = client.get("/api/v1/tasks/?page_size=100")
+    detailed = client.get(f"/api/v1/tasks/{task.id}/")
+
+    row = listed.data["data"]["results"][0]
+    assert listed.status_code == 200
+    assert row["checklist_total"] == 2
+    assert row["checklist_done"] == 1
+    assert "checklist" not in row
+    assert detailed.status_code == 200
+    assert [item["title"] for item in detailed.data["data"]["checklist"]] == [
+        "First",
+        "Second",
+    ]
+    assert detailed.data["data"]["effective_progress"] == 50
+
+
+@pytest.mark.django_db
+def test_checklist_read_scope_and_write_permission(
+    task_users, task_statuses, task_project
+):
+    task = make_task(task_project, task_statuses, task_users["employee"])
+    TaskChecklistItem.objects.create(task=task, title="Visible")
+    url = f"/api/v1/tasks/{task.id}/checklist/"
+
+    visible = api_as(task_users["manager2"]).get(url)
+    forbidden = api_as(task_users["manager2"]).post(
+        url, {"title": "Not allowed"}, format="json"
+    )
+    hidden = api_as(task_users["outsider"]).get(url)
+
+    assert visible.status_code == 200
+    assert visible.data["data"][0]["title"] == "Visible"
+    assert forbidden.status_code == 403
+    assert hidden.status_code == 404
+
+
+@pytest.mark.django_db
+def test_checklist_mutations_audit_progress_and_block_completed_tasks(
+    task_users, task_statuses, task_project
+):
+    task = make_task(task_project, task_statuses, task_users["employee"])
+    client = api_as(task_users["employee"])
+    collection_url = f"/api/v1/tasks/{task.id}/checklist/"
+
+    created = client.post(collection_url, {"title": "Review"}, format="json")
+    item_id = created.data["data"]["id"]
+    item_url = f"{collection_url}{item_id}/"
+    updated = client.patch(
+        item_url,
+        {"title": "Review result", "is_completed": True, "position": 99},
+        format="json",
+    )
+    detail = client.get(f"/api/v1/tasks/{task.id}/")
+
+    assert created.status_code == 201
+    assert updated.status_code == 200
+    assert updated.data["data"]["position"] == 0
+    assert detail.data["data"]["effective_progress"] == 100
+    created_log = TaskAuditLog.objects.get(
+        task=task, action=TaskAuditLog.Action.CHECKLIST_CREATED
+    )
+    updated_log = TaskAuditLog.objects.get(
+        task=task, action=TaskAuditLog.Action.CHECKLIST_UPDATED
+    )
+    assert created_log.changes["item"]["title"] == "Review"
+    assert updated_log.changes["is_completed"] == {"old": False, "new": True}
+
+    task.status = task_statuses[TaskStatus.Code.COMPLETED]
+    task.save(update_fields=["status"])
+    assert client.post(collection_url, {"title": "Blocked"}, format="json").status_code == 400
+    assert client.patch(item_url, {"title": "Blocked"}, format="json").status_code == 400
+    assert client.delete(item_url).status_code == 400
+
+    task.status = task_statuses[TaskStatus.Code.IN_PROGRESS]
+    task.save(update_fields=["status"])
+    assert client.delete(item_url).status_code == 204
+    deleted_log = TaskAuditLog.objects.get(
+        task=task, action=TaskAuditLog.Action.CHECKLIST_DELETED
+    )
+    assert deleted_log.changes["item"] == {
+        "id": item_id,
+        "title": "Review result",
+    }
+
+
+@pytest.mark.django_db
+def test_checklist_limit_allows_item_100_and_rejects_item_101(
+    task_users, task_statuses, task_project
+):
+    task = make_task(task_project, task_statuses, task_users["employee"])
+    TaskChecklistItem.objects.bulk_create(
+        [
+            TaskChecklistItem(task=task, title=f"Item {index}", position=index)
+            for index in range(99)
+        ]
+    )
+    client = api_as(task_users["employee"])
+    url = f"/api/v1/tasks/{task.id}/checklist/"
+
+    hundredth = client.post(url, {"title": "Item 100"}, format="json")
+    overflow = client.post(url, {"title": "Item 101"}, format="json")
+
+    assert hundredth.status_code == 201
+    assert hundredth.data["data"]["position"] == 99
+    assert overflow.status_code == 400
+    assert task.checklist_items.count() == 100
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_checklist_creates_cannot_exceed_limit(
+    task_users, task_statuses, task_project
+):
+    task = make_task(task_project, task_statuses, task_users["employee"])
+    TaskChecklistItem.objects.bulk_create(
+        [
+            TaskChecklistItem(task=task, title=f"Item {index}", position=index)
+            for index in range(99)
+        ]
+    )
+    task_id = task.id
+    user_id = task_users["employee"].id
+
+    def create_item(index):
+        close_old_connections()
+        try:
+            user = User.objects.get(pk=user_id)
+            response = api_as(user).post(
+                f"/api/v1/tasks/{task_id}/checklist/",
+                {"title": f"Concurrent {index}"},
+                format="json",
+            )
+            return response.status_code
+        finally:
+            connections.close_all()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        statuses = sorted(executor.map(create_item, range(2)))
+
+    assert statuses == [201, 400]
+    assert TaskChecklistItem.objects.filter(task_id=task_id).count() == 100
+
+
+@pytest.mark.django_db
 def test_checklist_order_endpoint_only_allows_put(
     task_users, task_statuses, task_project
 ):
@@ -380,8 +533,16 @@ def test_checklist_reorder_validates_order_audits_and_enforces_permissions(
     ]
     url = f"/api/v1/tasks/{task.id}/checklist/order/"
     employee = api_as(task_users["employee"])
+    other_task = make_task(task_project, task_statuses, task_users["employee"])
+    foreign_item = TaskChecklistItem.objects.create(task=other_task, title="Foreign")
 
     invalid = employee.put(url, {"item_ids": [items[0].id, items[0].id]}, format="json")
+    missing = employee.put(url, {"item_ids": [items[0].id, items[1].id]}, format="json")
+    foreign = employee.put(
+        url,
+        {"item_ids": [items[0].id, items[1].id, foreign_item.id]},
+        format="json",
+    )
     forbidden = api_as(task_users["manager2"]).put(
         url, {"item_ids": [item.id for item in items]}, format="json"
     )
@@ -389,6 +550,8 @@ def test_checklist_reorder_validates_order_audits_and_enforces_permissions(
     changed = employee.put(url, {"item_ids": ordered_ids}, format="json")
 
     assert invalid.status_code == 400
+    assert missing.status_code == 400
+    assert foreign.status_code == 400
     assert forbidden.status_code == 403
     assert changed.status_code == 200
     assert [row["id"] for row in changed.data["data"]] == ordered_ids
