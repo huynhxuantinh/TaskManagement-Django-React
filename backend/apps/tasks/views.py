@@ -223,7 +223,23 @@ class TaskStatusListView(APIView):
         return success(TaskStatusSerializer(statuses, many=True).data, "Lấy trạng thái thành công.")
 
 
-class TaskChecklistView(APIView):
+class TaskChecklistAccessMixin:
+    permission_classes = [IsAuthenticated]
+
+    def get_task(self, request, pk, require_change=False):
+        queryset = task_queryset()
+        if not has_role(request.user, Role.Code.ADMIN):
+            if has_role(request.user, Role.Code.MANAGER):
+                queryset = queryset.filter(project__memberships__user=request.user).distinct()
+            else:
+                queryset = queryset.filter(assignee=request.user)
+        task = get_object_or_404(queryset, pk=pk)
+        if require_change and not can_change_task_status(task, request.user):
+            raise PermissionDenied("Bạn không có quyền cập nhật checklist công việc này.")
+        return task
+
+
+class TaskChecklistView(TaskChecklistAccessMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def get_task(self, request, pk, require_change=False):
@@ -250,7 +266,7 @@ class TaskChecklistView(APIView):
         return success(TaskChecklistItemSerializer(item).data, "Thêm mục checklist thành công.", 201)
 
 
-class TaskChecklistItemView(TaskChecklistView):
+class TaskChecklistItemView(TaskChecklistAccessMixin, APIView):
     def get_item(self, request, pk, item_id, require_change=True):
         task = self.get_task(request, pk, require_change=require_change)
         return get_object_or_404(task.checklist_items, pk=item_id)
@@ -268,7 +284,7 @@ class TaskChecklistItemView(TaskChecklistView):
         return Response(status=204)
 
 
-class TaskChecklistOrderView(TaskChecklistView):
+class TaskChecklistOrderView(TaskChecklistAccessMixin, APIView):
     def put(self, request, pk):
         task = self.get_task(request, pk, require_change=True)
         serializer = TaskChecklistOrderSerializer(data=request.data)

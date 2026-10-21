@@ -357,6 +357,19 @@ def test_checklist_position_is_server_managed(task_users, task_statuses, task_pr
 
 
 @pytest.mark.django_db
+def test_checklist_order_endpoint_only_allows_put(
+    task_users, task_statuses, task_project
+):
+    task = make_task(task_project, task_statuses, task_users["employee"])
+    url = f"/api/v1/tasks/{task.id}/checklist/order/"
+    client = api_as(task_users["employee"])
+
+    assert client.get(url).status_code == 405
+    assert client.post(url, {"title": "Sneaky"}, format="json").status_code == 405
+    assert task.checklist_items.count() == 0
+
+
+@pytest.mark.django_db
 def test_deleting_same_checklist_item_twice_returns_not_found(
     task_users, task_statuses, task_project
 ):
