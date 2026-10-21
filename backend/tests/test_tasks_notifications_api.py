@@ -168,6 +168,20 @@ def test_task_list_scope_filters_search_and_hides_deleted(
 
 
 @pytest.mark.django_db
+def test_task_list_has_bounded_query_count(
+    django_assert_max_num_queries, task_users, task_statuses, task_project
+):
+    for index in range(12):
+        make_task(task_project, task_statuses, task_users["employee"], title=f"Task {index}")
+
+    with django_assert_max_num_queries(6):
+        response = api_as(task_users["employee"]).get("/api/v1/tasks/?page_size=100")
+
+    assert response.status_code == 200
+    assert response.data["data"]["count"] == 12
+
+
+@pytest.mark.django_db
 def test_task_list_supports_deadline_ranges_urgency_filters_and_csv_export(
     task_users, task_statuses, task_project
 ):
@@ -419,6 +433,26 @@ def test_allowed_transitions_match_status_change_permission(
         TaskStatus.Code.IN_PROGRESS,
         TaskStatus.Code.ON_HOLD,
         TaskStatus.Code.COMPLETED,
+    }
+
+
+@pytest.mark.django_db
+def test_child_of_completed_parent_hides_reopen_transition(
+    task_users, task_statuses, task_project
+):
+    parent = make_task(
+        task_project,
+        task_statuses,
+        task_users["employee"],
+        status=task_statuses[TaskStatus.Code.COMPLETED],
+    )
+    child = make_task(task_project, task_statuses, task_users["employee"], parent=parent)
+
+    response = api_as(task_users["employee"]).get(f"/api/v1/tasks/{child.id}/")
+
+    assert response.status_code == 200
+    assert TaskStatus.Code.IN_PROGRESS not in {
+        item["code"] for item in response.data["data"]["allowed_transitions"]
     }
 
 
