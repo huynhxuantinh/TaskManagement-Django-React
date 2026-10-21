@@ -915,6 +915,31 @@ paths:
               schema:
                 $ref: '#/components/schemas/PaginatedUserListResponseList'
           description: ''
+    post:
+      operationId: v1_users_create
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserAdminCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserAdminCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserAdminCreate'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+          description: ''
   /api/v1/users/{id}/:
     get:
       operationId: v1_users_retrieve
@@ -2718,6 +2743,30 @@ components:
       - id
       - permissions
       - role
+    UserAdminCreate:
+      type: object
+      properties:
+        username:
+          type: string
+          maxLength: 50
+        email:
+          type: string
+          format: email
+          maxLength: 100
+        full_name:
+          type: string
+          maxLength: 100
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+        password:
+          type: string
+          writeOnly: true
+      required:
+      - email
+      - full_name
+      - password
+      - role
+      - username
     UserListData:
       type: object
       properties:

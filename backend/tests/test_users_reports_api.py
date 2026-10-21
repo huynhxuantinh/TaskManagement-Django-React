@@ -117,6 +117,63 @@ def test_user_list_is_admin_only_searchable_and_filterable(report_users):
 
 
 @pytest.mark.django_db
+def test_admin_can_create_internal_account(report_users, report_roles):
+    payload = {
+        "username": "New.User",
+        "email": "NEW.USER@EXAMPLE.COM",
+        "full_name": "New User",
+        "role": Role.Code.EMPLOYEE,
+        "password": "StrongPass@456",
+    }
+
+    assert api_as().post("/api/v1/users/", payload, format="json").status_code == 401
+    assert (
+        api_as(report_users["manager"])
+        .post("/api/v1/users/", payload, format="json")
+        .status_code
+        == 403
+    )
+    created = api_as(report_users["admin"]).post(
+        "/api/v1/users/", payload, format="json"
+    )
+
+    assert created.status_code == 201
+    account = User.objects.get(username="new.user")
+    assert account.email == "new.user@example.com"
+    assert account.full_name == "New User"
+    assert account.role == report_roles[Role.Code.EMPLOYEE]
+    assert account.check_password("StrongPass@456")
+    assert account.password != "StrongPass@456"
+    assert "password" not in created.data["data"]
+
+
+@pytest.mark.django_db
+def test_admin_account_creation_validates_duplicates_and_password(report_users):
+    base = {
+        "username": "employee",
+        "email": "created@example.com",
+        "full_name": "Created User",
+        "role": Role.Code.EMPLOYEE,
+        "password": "StrongPass@456",
+    }
+    report_users["employee"].username = "employee"
+    report_users["employee"].save(update_fields=["username"])
+    client = api_as(report_users["admin"])
+
+    duplicate = client.post("/api/v1/users/", base, format="json")
+    weak = client.post(
+        "/api/v1/users/",
+        {**base, "username": "created", "password": "123"},
+        format="json",
+    )
+
+    assert duplicate.status_code == 400
+    assert "username" in duplicate.data["errors"]
+    assert weak.status_code == 400
+    assert "password" in weak.data["errors"]
+
+
+@pytest.mark.django_db
 def test_user_detail_update_and_role_change_enforce_self_or_admin(
     report_users, report_roles
 ):

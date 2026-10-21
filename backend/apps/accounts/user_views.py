@@ -1,4 +1,4 @@
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -16,6 +16,7 @@ from .user_serializers import (
     PreferenceListResponseSerializer,
     PreferenceWriteSerializer,
     RoleUpdateSerializer,
+    UserAdminCreateSerializer,
     UserAdminUpdateSerializer,
     UserListResponseSerializer,
     UserSelfUpdateSerializer,
@@ -30,6 +31,11 @@ from .user_services import (
 
 @extend_schema_view(
     list=extend_schema(tags=["Users"], responses={200: UserListResponseSerializer}),
+    create=extend_schema(
+        tags=["Users"],
+        request=UserAdminCreateSerializer,
+        responses={201: UserResponseSerializer},
+    ),
     retrieve=extend_schema(tags=["Users"], responses={200: UserResponseSerializer}),
     partial_update=extend_schema(tags=["Users"], responses={200: UserResponseSerializer}),
 )
@@ -68,6 +74,19 @@ class UserViewSet(ModelViewSet):
 
     def retrieve(self, request, *args, **kwargs):
         return success(UserSerializer(self.get_object()).data, "Lấy người dùng thành công.")
+
+    def create(self, request, *args, **kwargs):
+        if not has_role(request.user, Role.Code.ADMIN):
+            raise PermissionDenied("Chỉ quản trị viên được tạo tài khoản.")
+        serializer = UserAdminCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            with transaction.atomic():
+                user = serializer.save()
+        except IntegrityError as error:
+            raise ValidationError("Tên đăng nhập hoặc email đã tồn tại.") from error
+        user = User.objects.select_related("role").get(pk=user.pk)
+        return success(UserSerializer(user).data, "Tạo tài khoản thành công.", 201)
 
     @transaction.atomic
     def partial_update(self, request, *args, **kwargs):

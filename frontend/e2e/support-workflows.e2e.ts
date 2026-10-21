@@ -14,6 +14,7 @@ async function login(page: Page, role: 'Admin' | 'Manager' | 'Employee') {
 }
 
 test('Admin xem báo cáo và quản trị người dùng', async ({ page }) => {
+  const username = `e2e-user-${Date.now()}`
   await login(page, 'Admin')
   await page.goto('/reports')
   await expect(page.getByRole('heading', { name: 'Báo cáo vận hành' })).toBeVisible()
@@ -21,6 +22,15 @@ test('Admin xem báo cáo và quản trị người dùng', async ({ page }) => 
   await page.goto('/admin')
   await expect(page.getByRole('heading', { name: 'Quản trị người dùng' })).toBeVisible()
   await expect(page.getByLabel(/Vai trò Nguyễn Quản lý/)).toHaveValue('MANAGER')
+  await page.getByRole('button', { name: /Tạo tài khoản/ }).click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByLabel('Họ và tên').fill('Người dùng E2E')
+  await dialog.getByLabel('Tên đăng nhập').fill(username)
+  await dialog.getByLabel('Email').fill(`${username}@example.com`)
+  await dialog.getByLabel('Mật khẩu ban đầu').fill('StrongPass@456')
+  await dialog.getByLabel('Xác nhận mật khẩu').fill('StrongPass@456')
+  await dialog.getByRole('button', { name: 'Tạo tài khoản' }).click()
+  await expect(page.getByText(`@${username}`)).toBeVisible()
 })
 
 test('Employee đọc thông báo và lưu tùy chọn cá nhân', async ({ page }) => {

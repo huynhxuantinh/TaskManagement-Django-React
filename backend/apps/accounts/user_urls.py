@@ -3,7 +3,7 @@ from rest_framework.parsers import FormParser, MultiPartParser
 
 from .user_views import UserViewSet
 
-user_list = UserViewSet.as_view({"get": "list"})
+user_list = UserViewSet.as_view({"get": "list", "post": "create"})
 user_detail = UserViewSet.as_view({"get": "retrieve", "patch": "partial_update"})
 user_role = UserViewSet.as_view({"patch": "change_role"})
 user_avatar = UserViewSet.as_view(
