@@ -19,7 +19,6 @@ htmlcov/
 venv/
 backend/media/
 backend/staticfiles/
-db.sqlite3
 
 # Node / React
 node_modules/
