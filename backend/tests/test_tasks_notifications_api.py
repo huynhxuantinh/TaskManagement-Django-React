@@ -289,6 +289,27 @@ def test_task_planning_fields_are_json_safe_in_audit_log(
 
 
 @pytest.mark.django_db
+def test_task_parent_can_have_multiple_direct_subtasks(
+    task_users, task_statuses, task_project
+):
+    parent = make_task(task_project, task_statuses, task_users["employee"])
+    payload = {
+        "title": "Subtask",
+        "project_id": task_project.id,
+        "assignee_id": task_users["employee"].id,
+        "parent": parent.id,
+    }
+
+    first = api_as(task_users["manager"]).post("/api/v1/tasks/", payload, format="json")
+    second = api_as(task_users["manager"]).post(
+        "/api/v1/tasks/", {**payload, "title": "Another subtask"}, format="json"
+    )
+
+    assert first.status_code == 201
+    assert second.status_code == 201
+
+
+@pytest.mark.django_db
 def test_status_workflow_requires_note_and_limits_reopening(
     task_users, task_statuses, task_project
 ):

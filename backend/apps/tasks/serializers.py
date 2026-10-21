@@ -94,7 +94,7 @@ class AssigneeMembershipMixin:
         if parent:
             if parent.is_deleted or parent.project_id != project.id:
                 raise serializers.ValidationError({"parent": ["Công việc cha phải thuộc cùng dự án và chưa bị xóa."]})
-            if parent.parent_id or parent.subtasks.filter(is_deleted=False).exists():
+            if parent.parent_id:
                 raise serializers.ValidationError({"parent": ["Chỉ hỗ trợ một cấp công việc con."]})
             if self.instance and parent.pk == self.instance.pk:
                 raise serializers.ValidationError({"parent": ["Không thể chọn chính công việc này làm cha."]})
