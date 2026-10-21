@@ -238,7 +238,7 @@ class TaskChecklistView(APIView):
         return task
 
     def get(self, request, pk):
-        task = self.get_task(request, pk, require_change=True)
+        task = self.get_task(request, pk, require_change=False)
         return success(TaskChecklistItemSerializer(task.checklist_items.all(), many=True).data, "Lấy checklist thành công.")
 
     def post(self, request, pk):
@@ -258,9 +258,11 @@ class TaskChecklistItemView(TaskChecklistView):
         item = self.get_item(request, pk, item_id)
         serializer = TaskChecklistItemSerializer(item, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        return success(TaskChecklistItemSerializer(serializer.save()).data, "Cập nhật checklist thành công.")
+        item = ChecklistService.update(pk, item.id, serializer.validated_data, request.user)
+        return success(TaskChecklistItemSerializer(item).data, "Cập nhật checklist thành công.")
 
     def delete(self, request, pk, item_id):
-        self.get_item(request, pk, item_id).delete()
+        self.get_item(request, pk, item_id)
+        ChecklistService.delete(pk, item_id, request.user)
         return Response(status=204)
 

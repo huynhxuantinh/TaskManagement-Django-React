@@ -59,6 +59,31 @@ class ChecklistService:
         TaskAuditLog.objects.create(task=task, actor=actor, action=TaskAuditLog.Action.CHECKLIST_CREATED, changes={"item": {"id": item.id, "title": item.title}})
         return item
 
+    @staticmethod
+    @transaction.atomic
+    def update(task_id, item_id, values, actor):
+        task = ChecklistService.locked_task(task_id)
+        item = TaskChecklistItem.objects.get(task=task, pk=item_id)
+        old = {field: getattr(item, field) for field in ("title", "is_completed")}
+        for field in old:
+            if field in values:
+                setattr(item, field, values[field])
+        item.save()
+        changes = {field: {"old": old[field], "new": getattr(item, field)} for field in old if old[field] != getattr(item, field)}
+        if changes:
+            changes["item"] = {"id": item.id, "title": item.title}
+            TaskAuditLog.objects.create(task=task, actor=actor, action=TaskAuditLog.Action.CHECKLIST_UPDATED, changes=changes)
+        return item
+
+    @staticmethod
+    @transaction.atomic
+    def delete(task_id, item_id, actor):
+        task = ChecklistService.locked_task(task_id)
+        item = TaskChecklistItem.objects.get(task=task, pk=item_id)
+        changes = {"item": {"id": item.id, "title": item.title}}
+        item.delete()
+        TaskAuditLog.objects.create(task=task, actor=actor, action=TaskAuditLog.Action.CHECKLIST_DELETED, changes=changes)
+
 
 @transaction.atomic
 def send_deadline_notifications(reference_date=None):
