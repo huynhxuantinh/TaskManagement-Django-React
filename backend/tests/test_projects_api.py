@@ -10,6 +10,7 @@ from apps.accounts.models import Role, User
 from apps.notifications.models import Notification, NotificationType
 from apps.projects.models import Project, ProjectMember
 from apps.tasks.models import Task, TaskChecklistItem, TaskStatus
+from apps.tasks.progress import task_progress_summary
 
 
 @pytest.fixture
@@ -338,6 +339,50 @@ def test_parent_progress_and_hours_are_aggregated_from_children(project_users):
     assert project_response.data["data"]["progress"] == 88
     assert task_response.data["data"]["effective_progress"] == 88
     assert task_response.data["data"]["effective_estimated_hours"] == "8.00"
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(("completed_items", "expected"), [(1, 13), (3, 38)])
+def test_checklist_progress_rounds_half_up(project_users, completed_items, expected):
+    project = make_project(project_users["manager"])
+    todo = TaskStatus.objects.create(code="TODO", name="To Do")
+    task = Task.objects.create(title="Rounded progress", project=project, status=todo)
+    TaskChecklistItem.objects.bulk_create(
+        [
+            TaskChecklistItem(
+                task=task,
+                title=f"Item {index}",
+                is_completed=index < completed_items,
+            )
+            for index in range(8)
+        ]
+    )
+
+    response = api_as(project_users["manager"]).get(
+        f"/api/v1/projects/{project.id}/"
+    )
+
+    assert response.data["data"]["progress"] == expected
+
+
+@pytest.mark.django_db
+def test_completed_parent_without_prefetch_is_100_percent(project_users):
+    project = make_project(project_users["manager"])
+    todo = TaskStatus.objects.create(code="TODO", name="To Do")
+    done = TaskStatus.objects.create(code="COMPLETED", name="Completed")
+    parent = Task.objects.create(title="Parent", project=project, status=done)
+    Task.objects.create(
+        title="Open child",
+        project=project,
+        parent=parent,
+        status=todo,
+        estimated_hours=Decimal("4"),
+    )
+
+    summary = task_progress_summary(parent)
+
+    assert summary["progress"] == 100
+    assert summary["estimated_hours"] == Decimal("4")
 
 
 @pytest.mark.django_db

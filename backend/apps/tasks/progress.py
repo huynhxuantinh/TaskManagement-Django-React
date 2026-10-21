@@ -1,9 +1,13 @@
 from collections import defaultdict
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 from django.db.models import Count, Q
 
 from .models import Task, TaskStatus
+
+
+def round_progress(value: Decimal) -> int:
+    return int(value.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
 
 def progress_task_queryset():
@@ -31,7 +35,7 @@ def base_task_progress(task: Task) -> int:
         checklist = list(task.checklist_items.all())
         total = len(checklist)
         done = sum(item.is_completed for item in checklist)
-    return round(done * 100 / total) if total else task.progress
+    return round_progress(Decimal(done * 100) / Decimal(total)) if total else task.progress
 
 
 def weighted_task_summary(tasks: list[Task]) -> dict[str, int | Decimal]:
@@ -46,7 +50,7 @@ def weighted_task_summary(tasks: list[Task]) -> dict[str, int | Decimal]:
         for task, weight in zip(tasks, weights, strict=True)
     )
     return {
-        "progress": round(contribution / total_weight) if total_weight else 0,
+        "progress": round_progress(contribution / total_weight) if total_weight else 0,
         "estimated_hours": total_weight,
         "missing_count": sum(task.estimated_hours is None for task in tasks),
     }
