@@ -68,7 +68,9 @@ def dashboard_summary(user):
                     filter=Q(checklist_items__is_completed=True),
                     distinct=True,
                 ),
-            ).order_by("-created_at", "-id")[:5]
+            )
+            .prefetch_related("checklist_items")
+            .order_by("-created_at", "-id")[:5]
         ),
     }
 

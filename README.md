@@ -56,6 +56,14 @@ infra/     Docker Compose, Nginx và script PostgreSQL
 
 ## Kiểm thử
 
+Backend test chỉ chạy với PostgreSQL, không có SQLite dự phòng. Trước khi chạy test cục bộ, hãy khởi động database:
+
+```bash
+docker compose -f infra/compose.dev.yaml up -d db
+```
+
+Mặc định test kết nối `127.0.0.1:55432` bằng database/user `task_management`. Có thể ghi đè bằng các biến `DB_HOST`, `DB_PORT`, `POSTGRES_DB`, `POSTGRES_USER` và `POSTGRES_PASSWORD`.
+
 ```bash
 backend/.venv/Scripts/python.exe -m pytest backend
 npm --prefix frontend run lint

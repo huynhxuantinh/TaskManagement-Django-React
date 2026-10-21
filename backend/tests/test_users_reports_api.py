@@ -2,9 +2,7 @@ from datetime import timedelta
 
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.db import connection
 from django.test import override_settings
-from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -396,9 +394,19 @@ def test_report_messages_validate_members_and_scope_sender_receiver(
 
 
 @pytest.mark.django_db
-def test_dashboard_query_count_is_bounded(report_users, report_statuses, report_data):
-    with CaptureQueriesContext(connection) as queries:
+def test_dashboard_query_count_is_bounded(
+    django_assert_max_num_queries, report_users, report_statuses, report_data
+):
+    for index in range(2):
+        Task.objects.create(
+            title=f"Recent task {index}",
+            project=report_data["managed"],
+            assignee=report_users["employee"],
+            status=report_statuses[TaskStatus.Code.TODO],
+        )
+
+    with django_assert_max_num_queries(7):
         response = api_as(report_users["manager"]).get("/api/v1/dashboard/summary/")
 
     assert response.status_code == 200
-    assert len(queries) <= 8
+    assert len(response.data["data"]["recent_tasks"]) == 5
