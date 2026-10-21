@@ -13,6 +13,7 @@ import { TaskHistory } from '../features/core/TaskHistory'
 import { TaskStatusSelect } from '../features/core/TaskStatusSelect'
 import { canCreateProjects, canManageProject } from '../features/core/permissions'
 import { buildStatusChangePayload } from '../features/core/statusChange'
+import { useAllPages } from '../hooks/useAllPages'
 import { useApiResource } from '../hooks/useApiResource'
 import { apiDownload, apiRequest } from '../lib/api'
 import type { Paginated, Project, Task, TaskStatus, TaskTransition } from '../types/api'
@@ -46,7 +47,7 @@ export function TasksPage() {
   if (deadlineFrom) params.set('deadline_from', deadlineFrom)
   if (deadlineTo) params.set('deadline_to', deadlineTo)
   if (deadlinePreset) params.set(deadlinePreset, 'true')
-  const { data, setData, loading, error, reload } = useApiResource<Paginated<Task>>(`/api/v1/tasks/?${params}`)
+  const { data, setData, loading, error, reload } = useAllPages<Task>(`/api/v1/tasks/?${params}`)
   const { data: projectsData } = useApiResource<Paginated<Project>>('/api/v1/projects/?page_size=100')
   const { data: statuses } = useApiResource<TaskStatus[]>('/api/v1/metadata/task-statuses/')
   const projectById = useMemo(() => new Map(projectsData?.results.map((project) => [project.id, project]) ?? []), [projectsData])

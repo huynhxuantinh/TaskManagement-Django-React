@@ -45,6 +45,8 @@ const task: Task = {
   status: statuses[0],
   priority: 2,
   parent_id: null,
+  parent: null,
+  has_subtasks: false,
   start_date: null,
   estimated_hours: null,
   progress: 0,
@@ -58,6 +60,7 @@ const task: Task = {
   updated_at: '',
   completed_at: null,
   allowed_transitions: [{ code: 'IN_PROGRESS', note_required: false }],
+  can_edit_checklist: true,
 }
 
 afterEach(cleanup)

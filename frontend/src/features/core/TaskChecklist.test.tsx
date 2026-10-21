@@ -22,6 +22,8 @@ const task: Task = {
   status: { code: 'IN_PROGRESS', name: 'Đang thực hiện' },
   priority: 2,
   parent_id: null,
+  parent: null,
+  has_subtasks: false,
   start_date: null,
   estimated_hours: '4.00',
   effective_estimated_hours: '4.00',
@@ -39,6 +41,7 @@ const task: Task = {
   updated_at: '',
   completed_at: null,
   allowed_transitions: [{ code: 'COMPLETED', note_required: false }],
+  can_edit_checklist: true,
 }
 
 describe('TaskChecklist', () => {
@@ -65,10 +68,30 @@ describe('TaskChecklist', () => {
     ))
   })
 
+  it('sắp xếp được bằng nút lên xuống', async () => {
+    vi.mocked(apiRequest).mockResolvedValueOnce([
+      { ...task.checklist![1], position: 0 },
+      { ...task.checklist![0], position: 1 },
+    ])
+    render(
+      <ToastContext.Provider value={vi.fn()}>
+        <TaskChecklist task={{ ...task, allowed_transitions: [] }} onChanged={vi.fn()} />
+      </ToastContext.Provider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Di chuyển Mục A xuống' }))
+
+    await waitFor(() => expect(apiRequest).toHaveBeenCalledWith(
+      '/api/v1/tasks/7/checklist/order/',
+      { method: 'PUT', body: JSON.stringify({ item_ids: [2, 1] }) },
+    ))
+    expect(screen.getByRole('checkbox', { name: 'Hoàn thành Mục A' })).toBeEnabled()
+  })
+
   it('chỉ cho đọc checklist khi công việc đã hoàn thành', () => {
     render(
       <ToastContext.Provider value={vi.fn()}>
-        <TaskChecklist task={{ ...task, status: { code: 'COMPLETED', name: 'Đã hoàn thành' } }} onChanged={vi.fn()} />
+        <TaskChecklist task={{ ...task, status: { code: 'COMPLETED', name: 'Đã hoàn thành' }, can_edit_checklist: false }} onChanged={vi.fn()} />
       </ToastContext.Provider>,
     )
 

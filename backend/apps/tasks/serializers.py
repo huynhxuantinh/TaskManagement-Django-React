@@ -6,7 +6,7 @@ from apps.accounts.models import User
 from apps.projects.models import Project, ProjectMember
 
 from .models import Task, TaskAuditLog, TaskChecklistItem, TaskStatus
-from .workflow import allowed_transitions
+from .workflow import allowed_transitions, can_change_task_status
 
 
 class TaskUserSerializer(serializers.ModelSerializer):
@@ -30,6 +30,12 @@ class TaskStatusSerializer(serializers.ModelSerializer):
         fields = ("code", "name")
 
 
+class TaskParentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Task
+        fields = ("id", "title")
+
+
 class TaskSerializer(serializers.ModelSerializer):
     project = TaskProjectSerializer(read_only=True)
     assignee = TaskUserSerializer(read_only=True)
@@ -41,6 +47,9 @@ class TaskSerializer(serializers.ModelSerializer):
         max_digits=10, decimal_places=2, read_only=True
     )
     parent_id = serializers.IntegerField(read_only=True, allow_null=True)
+    parent = TaskParentSerializer(read_only=True)
+    has_subtasks = serializers.SerializerMethodField()
+    can_edit_checklist = serializers.SerializerMethodField()
     checklist_total = serializers.SerializerMethodField()
     checklist_done = serializers.SerializerMethodField()
 
@@ -55,6 +64,8 @@ class TaskSerializer(serializers.ModelSerializer):
             "status",
             "priority",
             "parent_id",
+            "parent",
+            "has_subtasks",
             "start_date",
             "estimated_hours",
             "progress",
@@ -68,6 +79,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "updated_at",
             "completed_at",
             "allowed_transitions",
+            "can_edit_checklist",
         )
 
     def get_is_overdue(self, task) -> bool:
@@ -91,6 +103,19 @@ class TaskSerializer(serializers.ModelSerializer):
         if hasattr(task, "checklist_done_count"):
             return task.checklist_done_count
         return sum(item.is_completed for item in task.checklist_items.all())
+
+    def get_has_subtasks(self, task) -> bool:
+        if hasattr(task, "active_subtasks"):
+            return bool(task.active_subtasks)
+        return task.subtasks.filter(is_deleted=False).exists()
+
+    def get_can_edit_checklist(self, task) -> bool:
+        request = self.context.get("request")
+        return bool(
+            request
+            and task.status.code != TaskStatus.Code.COMPLETED
+            and can_change_task_status(task, request.user)
+        )
 
 
 class AssigneeMembershipMixin:

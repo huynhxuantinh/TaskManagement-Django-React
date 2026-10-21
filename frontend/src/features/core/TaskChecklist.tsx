@@ -12,7 +12,7 @@ export function TaskChecklist({ task, onChanged }: { task: Task; onChanged: () =
   const [title, setTitle] = useState('')
   const [saving, setSaving] = useState(false)
   const [draggedId, setDraggedId] = useState<number | null>(null)
-  const canEdit = task.status.code !== 'COMPLETED' && task.allowed_transitions.length > 0
+  const canEdit = task.can_edit_checklist
 
   async function addItem(event: FormEvent) {
     event.preventDefault()
@@ -60,17 +60,8 @@ export function TaskChecklist({ task, onChanged }: { task: Task; onChanged: () =
     }
   }
 
-  async function dropOn(targetId: number, event: DragEvent<HTMLLIElement>) {
-    event.preventDefault()
-    if (draggedId === null || draggedId === targetId) return
-    const reordered = [...items]
-    const from = reordered.findIndex((item) => item.id === draggedId)
-    const to = reordered.findIndex((item) => item.id === targetId)
-    if (from < 0 || to < 0) return
-    const [moved] = reordered.splice(from, 1)
-    reordered.splice(to, 0, moved)
+  async function saveOrder(reordered: TaskChecklistItem[], previous: TaskChecklistItem[]) {
     setItems(reordered)
-    setDraggedId(null)
     try {
       const saved = await apiRequest<TaskChecklistItem[]>(
         `/api/v1/tasks/${task.id}/checklist/order/`,
@@ -79,9 +70,32 @@ export function TaskChecklist({ task, onChanged }: { task: Task; onChanged: () =
       setItems(saved)
       onChanged()
     } catch (caught) {
-      setItems(task.checklist ?? [])
+      setItems(previous)
       notify((caught as Error).message, 'error')
     }
+  }
+
+  async function move(itemId: number, offset: -1 | 1) {
+    const from = items.findIndex((item) => item.id === itemId)
+    const to = from + offset
+    if (from < 0 || to < 0 || to >= items.length) return
+    const reordered = [...items]
+    const [moved] = reordered.splice(from, 1)
+    reordered.splice(to, 0, moved)
+    await saveOrder(reordered, items)
+  }
+
+  async function dropOn(targetId: number, event: DragEvent<HTMLLIElement>) {
+    event.preventDefault()
+    if (draggedId === null || draggedId === targetId) return
+    const from = items.findIndex((item) => item.id === draggedId)
+    const to = items.findIndex((item) => item.id === targetId)
+    if (from < 0 || to < 0) return
+    const reordered = [...items]
+    const [moved] = reordered.splice(from, 1)
+    reordered.splice(to, 0, moved)
+    setDraggedId(null)
+    await saveOrder(reordered, items)
   }
 
   return (
@@ -98,7 +112,7 @@ export function TaskChecklist({ task, onChanged }: { task: Task; onChanged: () =
       </div>
       {items.length === 0 && <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Chưa có mục checklist.</p>}
       <ol className="space-y-2">
-        {items.map((item) => (
+        {items.map((item, index) => (
           <li
             key={item.id}
             draggable={canEdit}
@@ -110,7 +124,11 @@ export function TaskChecklist({ task, onChanged }: { task: Task; onChanged: () =
             <span aria-hidden="true" className={`select-none text-slate-400 ${canEdit ? 'cursor-grab' : ''}`}>⋮⋮</span>
             <input aria-label={`Hoàn thành ${item.title}`} type="checkbox" checked={item.is_completed} disabled={!canEdit} onChange={() => void toggle(item)} className="size-4 accent-slate-900" />
             <span className={`min-w-0 flex-1 text-sm ${item.is_completed ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{item.title}</span>
-            {canEdit && <Button variant="ghost" className="!text-red-700" onClick={() => void remove(item)}>Xóa</Button>}
+            {canEdit && <div className="flex items-center gap-1">
+              <Button type="button" variant="ghost" className="!min-h-9 !px-2" disabled={index === 0} aria-label={`Di chuyển ${item.title} lên`} onClick={() => void move(item.id, -1)}>↑</Button>
+              <Button type="button" variant="ghost" className="!min-h-9 !px-2" disabled={index === items.length - 1} aria-label={`Di chuyển ${item.title} xuống`} onClick={() => void move(item.id, 1)}>↓</Button>
+              <Button type="button" variant="ghost" className="!text-red-700" onClick={() => void remove(item)}>Xóa</Button>
+            </div>}
           </li>
         ))}
       </ol>

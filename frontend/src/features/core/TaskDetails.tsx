@@ -28,7 +28,7 @@ export function TaskDetails({ taskId, onChanged }: { taskId: number; onChanged: 
           <div><dt className="text-xs font-bold uppercase text-slate-500">Ngày bắt đầu</dt><dd className="mt-1 text-sm font-semibold">{formatDate(task.start_date)}</dd></div>
           <div><dt className="text-xs font-bold uppercase text-slate-500">Hạn hoàn thành</dt><dd className="mt-1 text-sm font-semibold">{formatDate(task.deadline)}</dd></div>
           <div><dt className="text-xs font-bold uppercase text-slate-500">Giờ ước lượng</dt><dd className="mt-1 text-sm font-semibold">{task.effective_estimated_hours ? `${task.effective_estimated_hours} giờ` : 'Chưa ước lượng'}</dd></div>
-          <div><dt className="text-xs font-bold uppercase text-slate-500">Quan hệ</dt><dd className="mt-1 text-sm font-semibold">{task.parent_id ? `Công việc con của #${task.parent_id}` : 'Công việc gốc'}</dd></div>
+          <div><dt className="text-xs font-bold uppercase text-slate-500">Quan hệ</dt><dd className="mt-1 text-sm font-semibold">{task.parent ? `Công việc con của ${task.parent.title}` : 'Công việc gốc'}</dd></div>
         </dl>
       </div>
       <TaskChecklist

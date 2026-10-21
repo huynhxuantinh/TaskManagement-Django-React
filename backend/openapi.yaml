@@ -2142,6 +2142,13 @@ components:
           type: integer
           readOnly: true
           nullable: true
+        parent:
+          allOf:
+          - $ref: '#/components/schemas/TaskParent'
+          readOnly: true
+        has_subtasks:
+          type: boolean
+          readOnly: true
         start_date:
           type: string
           format: date
@@ -2193,15 +2200,21 @@ components:
             type: object
             additionalProperties: {}
           readOnly: true
+        can_edit_checklist:
+          type: boolean
+          readOnly: true
       required:
       - allowed_transitions
       - assignee
+      - can_edit_checklist
       - checklist_done
       - checklist_total
       - effective_estimated_hours
       - effective_progress
+      - has_subtasks
       - id
       - is_overdue
+      - parent
       - parent_id
       - project
       - status
@@ -2416,6 +2429,13 @@ components:
           type: integer
           readOnly: true
           nullable: true
+        parent:
+          allOf:
+          - $ref: '#/components/schemas/TaskParent'
+          readOnly: true
+        has_subtasks:
+          type: boolean
+          readOnly: true
         start_date:
           type: string
           format: date
@@ -2467,6 +2487,9 @@ components:
             type: object
             additionalProperties: {}
           readOnly: true
+        can_edit_checklist:
+          type: boolean
+          readOnly: true
         checklist:
           type: array
           items:
@@ -2475,13 +2498,16 @@ components:
       required:
       - allowed_transitions
       - assignee
+      - can_edit_checklist
       - checklist
       - checklist_done
       - checklist_total
       - effective_estimated_hours
       - effective_progress
+      - has_subtasks
       - id
       - is_overdue
+      - parent
       - parent_id
       - project
       - status
@@ -2547,6 +2573,18 @@ components:
       - data
       - message
       - success
+    TaskParent:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          maxLength: 200
+      required:
+      - id
+      - title
     TaskProject:
       type: object
       properties:

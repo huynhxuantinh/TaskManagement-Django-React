@@ -28,6 +28,8 @@ const task: Task = {
   status: { code: 'TODO', name: 'Chưa thực hiện' },
   priority: 2,
   parent_id: null,
+  parent: null,
+  has_subtasks: false,
   start_date: null,
   estimated_hours: null,
   progress: 0,
@@ -41,6 +43,7 @@ const task: Task = {
   updated_at: '2026-10-19T00:00:00Z',
   completed_at: null,
   allowed_transitions: [],
+  can_edit_checklist: false,
 }
 
 afterEach(cleanup)

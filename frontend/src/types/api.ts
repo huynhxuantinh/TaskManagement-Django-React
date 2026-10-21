@@ -72,6 +72,8 @@ export interface Task {
   status: TaskStatus
   priority: number
   parent_id: number | null
+  parent: { id: number; title: string } | null
+  has_subtasks: boolean
   start_date: string | null
   estimated_hours: string | null
   progress: number
@@ -86,6 +88,7 @@ export interface Task {
   updated_at: string
   completed_at: string | null
   allowed_transitions: TaskTransition[]
+  can_edit_checklist: boolean
 }
 
 export interface TaskAuditLog {

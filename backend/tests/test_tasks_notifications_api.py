@@ -381,6 +381,32 @@ def test_task_detail_embeds_checklist_while_list_only_returns_counts(
         "Second",
     ]
     assert detailed.data["data"]["effective_progress"] == 50
+    assert detailed.data["data"]["can_edit_checklist"] is True
+
+
+@pytest.mark.django_db
+def test_task_api_exposes_parent_and_subtask_metadata(
+    task_users, task_statuses, task_project
+):
+    parent = make_task(task_project, task_statuses, task_users["employee"])
+    child = make_task(
+        task_project,
+        task_statuses,
+        task_users["employee"],
+        parent=parent,
+    )
+
+    parent_data = api_as(task_users["manager"]).get(
+        f"/api/v1/tasks/{parent.id}/"
+    ).data["data"]
+    child_data = api_as(task_users["manager"]).get(
+        f"/api/v1/tasks/{child.id}/"
+    ).data["data"]
+
+    assert parent_data["has_subtasks"] is True
+    assert parent_data["parent"] is None
+    assert child_data["has_subtasks"] is False
+    assert child_data["parent"] == {"id": parent.id, "title": parent.title}
 
 
 @pytest.mark.django_db
@@ -401,6 +427,10 @@ def test_checklist_read_scope_and_write_permission(
     assert visible.data["data"][0]["title"] == "Visible"
     assert forbidden.status_code == 403
     assert hidden.status_code == 404
+    task_detail = api_as(task_users["manager2"]).get(
+        f"/api/v1/tasks/{task.id}/"
+    )
+    assert task_detail.data["data"]["can_edit_checklist"] is False
 
 
 @pytest.mark.django_db
@@ -436,6 +466,8 @@ def test_checklist_mutations_audit_progress_and_block_completed_tasks(
 
     task.status = task_statuses[TaskStatus.Code.COMPLETED]
     task.save(update_fields=["status"])
+    completed_detail = client.get(f"/api/v1/tasks/{task.id}/")
+    assert completed_detail.data["data"]["can_edit_checklist"] is False
     assert client.post(collection_url, {"title": "Blocked"}, format="json").status_code == 400
     assert client.patch(item_url, {"title": "Blocked"}, format="json").status_code == 400
     assert client.delete(item_url).status_code == 400
