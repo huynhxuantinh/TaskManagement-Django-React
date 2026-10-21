@@ -174,7 +174,9 @@ class TaskChecklistItemSerializer(serializers.ModelSerializer):
 
 
 class TaskChecklistOrderSerializer(serializers.Serializer):
-    item_ids = serializers.ListField(child=serializers.IntegerField(min_value=1), allow_empty=True)
+    item_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1), allow_empty=True, max_length=100
+    )
 
 
 class TaskFilterSerializer(serializers.Serializer):

@@ -9,7 +9,7 @@ from rest_framework.test import APIClient
 from apps.accounts.models import Role, User
 from apps.notifications.models import Notification, NotificationType
 from apps.projects.models import Project, ProjectMember
-from apps.tasks.models import Task, TaskAuditLog, TaskStatus
+from apps.tasks.models import Task, TaskAuditLog, TaskChecklistItem, TaskStatus
 
 
 @pytest.fixture
@@ -367,6 +367,54 @@ def test_checklist_order_endpoint_only_allows_put(
     assert client.get(url).status_code == 405
     assert client.post(url, {"title": "Sneaky"}, format="json").status_code == 405
     assert task.checklist_items.count() == 0
+
+
+@pytest.mark.django_db
+def test_checklist_reorder_validates_order_audits_and_enforces_permissions(
+    task_users, task_statuses, task_project
+):
+    task = make_task(task_project, task_statuses, task_users["employee"])
+    items = [
+        TaskChecklistItem.objects.create(task=task, title=title, position=index)
+        for index, title in enumerate(("A", "B", "C"))
+    ]
+    url = f"/api/v1/tasks/{task.id}/checklist/order/"
+    employee = api_as(task_users["employee"])
+
+    invalid = employee.put(url, {"item_ids": [items[0].id, items[0].id]}, format="json")
+    forbidden = api_as(task_users["manager2"]).put(
+        url, {"item_ids": [item.id for item in items]}, format="json"
+    )
+    ordered_ids = [items[2].id, items[0].id, items[1].id]
+    changed = employee.put(url, {"item_ids": ordered_ids}, format="json")
+
+    assert invalid.status_code == 400
+    assert forbidden.status_code == 403
+    assert changed.status_code == 200
+    assert [row["id"] for row in changed.data["data"]] == ordered_ids
+    log = TaskAuditLog.objects.get(task=task, action=TaskAuditLog.Action.CHECKLIST_REORDERED)
+    assert log.changes["order"] == {
+        "old": [item.id for item in items],
+        "new": ordered_ids,
+    }
+
+    task.status = task_statuses[TaskStatus.Code.COMPLETED]
+    task.save(update_fields=["status"])
+    blocked = employee.put(url, {"item_ids": ordered_ids}, format="json")
+    assert blocked.status_code == 400
+
+
+@pytest.mark.django_db
+def test_checklist_reorder_rejects_more_than_one_hundred_ids(
+    task_users, task_statuses, task_project
+):
+    task = make_task(task_project, task_statuses, task_users["employee"])
+    response = api_as(task_users["employee"]).put(
+        f"/api/v1/tasks/{task.id}/checklist/order/",
+        {"item_ids": list(range(1, 102))},
+        format="json",
+    )
+    assert response.status_code == 400
 
 
 @pytest.mark.django_db
