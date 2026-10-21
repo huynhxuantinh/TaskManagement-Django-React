@@ -170,7 +170,7 @@ class TaskChecklistItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = TaskChecklistItem
         fields = ("id", "title", "is_completed", "position", "created_at")
-        read_only_fields = ("id", "created_at")
+        read_only_fields = ("id", "position", "created_at")
 
 
 class TaskFilterSerializer(serializers.Serializer):

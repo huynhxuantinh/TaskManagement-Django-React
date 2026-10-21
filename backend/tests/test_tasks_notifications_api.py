@@ -344,6 +344,19 @@ def test_task_parent_can_have_multiple_direct_subtasks(
 
 
 @pytest.mark.django_db
+def test_checklist_position_is_server_managed(task_users, task_statuses, task_project):
+    task = make_task(task_project, task_statuses, task_users["employee"])
+    response = api_as(task_users["employee"]).post(
+        f"/api/v1/tasks/{task.id}/checklist/",
+        {"title": "First item", "position": 7},
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert response.data["data"]["position"] == 0
+
+
+@pytest.mark.django_db
 def test_status_workflow_requires_note_and_limits_reopening(
     task_users, task_statuses, task_project
 ):

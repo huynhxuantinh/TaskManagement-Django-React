@@ -51,7 +51,10 @@ class ChecklistService:
             raise ValidationError({"checklist": "Mỗi công việc tối đa 100 mục checklist."})
         max_position = totals["max_position"]
         item = TaskChecklistItem.objects.create(
-            task=task, position=(max_position + 1 if max_position is not None else 0), **values
+            task=task,
+            position=(max_position + 1 if max_position is not None else 0),
+            title=values["title"],
+            is_completed=values.get("is_completed", False),
         )
         TaskAuditLog.objects.create(task=task, actor=actor, action=TaskAuditLog.Action.CHECKLIST_CREATED, changes={"item": {"id": item.id, "title": item.title}})
         return item
