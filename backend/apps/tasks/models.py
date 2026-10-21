@@ -104,6 +104,10 @@ class TaskAuditLog(models.Model):
         UPDATED = "UPDATED", "Cập nhật công việc"
         STATUS_CHANGED = "STATUS_CHANGED", "Đổi trạng thái"
         DELETED = "DELETED", "Xóa công việc"
+        CHECKLIST_CREATED = "CHECKLIST_CREATED", "Thêm checklist"
+        CHECKLIST_UPDATED = "CHECKLIST_UPDATED", "Cập nhật checklist"
+        CHECKLIST_DELETED = "CHECKLIST_DELETED", "Xóa checklist"
+        CHECKLIST_REORDERED = "CHECKLIST_REORDERED", "Sắp xếp checklist"
 
     task = models.ForeignKey(
         Task,

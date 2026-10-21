@@ -5,7 +5,7 @@ from django.utils import timezone
 from apps.notifications.models import NotificationType
 from apps.notifications.services import create_notification
 
-from .models import Task, TaskAuditLog, TaskStatus
+from .models import Task, TaskAuditLog, TaskChecklistItem, TaskStatus
 from .workflow import validate_transition
 
 
@@ -23,6 +23,29 @@ def audit_value(field, value):
     if field == "parent":
         return {"id": value.id, "title": value.title} if value else None
     return value
+
+
+class ChecklistService:
+    @staticmethod
+    def locked_task(task_id):
+        task = Task.objects.select_for_update(of=("self",)).select_related("status").get(pk=task_id)
+        if task.is_deleted:
+            raise ValueError("Task deleted")
+        if task.status.code == TaskStatus.Code.COMPLETED:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({"checklist": "Hãy mở lại công việc trước khi sửa checklist."})
+        return task
+
+    @staticmethod
+    @transaction.atomic
+    def create(task_id, values, actor):
+        task = ChecklistService.locked_task(task_id)
+        if task.checklist_items.count() >= 100:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({"checklist": "Mỗi công việc tối đa 100 mục checklist."})
+        item = TaskChecklistItem.objects.create(task=task, position=task.checklist_items.count(), **values)
+        TaskAuditLog.objects.create(task=task, actor=actor, action=TaskAuditLog.Action.CHECKLIST_CREATED, changes={"item": {"id": item.id, "title": item.title}})
+        return item
 
 
 @transaction.atomic
