@@ -45,6 +45,8 @@ def allowed_transitions(task, actor):
     codes = set(TRANSITIONS.get(task.status.code, set()))
     if unfinished_subtasks_count(task):
         codes.discard(TaskStatus.Code.COMPLETED)
+    if task.parent_id and task.parent.status.code == TaskStatus.Code.COMPLETED:
+        codes.discard(TaskStatus.Code.IN_PROGRESS)
     if task.status.code == TaskStatus.Code.COMPLETED and actor.role.code not in {
         Role.Code.ADMIN,
         Role.Code.MANAGER,
