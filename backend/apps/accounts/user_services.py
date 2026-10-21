@@ -78,6 +78,8 @@ def deactivate_and_reassign_tasks(user, replacement, actor):
         )
         .exclude(status__code=TaskStatus.Code.COMPLETED)
         .select_related("project", "assignee", "status")
+        .order_by("id")
+        .select_for_update(of=("self",))
     )
     if tasks and replacement is None:
         raise ValidationError(

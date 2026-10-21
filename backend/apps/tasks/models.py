@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.db import models
 from django.db.models import Q
+from django.core.validators import MaxValueValidator
 from django.utils import timezone
 
 from apps.projects.models import Project
@@ -41,6 +42,14 @@ class Task(models.Model):
     )
     status = models.ForeignKey(TaskStatus, on_delete=models.PROTECT, related_name="tasks")
     priority = models.PositiveSmallIntegerField(choices=Priority.choices, default=Priority.MEDIUM)
+    parent = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.CASCADE, related_name="subtasks"
+    )
+    start_date = models.DateField(null=True, blank=True)
+    estimated_hours = models.DecimalField(
+        max_digits=8, decimal_places=2, null=True, blank=True
+    )
+    progress = models.PositiveSmallIntegerField(default=0, validators=[MaxValueValidator(100)])
     deadline = models.DateField(null=True, blank=True)
     is_deleted = models.BooleanField(default=False)
     created_at = models.DateTimeField(default=timezone.now)
@@ -64,6 +73,26 @@ class Task(models.Model):
 
     def __str__(self):
         return self.title
+
+    @property
+    def effective_progress(self):
+        if self.status.code == TaskStatus.Code.COMPLETED:
+            return 100
+        checklist = list(self.checklist_items.all())
+        if not checklist:
+            return self.progress
+        return round(sum(item.is_completed for item in checklist) * 100 / len(checklist))
+
+
+class TaskChecklistItem(models.Model):
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="checklist_items")
+    title = models.CharField(max_length=300)
+    is_completed = models.BooleanField(default=False)
+    position = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["position", "id"]
 
 
 class TaskAuditLog(models.Model):

@@ -5,7 +5,7 @@ from rest_framework import serializers
 from apps.accounts.models import User
 from apps.projects.models import Project, ProjectMember
 
-from .models import Task, TaskAuditLog, TaskStatus
+from .models import Task, TaskAuditLog, TaskChecklistItem, TaskStatus
 from .workflow import allowed_transitions
 
 
@@ -36,6 +36,8 @@ class TaskSerializer(serializers.ModelSerializer):
     status = TaskStatusSerializer(read_only=True)
     is_overdue = serializers.SerializerMethodField()
     allowed_transitions = serializers.SerializerMethodField()
+    effective_progress = serializers.IntegerField(read_only=True)
+    parent_id = serializers.IntegerField(read_only=True, allow_null=True)
 
     class Meta:
         model = Task
@@ -47,6 +49,11 @@ class TaskSerializer(serializers.ModelSerializer):
             "assignee",
             "status",
             "priority",
+            "parent_id",
+            "start_date",
+            "estimated_hours",
+            "progress",
+            "effective_progress",
             "deadline",
             "is_overdue",
             "created_at",
@@ -105,6 +112,10 @@ class TaskCreateSerializer(AssigneeMembershipMixin, serializers.ModelSerializer)
             "assignee_id",
             "status",
             "priority",
+            "parent",
+            "start_date",
+            "estimated_hours",
+            "progress",
             "deadline",
         )
 
@@ -119,7 +130,7 @@ class TaskUpdateSerializer(AssigneeMembershipMixin, serializers.ModelSerializer)
 
     class Meta:
         model = Task
-        fields = ("title", "description", "assignee_id", "priority", "deadline")
+        fields = ("title", "description", "assignee_id", "priority", "deadline", "parent", "start_date", "estimated_hours", "progress")
 
 
 class TaskStatusUpdateSerializer(serializers.Serializer):

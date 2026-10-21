@@ -9,7 +9,7 @@ from .models import Task, TaskAuditLog, TaskStatus
 from .workflow import validate_transition
 
 
-AUDITED_TASK_FIELDS = ("title", "description", "assignee", "priority", "deadline")
+AUDITED_TASK_FIELDS = ("title", "description", "assignee", "priority", "deadline", "start_date", "estimated_hours", "progress", "parent")
 
 def audit_value(field, value):
     if field == "assignee":
@@ -112,6 +112,11 @@ class TaskService:
     @staticmethod
     @transaction.atomic
     def update_task(task, validated_data, actor=None):
+        task = (
+            Task.objects.select_for_update(of=("self",))
+            .select_related("project", "project__creator", "assignee", "status")
+            .get(pk=task.pk)
+        )
         old_assignee_id = task.assignee_id
         changes = {}
         for field, value in validated_data.items():
@@ -143,6 +148,11 @@ class TaskService:
     @staticmethod
     @transaction.atomic
     def change_status(task, new_status, actor, note=""):
+        task = (
+            Task.objects.select_for_update(of=("self",))
+            .select_related("project", "project__creator", "assignee", "status")
+            .get(pk=task.pk)
+        )
         was_completed = task.status.code == TaskStatus.Code.COMPLETED
         is_completed = new_status.code == TaskStatus.Code.COMPLETED
         if task.status_id == new_status.id:

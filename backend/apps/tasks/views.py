@@ -44,7 +44,7 @@ def task_queryset():
         "assignee",
         "assignee__role",
         "status",
-    )
+    ).prefetch_related("checklist_items")
 
 
 def csv_safe(value):
