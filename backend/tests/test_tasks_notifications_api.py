@@ -273,16 +273,17 @@ def test_task_planning_fields_are_json_safe_in_audit_log(
 ):
     parent = make_task(task_project, task_statuses, task_users["employee"])
     task = make_task(task_project, task_statuses, task_users["employee2"])
+    start_date = timezone.localdate()
 
     response = api_as(task_users["manager"]).patch(
         f"/api/v1/tasks/{task.id}/",
-        {"start_date": "2026-11-01", "estimated_hours": "12.50", "parent": parent.id},
+        {"start_date": start_date.isoformat(), "estimated_hours": "12.50", "parent": parent.id},
         format="json",
     )
 
     assert response.status_code == 200
     changes = TaskAuditLog.objects.filter(task=task).latest("id").changes
-    assert changes["start_date"]["new"] == "2026-11-01"
+    assert changes["start_date"]["new"] == start_date.isoformat()
     assert changes["estimated_hours"]["new"] == "12.50"
     assert changes["parent"]["new"] == {"id": parent.id, "title": parent.title}
 
