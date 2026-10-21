@@ -18,10 +18,11 @@ from apps.accounts.permissions import has_role
 from apps.core.api import success
 from apps.projects.permissions import can_manage_project
 
-from .models import Task, TaskStatus
+from .models import Task, TaskChecklistItem, TaskStatus
 from .serializers import (
     TaskAuditLogListResponseSerializer,
     TaskAuditLogSerializer,
+    TaskChecklistItemSerializer,
     TaskCreateSerializer,
     TaskFilterSerializer,
     TaskListResponseSerializer,
@@ -219,4 +220,41 @@ class TaskStatusListView(APIView):
     def get(self, request):
         statuses = TaskStatus.objects.all()
         return success(TaskStatusSerializer(statuses, many=True).data, "Lấy trạng thái thành công.")
+
+
+class TaskChecklistView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_task(self, request, pk):
+        task = get_object_or_404(task_queryset(), pk=pk)
+        if not can_change_task_status(task, request.user):
+            raise PermissionDenied("Bạn không có quyền cập nhật checklist công việc này.")
+        return task
+
+    def get(self, request, pk):
+        task = self.get_task(request, pk)
+        return success(TaskChecklistItemSerializer(task.checklist_items.all(), many=True).data, "Lấy checklist thành công.")
+
+    def post(self, request, pk):
+        task = self.get_task(request, pk)
+        serializer = TaskChecklistItemSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        item = serializer.save(task=task)
+        return success(TaskChecklistItemSerializer(item).data, "Thêm mục checklist thành công.", 201)
+
+
+class TaskChecklistItemView(TaskChecklistView):
+    def get_item(self, request, pk, item_id):
+        task = self.get_task(request, pk)
+        return get_object_or_404(task.checklist_items, pk=item_id)
+
+    def patch(self, request, pk, item_id):
+        item = self.get_item(request, pk, item_id)
+        serializer = TaskChecklistItemSerializer(item, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        return success(TaskChecklistItemSerializer(serializer.save()).data, "Cập nhật checklist thành công.")
+
+    def delete(self, request, pk, item_id):
+        self.get_item(request, pk, item_id).delete()
+        return Response(status=204)
 
