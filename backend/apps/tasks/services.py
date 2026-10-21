@@ -192,13 +192,20 @@ class TaskService:
     @staticmethod
     @transaction.atomic
     def delete_task(task, actor):
-        task.is_deleted = True
-        task.save(update_fields=["is_deleted", "updated_at"])
-        TaskAuditLog.objects.create(
-            task=task,
-            actor=actor,
-            action=TaskAuditLog.Action.DELETED,
-            changes={"is_deleted": {"old": False, "new": True}},
+        tasks = list(
+            Task.objects.filter(pk__in=[task.pk, *task.subtasks.values_list("pk", flat=True)])
+            .filter(is_deleted=False)
+            .order_by("id")
+            .select_for_update(of=("self",))
         )
+        for item in tasks:
+            item.is_deleted = True
+            item.save(update_fields=["is_deleted", "updated_at"])
+            TaskAuditLog.objects.create(
+                task=item,
+                actor=actor,
+                action=TaskAuditLog.Action.DELETED,
+                changes={"is_deleted": {"old": False, "new": True}},
+            )
         return task
 

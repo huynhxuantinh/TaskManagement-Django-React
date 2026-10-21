@@ -268,6 +268,26 @@ def test_task_detail_update_delete_permissions_and_soft_delete(
 
 
 @pytest.mark.django_db
+def test_soft_deleting_parent_soft_deletes_each_subtask(
+    task_users, task_statuses, task_project
+):
+    parent = make_task(task_project, task_statuses, task_users["employee"])
+    children = [
+        make_task(task_project, task_statuses, task_users["employee"], parent=parent)
+        for _ in range(2)
+    ]
+
+    response = api_as(task_users["manager"]).delete(f"/api/v1/tasks/{parent.id}/")
+
+    assert response.status_code == 204
+    assert all(Task.objects.get(pk=child.pk).is_deleted for child in children)
+    assert all(
+        TaskAuditLog.objects.filter(task=child, action=TaskAuditLog.Action.DELETED).exists()
+        for child in children
+    )
+
+
+@pytest.mark.django_db
 def test_task_planning_fields_are_json_safe_in_audit_log(
     task_users, task_statuses, task_project
 ):
