@@ -32,11 +32,11 @@ def can_change_task_status(task, actor):
 
 
 def unfinished_subtasks_count(task):
-    return getattr(
-        task,
-        "unfinished_subtasks_count",
-        task.subtasks.filter(is_deleted=False).exclude(status__code=TaskStatus.Code.COMPLETED).count(),
-    )
+    if hasattr(task, "unfinished_subtasks_count"):
+        return task.unfinished_subtasks_count
+    return task.subtasks.filter(is_deleted=False).exclude(
+        status__code=TaskStatus.Code.COMPLETED
+    ).count()
 
 
 def allowed_transitions(task, actor):

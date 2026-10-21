@@ -2,6 +2,7 @@ import csv
 from datetime import timedelta
 
 from django.http import HttpResponse
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view
@@ -44,7 +45,14 @@ def task_queryset():
         "assignee",
         "assignee__role",
         "status",
-    ).prefetch_related("checklist_items")
+        "parent__status",
+    ).prefetch_related("checklist_items").annotate(
+        unfinished_subtasks_count=Count(
+            "subtasks",
+            filter=Q(subtasks__is_deleted=False)
+            & ~Q(subtasks__status__code=TaskStatus.Code.COMPLETED),
+        )
+    )
 
 
 def csv_safe(value):
