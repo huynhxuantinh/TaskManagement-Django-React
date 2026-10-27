@@ -16,7 +16,8 @@ import { buildStatusChangePayload } from '../features/core/statusChange'
 import { useAllPages } from '../hooks/useAllPages'
 import { useApiResource } from '../hooks/useApiResource'
 import { apiDownload, apiRequest } from '../lib/api'
-import type { Paginated, Project, Task, TaskStatus, TaskTransition } from '../types/api'
+import type { Paginated, Project, Task, TaskStatus, TaskTransition, User } from '../types/api'
+import { buildTaskListParams } from './taskFilters'
 
 const selectClass = 'min-h-12 rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold outline-none focus:border-slate-700 focus:ring-2 focus:ring-[var(--accent-soft)]'
 const priorities: Record<number, string> = { 1: 'Thấp', 2: 'Trung bình', 3: 'Cao' }
@@ -28,28 +29,34 @@ export function TasksPage() {
   const [query, setQuery] = useState('')
   const [search, setSearch] = useState('')
   const [projectFilter, setProjectFilter] = useState(searchParams.get('project') ?? '')
+  const [assigneeFilter, setAssigneeFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [priorityFilter, setPriorityFilter] = useState('')
   const [deadlineFrom, setDeadlineFrom] = useState('')
   const [deadlineTo, setDeadlineTo] = useState('')
   const [deadlinePreset, setDeadlinePreset] = useState('')
+  const [ordering, setOrdering] = useState('')
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<Task | undefined>()
   const [historyTask, setHistoryTask] = useState<Task | undefined>()
   const [detailTask, setDetailTask] = useState<Task | undefined>()
   const [statusChange, setStatusChange] = useState<{ task: Task; transition: TaskTransition } | undefined>()
   const [statusNote, setStatusNote] = useState('')
-  const params = new URLSearchParams({ page_size: '100' })
-  if (search) params.set('search', search)
-  if (projectFilter) params.set('project', projectFilter)
-  if (statusFilter) params.set('status', statusFilter)
-  if (priorityFilter) params.set('priority', priorityFilter)
-  if (deadlineFrom) params.set('deadline_from', deadlineFrom)
-  if (deadlineTo) params.set('deadline_to', deadlineTo)
-  if (deadlinePreset) params.set(deadlinePreset, 'true')
+  const params = buildTaskListParams({
+    search,
+    project: projectFilter,
+    assignee: assigneeFilter,
+    status: statusFilter,
+    priority: priorityFilter,
+    deadlineFrom,
+    deadlineTo,
+    deadlinePreset,
+    ordering,
+  })
   const { data, setData, loading, error, reload } = useAllPages<Task>(`/api/v1/tasks/?${params}`)
   const { data: projectsData } = useApiResource<Paginated<Project>>('/api/v1/projects/?page_size=100')
   const { data: statuses } = useApiResource<TaskStatus[]>('/api/v1/metadata/task-statuses/')
+  const { data: assignees } = useApiResource<User[]>('/api/v1/metadata/task-assignees/')
   const projectById = useMemo(() => new Map(projectsData?.results.map((project) => [project.id, project]) ?? []), [projectsData])
   const manageableProjects = useMemo(() => {
     if (!user) return []
@@ -128,11 +135,13 @@ export function TasksPage() {
     <div className="space-y-6">
       <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between"><div><p className="section-kicker">Danh sách thực hiện / {data?.count ?? 0}</p><h2 className="mt-1 text-3xl font-black tracking-tight">Luồng công việc</h2><p className="mt-2 text-sm text-slate-600">Lọc nhanh, giao việc và cập nhật tiến độ ngay tại một nơi.</p></div><div className="flex gap-2"><Button variant="secondary" onClick={() => void exportCsv()}>Xuất CSV</Button>{user && canCreateProjects(user) && <Button disabled={manageableProjects.length === 0} onClick={() => setCreating(true)}>+ Giao công việc</Button>}</div></header>
 
-      <section className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 md:grid-cols-[minmax(14rem,1fr)_auto_auto_auto] md:items-end">
+      <section className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 md:grid-cols-[minmax(14rem,1fr)_repeat(5,minmax(9rem,auto))] md:items-end">
         <form onSubmit={submitSearch} className="flex gap-2"><Field label="Tìm công việc" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tên hoặc mô tả…" /><Button type="submit" variant="secondary" className="self-end">Tìm</Button></form>
         <label><span className="mb-2 block text-sm font-bold">Dự án</span><select className={selectClass} value={projectFilter} onChange={(event) => setProjectFilter(event.target.value)}><option value="">Tất cả</option>{projectsData?.results.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
+        <label><span className="mb-2 block text-sm font-bold">Người phụ trách</span><select className={selectClass} value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value)}><option value="">Tất cả</option>{assignees?.map((assignee) => <option key={assignee.id} value={assignee.id}>{assignee.full_name}</option>)}</select></label>
         <label><span className="mb-2 block text-sm font-bold">Trạng thái</span><select className={selectClass} value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="">Tất cả</option>{statuses?.map((status) => <option key={status.code} value={status.code}>{status.name}</option>)}</select></label>
         <label><span className="mb-2 block text-sm font-bold">Ưu tiên</span><select className={selectClass} value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)}><option value="">Tất cả</option><option value="1">Thấp</option><option value="2">Trung bình</option><option value="3">Cao</option></select></label>
+        <label><span className="mb-2 block text-sm font-bold">Sắp xếp</span><select className={selectClass} value={ordering} onChange={(event) => setOrdering(event.target.value)}><option value="">Mới cập nhật</option><option value="deadline">Hạn gần nhất</option><option value="-priority">Ưu tiên cao trước</option><option value="title">Tên A–Z</option></select></label>
       </section>
       <section className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 md:grid-cols-3">
         <label><span className="mb-2 block text-sm font-bold">Hạn từ ngày</span><input type="date" className={selectClass} value={deadlineFrom} onChange={(event) => setDeadlineFrom(event.target.value)} /></label>

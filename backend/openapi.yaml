@@ -168,6 +168,22 @@ paths:
               schema:
                 $ref: '#/components/schemas/DashboardResponse'
           description: ''
+  /api/v1/metadata/task-assignees/:
+    get:
+      operationId: v1_metadata_task_assignees_list
+      tags:
+      - Task metadata
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+          description: ''
   /api/v1/metadata/task-statuses/:
     get:
       operationId: v1_metadata_task_statuses_list

@@ -980,6 +980,7 @@ def test_task_status_metadata_and_overdue_field(
     detail = api_as(task_users["employee"]).get(f"/api/v1/tasks/{task.id}/")
 
     assert {row["code"] for row in metadata.data["data"]} == set(task_statuses)
+    assert detail.data["data"]["is_overdue"] is True
 
 
 @pytest.mark.django_db
@@ -1000,4 +1001,3 @@ def test_task_assignee_metadata_is_scoped_to_visible_projects(
     assert task_users["outsider"].id not in {
         row["id"] for row in response.data["data"]
     }
-    assert detail.data["data"]["is_overdue"] is True

@@ -13,8 +13,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 
-from apps.accounts.models import Role
+from apps.accounts.models import Role, User
 from apps.accounts.permissions import has_role
+from apps.accounts.serializers import UserSerializer
 from apps.core.api import success
 from apps.projects.permissions import can_manage_project
 
@@ -241,6 +242,23 @@ class TaskStatusListView(APIView):
     def get(self, request):
         statuses = TaskStatus.objects.all()
         return success(TaskStatusSerializer(statuses, many=True).data, "Lấy trạng thái thành công.")
+
+
+class TaskAssigneeListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(tags=["Task metadata"], responses={200: UserSerializer(many=True)})
+    def get(self, request):
+        users = User.objects.filter(is_active=True).select_related("role")
+        if has_role(request.user, Role.Code.MANAGER):
+            users = users.filter(
+                project_memberships__project__is_deleted=False,
+                project_memberships__project__memberships__user=request.user,
+            ).distinct()
+        elif not has_role(request.user, Role.Code.ADMIN):
+            users = users.filter(pk=request.user.pk)
+        users = users.order_by("full_name", "id")
+        return success(UserSerializer(users, many=True).data, "Lấy người phụ trách thành công.")
 
 
 class TaskChecklistAccessMixin:
