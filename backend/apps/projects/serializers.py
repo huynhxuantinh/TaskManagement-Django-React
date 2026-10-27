@@ -40,9 +40,17 @@ class ProjectSerializer(serializers.ModelSerializer):
 
 
 class ProjectWriteSerializer(serializers.ModelSerializer):
+    creator_id = serializers.PrimaryKeyRelatedField(
+        source="creator",
+        queryset=User.objects.filter(
+            is_active=True, role__code="MANAGER"
+        ),
+        required=False,
+    )
+
     class Meta:
         model = Project
-        fields = ("name", "description", "start_date", "end_date")
+        fields = ("name", "description", "start_date", "end_date", "creator_id")
 
     def validate(self, attrs):
         start = attrs.get("start_date", getattr(self.instance, "start_date", None))

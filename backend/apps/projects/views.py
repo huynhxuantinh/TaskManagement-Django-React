@@ -1,7 +1,7 @@
 from django.db.models import Count
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema, extend_schema_view
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -95,7 +95,14 @@ class ProjectViewSet(ModelViewSet):
             raise PermissionDenied("Bạn không có quyền tạo dự án.")
         serializer = ProjectWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        project = ProjectService.create_project(request.user, serializer.validated_data)
+        requested_creator = serializer.validated_data.pop("creator", None)
+        if requested_creator is not None and not has_role(request.user, Role.Code.ADMIN):
+            raise ValidationError(
+                {"creator_id": ["Chỉ quản trị viên được chọn chủ dự án."]}
+            )
+        project = ProjectService.create_project(
+            requested_creator or request.user, serializer.validated_data
+        )
         project = attach_project_progress([project_queryset().get(pk=project.pk)])[0]
         return success(ProjectSerializer(project).data, "Tạo dự án thành công.", 201)
 
@@ -106,7 +113,16 @@ class ProjectViewSet(ModelViewSet):
             project, data=request.data, partial=True
         )
         serializer.is_valid(raise_exception=True)
+        requested_creator = serializer.validated_data.pop("creator", None)
+        if requested_creator is not None and not has_role(request.user, Role.Code.ADMIN):
+            raise ValidationError(
+                {"creator_id": ["Chỉ quản trị viên được chọn chủ dự án."]}
+            )
         serializer.save()
+        if requested_creator is not None:
+            project.creator = requested_creator
+            project.save(update_fields=["creator"])
+            ProjectMember.objects.get_or_create(project=project, user=requested_creator)
         project = attach_project_progress([project_queryset().get(pk=project.pk)])[0]
         return success(ProjectSerializer(project).data, "Cập nhật dự án thành công.")
 

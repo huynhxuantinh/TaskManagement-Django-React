@@ -1623,6 +1623,8 @@ components:
           type: string
           format: date
           nullable: true
+        creator_id:
+          type: integer
     PatchedRoleUpdate:
       type: object
       properties:
@@ -1984,6 +1986,8 @@ components:
           type: string
           format: date
           nullable: true
+        creator_id:
+          type: integer
       required:
       - name
     ReadAllData:

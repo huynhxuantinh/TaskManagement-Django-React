@@ -7,7 +7,8 @@ import { Field } from '../components/ui/Field'
 import { Modal } from '../components/ui/Modal'
 import { StatePanel } from '../components/ui/StatePanel'
 import { useApiResource } from '../hooks/useApiResource'
-import type { Paginated, Project } from '../types/api'
+import { useAllPages } from '../hooks/useAllPages'
+import type { Paginated, Project, User } from '../types/api'
 import { ProjectForm } from '../features/core/ProjectForm'
 import { canCreateProjects } from '../features/core/permissions'
 
@@ -22,6 +23,7 @@ export function ProjectsPage() {
   const [creating, setCreating] = useState(false)
   const path = `/api/v1/projects/?page_size=100&search=${encodeURIComponent(search)}`
   const { data, loading, error, reload } = useApiResource<Paginated<Project>>(path)
+  const { data: managers } = useAllPages<User>(user?.role === 'ADMIN' ? '/api/v1/users/?role=MANAGER&is_active=true&page_size=100' : null)
 
   function submitSearch(event: FormEvent) {
     event.preventDefault()
@@ -55,7 +57,7 @@ export function ProjectsPage() {
       </section>
 
       <Modal open={creating} title="Tạo dự án mới" onClose={() => setCreating(false)}>
-        <ProjectForm onCancel={() => setCreating(false)} onSaved={() => { setCreating(false); reload() }} />
+        <ProjectForm ownerOptions={managers?.results ?? []} onCancel={() => setCreating(false)} onSaved={() => { setCreating(false); reload() }} />
       </Modal>
     </div>
   )

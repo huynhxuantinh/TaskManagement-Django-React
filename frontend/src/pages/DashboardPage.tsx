@@ -3,9 +3,11 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import { Icon } from '../components/Icon'
 import { StatePanel } from '../components/ui/StatePanel'
+import { DashboardProjectProgress } from '../features/core/DashboardProjectProgress'
+import { useAllPages } from '../hooks/useAllPages'
 import { apiRequest } from '../lib/api'
 import { roleLabel } from '../lib/labels'
-import type { DashboardSummary } from '../types/api'
+import type { DashboardSummary, Project } from '../types/api'
 
 const statusTone: Record<string, string> = {
   TODO: 'bg-slate-100 text-slate-700',
@@ -18,6 +20,7 @@ export function DashboardPage() {
   const { user } = useAuth()
   const [summary, setSummary] = useState<DashboardSummary | null>(null)
   const [error, setError] = useState('')
+  const { data: projects, error: projectsError } = useAllPages<Project>('/api/v1/projects/?page_size=100')
 
   useEffect(() => {
     const controller = new AbortController()
@@ -84,6 +87,8 @@ export function DashboardPage() {
           </article>
         ))}
       </section>
+
+      {projectsError ? <StatePanel eyebrow="Tiến độ dự án" title="Không tải được dự án" description={projectsError} /> : <DashboardProjectProgress projects={projects?.results ?? []} />}
 
       <div className="grid gap-5 xl:grid-cols-[1.5fr_1fr]">
         <section className="rounded-2xl border border-slate-200 bg-white p-5 md:p-6">
