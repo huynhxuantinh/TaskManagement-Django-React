@@ -220,6 +220,57 @@ def test_member_add_list_remove_conflicts_and_management_scope(project_users):
 
 
 @pytest.mark.django_db
+def test_cannot_remove_member_with_open_assigned_task(project_users):
+    owner = project_users["manager"]
+    employee = project_users["employee"]
+    project = make_project(owner, members=[employee])
+    todo = TaskStatus.objects.get(code=TaskStatus.Code.TODO)
+    Task.objects.create(
+        title="Open assigned task",
+        project=project,
+        assignee=employee,
+        status=todo,
+    )
+
+    response = api_as(owner).delete(
+        f"/api/v1/projects/{project.id}/members/{employee.id}/"
+    )
+
+    assert response.status_code == 409
+    assert ProjectMember.objects.filter(project=project, user=employee).exists()
+
+
+@pytest.mark.django_db
+def test_removed_member_cannot_access_stale_completed_assignment(project_users):
+    owner = project_users["manager"]
+    employee = project_users["employee"]
+    project = make_project(owner, members=[employee])
+    completed = TaskStatus.objects.get(code=TaskStatus.Code.COMPLETED)
+    task = Task.objects.create(
+        title="Completed assigned task",
+        project=project,
+        assignee=employee,
+        status=completed,
+    )
+
+    removed = api_as(owner).delete(
+        f"/api/v1/projects/{project.id}/members/{employee.id}/"
+    )
+    task_detail = api_as(employee).get(f"/api/v1/tasks/{task.id}/")
+    status_change = api_as(employee).patch(
+        f"/api/v1/tasks/{task.id}/status/",
+        {"status": TaskStatus.Code.TODO, "note": "Reopen"},
+        format="json",
+    )
+    task_list = api_as(employee).get("/api/v1/tasks/")
+
+    assert removed.status_code == 204
+    assert task_detail.status_code == 404
+    assert status_change.status_code == 404
+    assert task_list.data["data"]["count"] == 0
+
+
+@pytest.mark.django_db
 def test_archived_project_rejects_member_add(project_users):
     owner = project_users["manager"]
     employee = project_users["employee"]
