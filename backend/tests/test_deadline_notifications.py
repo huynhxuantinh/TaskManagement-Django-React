@@ -12,8 +12,8 @@ from apps.tasks.models import Task, TaskStatus
 
 @pytest.mark.django_db
 def test_deadline_command_sends_real_reminders_once_and_skips_inactive_tasks():
-    role = Role.objects.create(code=Role.Code.EMPLOYEE, name="Nhân viên")
-    manager_role = Role.objects.create(code=Role.Code.MANAGER, name="Quản lý")
+    role = Role.objects.get_or_create(code=Role.Code.EMPLOYEE, defaults={"name": "Nhân viên"})[0]
+    manager_role = Role.objects.get_or_create(code=Role.Code.MANAGER, defaults={"name": "Quản lý"})[0]
     assignee = User.objects.create_user(
         email="employee@example.com", password="test", role=role
     )
@@ -24,10 +24,12 @@ def test_deadline_command_sends_real_reminders_once_and_skips_inactive_tasks():
     deleted_project = Project.objects.create(
         name="Dự án đã xóa", creator=manager, is_deleted=True
     )
-    todo = TaskStatus.objects.create(code=TaskStatus.Code.TODO, name="Chưa thực hiện")
-    completed = TaskStatus.objects.create(
-        code=TaskStatus.Code.COMPLETED, name="Đã hoàn thành"
-    )
+    todo = TaskStatus.objects.get_or_create(
+        code=TaskStatus.Code.TODO, defaults={"name": "Chưa thực hiện"}
+    )[0]
+    completed = TaskStatus.objects.get_or_create(
+        code=TaskStatus.Code.COMPLETED, defaults={"name": "Đã hoàn thành"}
+    )[0]
     today = timezone.localdate()
 
     for title, deadline, status, overrides in (

@@ -17,7 +17,7 @@ from apps.tasks.models import Task, TaskStatus
 @pytest.fixture
 def report_roles(db):
     return {
-        code: Role.objects.create(code=code, name=label)
+        code: Role.objects.get_or_create(code=code, defaults={"name": label})[0]
         for code, label in Role.Code.choices
     }
 
@@ -45,7 +45,7 @@ def report_users(report_roles):
 @pytest.fixture
 def report_statuses(db):
     return {
-        code: TaskStatus.objects.create(code=code, name=label)
+        code: TaskStatus.objects.get_or_create(code=code, defaults={"name": label})[0]
         for code, label in TaskStatus.Code.choices
     }
 

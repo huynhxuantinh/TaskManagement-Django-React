@@ -1,6 +1,8 @@
 from datetime import date, datetime, time, timedelta
 
 from django.core.management.base import BaseCommand
+from django.core.management.base import CommandError
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
@@ -16,6 +18,10 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def handle(self, *args, **options):
+        if not settings.DEBUG:
+            raise CommandError(
+                "seed_demo bị từ chối vì DEBUG=False; không được nạp mật khẩu mẫu ngoài môi trường phát triển."
+            )
         roles = {
             code: Role.objects.update_or_create(code=code, defaults={'name': label})[0]
             for code, label in Role.Code.choices

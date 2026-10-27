@@ -7,9 +7,9 @@ from apps.projects.models import Project, ProjectMember
 
 @pytest.mark.django_db
 def test_admin_can_assign_active_manager_as_project_owner():
-    admin_role = Role.objects.create(code=Role.Code.ADMIN, name="Quản trị viên")
-    manager_role = Role.objects.create(code=Role.Code.MANAGER, name="Quản lý")
-    employee_role = Role.objects.create(code=Role.Code.EMPLOYEE, name="Nhân viên")
+    admin_role = Role.objects.get_or_create(code=Role.Code.ADMIN, defaults={"name": "Quản trị viên"})[0]
+    manager_role = Role.objects.get_or_create(code=Role.Code.MANAGER, defaults={"name": "Quản lý"})[0]
+    employee_role = Role.objects.get_or_create(code=Role.Code.EMPLOYEE, defaults={"name": "Nhân viên"})[0]
     admin = User.objects.create_user(email="admin-owner@example.com", password="test", role=admin_role)
     manager = User.objects.create_user(email="manager-owner@example.com", password="test", role=manager_role)
     employee = User.objects.create_user(email="employee-owner@example.com", password="test", role=employee_role)

@@ -147,6 +147,35 @@ services:
           memory: 128M
     restart: unless-stopped
 
+  bootstrap:
+    profiles: ["bootstrap"]
+    image: "${BACKEND_IMAGE:-task-management-backend:local}"
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.prod
+    command: ["python", "manage.py", "bootstrap_admin"]
+    environment:
+      <<: *backend-environment
+      BOOTSTRAP_ADMIN_EMAIL: "${BOOTSTRAP_ADMIN_EMAIL:-}"
+      BOOTSTRAP_ADMIN_FULL_NAME: "${BOOTSTRAP_ADMIN_FULL_NAME:-}"
+      BOOTSTRAP_ADMIN_USERNAME: "${BOOTSTRAP_ADMIN_USERNAME:-}"
+      BOOTSTRAP_ADMIN_PASSWORD: "${BOOTSTRAP_ADMIN_PASSWORD:-}"
+    networks:
+      - private
+    depends_on:
+      db:
+        condition: service_healthy
+      migration:
+        condition: service_completed_successfully
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: "no"
+
   proxy:
     image: "${PROXY_IMAGE:-task-management-proxy:local}"
     build:

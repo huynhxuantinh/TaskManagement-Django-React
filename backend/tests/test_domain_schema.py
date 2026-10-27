@@ -10,7 +10,7 @@ from apps.tasks.models import Task, TaskStatus
 
 @pytest.mark.django_db
 def test_user_email_is_normalized_and_case_insensitively_unique():
-    role = Role.objects.create(code=Role.Code.ADMIN, name="Admin")
+    role = Role.objects.get_or_create(code=Role.Code.ADMIN, defaults={"name": "Admin"})[0]
     User.objects.create_user(
         email="Admin@Example.COM",
         full_name="Admin",
@@ -31,7 +31,7 @@ def test_user_email_is_normalized_and_case_insensitively_unique():
 
 @pytest.mark.django_db
 def test_project_member_and_task_constraints_are_enforced():
-    role = Role.objects.create(code=Role.Code.MANAGER, name="Manager")
+    role = Role.objects.get_or_create(code=Role.Code.MANAGER, defaults={"name": "Manager"})[0]
     user = User.objects.create_user(
         email="manager@example.com",
         full_name="Manager",
@@ -49,10 +49,10 @@ def test_project_member_and_task_constraints_are_enforced():
     with pytest.raises(IntegrityError), transaction.atomic():
         ProjectMember.objects.create(project=project, user=user)
 
-    status = TaskStatus.objects.create(
+    status = TaskStatus.objects.get_or_create(
         code=TaskStatus.Code.TODO,
-        name="To Do",
-    )
+        defaults={"name": "To Do"},
+    )[0]
     with pytest.raises(IntegrityError), transaction.atomic():
         Task.objects.create(
             title="Invalid priority",

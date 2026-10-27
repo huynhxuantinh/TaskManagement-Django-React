@@ -75,6 +75,24 @@ npm --prefix frontend run build
 
 Lệnh `seed_demo` có thể chạy nhiều lần mà không nhân bản dữ liệu. Bộ dữ liệu gồm 3 tài khoản, 4 dự án, 10 thành viên dự án, 12 công việc, thông báo, tùy chọn và báo cáo mẫu bằng tiếng Việt.
 
-Không sử dụng mật khẩu mẫu trong môi trường thật.
+`seed_demo` chỉ chạy khi `DEBUG=True` và sẽ từ chối trên production. Không sử dụng mật khẩu mẫu trong môi trường thật.
 
 Đăng ký công khai mặc định bị tắt và luôn bị khóa trong production. Quản trị viên tạo tài khoản nội bộ tại màn hình quản lý người dùng.
+
+## Khởi tạo production
+
+Migration tự tạo ba vai trò và bốn trạng thái công việc. Sau khi cấu hình các biến production bắt buộc và khởi động stack, tạo quản trị viên đầu tiên bằng bootstrap một lần:
+
+```bash
+docker compose -f infra/compose.prod.yaml up --build -d
+docker compose -f infra/compose.prod.yaml --profile bootstrap run --rm bootstrap
+```
+
+Trước khi chạy lệnh thứ hai, đặt các biến sau trong file môi trường được bảo vệ hoặc secret store:
+
+- `BOOTSTRAP_ADMIN_EMAIL`
+- `BOOTSTRAP_ADMIN_FULL_NAME`
+- `BOOTSTRAP_ADMIN_USERNAME` (không bắt buộc)
+- `BOOTSTRAP_ADMIN_PASSWORD` (phải đạt chính sách mật khẩu Django)
+
+Lệnh có tính idempotent: nếu đúng tài khoản quản trị đã tồn tại thì không đổi mật khẩu. Sau khi bootstrap thành công, xóa `BOOTSTRAP_ADMIN_PASSWORD` khỏi môi trường triển khai. Lệnh chuẩn `python manage.py createsuperuser` cũng hoạt động và tự gắn vai trò Admin.

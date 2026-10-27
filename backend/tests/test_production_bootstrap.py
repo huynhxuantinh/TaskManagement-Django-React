@@ -1,6 +1,7 @@
-import os
+from importlib import import_module
 
 import pytest
+from django.apps import apps
 from django.core.management import CommandError, call_command
 from django.test import override_settings
 
@@ -10,6 +11,10 @@ from apps.tasks.models import TaskStatus
 
 @pytest.mark.django_db
 def test_lookup_rows_are_seeded_by_migrations():
+    import_module("apps.accounts.migrations.0006_seed_roles").seed_roles(apps, None)
+    import_module("apps.tasks.migrations.0010_seed_task_statuses").seed_task_statuses(
+        apps, None
+    )
     assert set(Role.objects.values_list("code", flat=True)) == set(Role.Code.values)
     assert set(TaskStatus.objects.values_list("code", flat=True)) == set(
         TaskStatus.Code.values
@@ -31,6 +36,9 @@ def test_create_superuser_assigns_admin_role_automatically():
 
 @pytest.mark.django_db
 def test_bootstrap_admin_uses_environment_and_is_idempotent(monkeypatch):
+    Role.objects.get_or_create(
+        code=Role.Code.ADMIN, defaults={"name": Role.Code.ADMIN.label}
+    )
     monkeypatch.setenv("BOOTSTRAP_ADMIN_EMAIL", "owner@example.com")
     monkeypatch.setenv("BOOTSTRAP_ADMIN_FULL_NAME", "Production Owner")
     monkeypatch.setenv("BOOTSTRAP_ADMIN_USERNAME", "owner")
@@ -58,6 +66,7 @@ def test_seed_demo_is_blocked_outside_debug_mode():
 @pytest.mark.django_db
 def test_bootstrap_admin_requires_password_environment(monkeypatch):
     monkeypatch.setenv("BOOTSTRAP_ADMIN_EMAIL", "owner@example.com")
+    monkeypatch.setenv("BOOTSTRAP_ADMIN_FULL_NAME", "Production Owner")
     monkeypatch.delenv("BOOTSTRAP_ADMIN_PASSWORD", raising=False)
 
     with pytest.raises(CommandError, match="BOOTSTRAP_ADMIN_PASSWORD"):

@@ -20,7 +20,7 @@ AUTH_HASHERS = [
 @pytest.fixture
 def roles(db):
     return {
-        code: Role.objects.create(code=code, name=label)
+        code: Role.objects.get_or_create(code=code, defaults={"name": label})[0]
         for code, label in Role.Code.choices
     }
 

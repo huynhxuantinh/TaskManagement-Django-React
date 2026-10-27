@@ -45,6 +45,12 @@ class UserManager(BaseUserManager):
             raise ValueError("Quản trị viên cấp cao phải có is_staff=True")
         if extra_fields.get("is_superuser") is not True:
             raise ValueError("Quản trị viên cấp cao phải có is_superuser=True")
+        if extra_fields.get("role") is None:
+            role, _ = Role.objects.using(self._db).get_or_create(
+                code=Role.Code.ADMIN,
+                defaults={"name": Role.Code.ADMIN.label},
+            )
+            extra_fields["role"] = role
         return self._create_user(email, password, **extra_fields)
 
 

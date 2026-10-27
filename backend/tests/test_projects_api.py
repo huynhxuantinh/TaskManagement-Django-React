@@ -16,7 +16,7 @@ from apps.tasks.progress import task_progress_summary
 @pytest.fixture
 def project_roles(db):
     return {
-        code: Role.objects.create(code=code, name=label)
+        code: Role.objects.get_or_create(code=code, defaults={"name": label})[0]
         for code, label in Role.Code.choices
     }
 
@@ -241,8 +241,8 @@ def test_archived_project_rejects_member_add(project_users):
 @pytest.mark.django_db
 def test_project_progress_uses_only_active_tasks(project_users):
     project = make_project(project_users["manager"])
-    todo = TaskStatus.objects.create(code="TODO", name="To Do")
-    done = TaskStatus.objects.create(code="COMPLETED", name="Completed")
+    todo = TaskStatus.objects.get_or_create(code="TODO", defaults={"name": "To Do"})[0]
+    done = TaskStatus.objects.get_or_create(code="COMPLETED", defaults={"name": "Completed"})[0]
     Task.objects.create(title="Todo", project=project, status=todo)
     Task.objects.create(title="Done", project=project, status=done)
     Task.objects.create(
@@ -261,8 +261,8 @@ def test_project_progress_uses_only_active_tasks(project_users):
 @pytest.mark.django_db
 def test_project_progress_uses_average_weight_for_missing_estimates(project_users):
     project = make_project(project_users["manager"])
-    todo = TaskStatus.objects.create(code="TODO", name="To Do")
-    done = TaskStatus.objects.create(code="COMPLETED", name="Completed")
+    todo = TaskStatus.objects.get_or_create(code="TODO", defaults={"name": "To Do"})[0]
+    done = TaskStatus.objects.get_or_create(code="COMPLETED", defaults={"name": "Completed"})[0]
     empty = api_as(project_users["manager"]).get(
         f"/api/v1/projects/{project.id}/"
     )
@@ -288,8 +288,8 @@ def test_project_progress_uses_checklist_and_returns_to_manual_after_reopen(
     project_users,
 ):
     project = make_project(project_users["manager"])
-    todo = TaskStatus.objects.create(code="TODO", name="To Do")
-    done = TaskStatus.objects.create(code="COMPLETED", name="Completed")
+    todo = TaskStatus.objects.get_or_create(code="TODO", defaults={"name": "To Do"})[0]
+    done = TaskStatus.objects.get_or_create(code="COMPLETED", defaults={"name": "Completed"})[0]
     task = Task.objects.create(
         title="Checklist task",
         project=project,
@@ -323,8 +323,8 @@ def test_project_progress_uses_checklist_and_returns_to_manual_after_reopen(
 @pytest.mark.django_db
 def test_parent_progress_and_hours_are_aggregated_from_children(project_users):
     project = make_project(project_users["manager"])
-    todo = TaskStatus.objects.create(code="TODO", name="To Do")
-    done = TaskStatus.objects.create(code="COMPLETED", name="Completed")
+    todo = TaskStatus.objects.get_or_create(code="TODO", defaults={"name": "To Do"})[0]
+    done = TaskStatus.objects.get_or_create(code="COMPLETED", defaults={"name": "Completed"})[0]
     parent = Task.objects.create(
         title="Parent",
         project=project,
@@ -364,7 +364,7 @@ def test_parent_progress_and_hours_are_aggregated_from_children(project_users):
 @pytest.mark.parametrize(("completed_items", "expected"), [(1, 13), (3, 38)])
 def test_checklist_progress_rounds_half_up(project_users, completed_items, expected):
     project = make_project(project_users["manager"])
-    todo = TaskStatus.objects.create(code="TODO", name="To Do")
+    todo = TaskStatus.objects.get_or_create(code="TODO", defaults={"name": "To Do"})[0]
     task = Task.objects.create(title="Rounded progress", project=project, status=todo)
     TaskChecklistItem.objects.bulk_create(
         [
@@ -387,8 +387,8 @@ def test_checklist_progress_rounds_half_up(project_users, completed_items, expec
 @pytest.mark.django_db
 def test_completed_parent_without_prefetch_is_100_percent(project_users):
     project = make_project(project_users["manager"])
-    todo = TaskStatus.objects.create(code="TODO", name="To Do")
-    done = TaskStatus.objects.create(code="COMPLETED", name="Completed")
+    todo = TaskStatus.objects.get_or_create(code="TODO", defaults={"name": "To Do"})[0]
+    done = TaskStatus.objects.get_or_create(code="COMPLETED", defaults={"name": "Completed"})[0]
     parent = Task.objects.create(title="Parent", project=project, status=done)
     Task.objects.create(
         title="Open child",
