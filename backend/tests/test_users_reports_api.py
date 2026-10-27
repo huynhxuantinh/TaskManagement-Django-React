@@ -333,6 +333,76 @@ def test_deactivating_user_requires_and_audits_task_reassignment(
 
 
 @pytest.mark.django_db
+def test_deactivating_project_owner_requires_eligible_replacement(report_users):
+    owner = report_users["manager"]
+    replacement = report_users["manager2"]
+    project = Project.objects.create(name="Owned project", creator=owner)
+    ProjectMember.objects.create(project=project, user=owner)
+    url = f"/api/v1/users/{owner.id}/"
+    client = api_as(report_users["admin"])
+
+    missing = client.patch(url, {"is_active": False}, format="json")
+    invalid = client.patch(
+        url,
+        {"is_active": False, "reassign_to_id": report_users["employee"].id},
+        format="json",
+    )
+    transferred = client.patch(
+        url,
+        {"is_active": False, "reassign_to_id": replacement.id},
+        format="json",
+    )
+
+    owner.refresh_from_db()
+    project.refresh_from_db()
+    assert missing.status_code == 400
+    assert invalid.status_code == 400
+    assert transferred.status_code == 200
+    assert owner.is_active is False
+    assert project.creator_id == replacement.id
+    assert ProjectMember.objects.filter(
+        project=project, user=replacement
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_demoting_project_owner_requires_eligible_replacement(
+    report_users, report_roles
+):
+    owner = report_users["manager"]
+    replacement = report_users["manager2"]
+    project = Project.objects.create(name="Managed project", creator=owner)
+    ProjectMember.objects.create(project=project, user=owner)
+    url = f"/api/v1/users/{owner.id}/role/"
+    client = api_as(report_users["admin"])
+
+    missing = client.patch(url, {"role": Role.Code.EMPLOYEE}, format="json")
+    owner.refresh_from_db()
+    project.refresh_from_db()
+    assert missing.status_code == 400
+    assert owner.role_id == report_roles[Role.Code.MANAGER].id
+    assert project.creator_id == owner.id
+
+    transferred = client.patch(
+        url,
+        {
+            "role": Role.Code.EMPLOYEE,
+            "reassign_to_id": replacement.id,
+        },
+        format="json",
+    )
+
+    owner.refresh_from_db()
+    project.refresh_from_db()
+    assert transferred.status_code == 200
+    assert owner.role_id == report_roles[Role.Code.EMPLOYEE].id
+    assert project.creator_id == replacement.id
+    assert ProjectMember.objects.filter(
+        project=project, user=replacement
+    ).exists()
+
+
+@pytest.mark.django_db
 def test_preferences_are_owner_scoped_and_upserted(report_users):
     employee = report_users["employee"]
     url = f"/api/v1/users/{employee.id}/preferences/"
