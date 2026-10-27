@@ -227,6 +227,29 @@ def test_deactivate_disables_account_and_existing_tokens(roles):
 
 
 @pytest.mark.django_db
+@override_settings(PASSWORD_HASHERS=AUTH_HASHERS)
+def test_admin_cannot_self_deactivate_through_auth_endpoint(roles):
+    admin = create_user(roles, role=Role.Code.ADMIN)
+    client = APIClient(enforce_csrf_checks=True)
+    signed_in = login(client, admin.email, "StrongPass@123")
+    csrf = client.cookies["csrftoken"].value
+    client.credentials(
+        HTTP_AUTHORIZATION=f"Bearer {signed_in.data['data']['access']}"
+    )
+
+    response = client.post(
+        "/api/v1/auth/deactivate/",
+        {"password": "StrongPass@123"},
+        format="json",
+        HTTP_X_CSRFTOKEN=csrf,
+    )
+
+    admin.refresh_from_db()
+    assert response.status_code == 400
+    assert admin.is_active is True
+
+
+@pytest.mark.django_db
 def test_register_is_disabled_by_default(roles):
     response = APIClient().post(
         "/api/v1/auth/register/",

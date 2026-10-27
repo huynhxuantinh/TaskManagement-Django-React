@@ -206,6 +206,59 @@ def test_user_detail_update_and_role_change_enforce_self_or_admin(
 
 
 @pytest.mark.django_db
+def test_admin_cannot_deactivate_or_demote_self(report_users):
+    admin = report_users["admin"]
+
+    deactivated = api_as(admin).patch(
+        f"/api/v1/users/{admin.id}/",
+        {"is_active": False},
+        format="json",
+    )
+    demoted = api_as(admin).patch(
+        f"/api/v1/users/{admin.id}/role/",
+        {"role": Role.Code.MANAGER},
+        format="json",
+    )
+
+    admin.refresh_from_db()
+    assert deactivated.status_code == 400
+    assert demoted.status_code == 400
+    assert admin.is_active is True
+    assert admin.role.code == Role.Code.ADMIN
+
+
+@pytest.mark.django_db
+def test_two_admins_cannot_demote_each_other_to_zero_active_admins(
+    report_users, report_roles
+):
+    first = report_users["admin"]
+    second = User.objects.create_user(
+        email="second-admin@example.com",
+        full_name="Second Admin",
+        password="StrongPass@123",
+        role=report_roles[Role.Code.ADMIN],
+    )
+
+    first_change = api_as(first).patch(
+        f"/api/v1/users/{second.id}/role/",
+        {"role": Role.Code.MANAGER},
+        format="json",
+    )
+    second_change = api_as(second).patch(
+        f"/api/v1/users/{first.id}/role/",
+        {"role": Role.Code.MANAGER},
+        format="json",
+    )
+
+    first.refresh_from_db()
+    second.refresh_from_db()
+    assert first_change.status_code == 200
+    assert second_change.status_code == 400
+    assert first.role.code == Role.Code.ADMIN
+    assert second.role.code == Role.Code.MANAGER
+
+
+@pytest.mark.django_db
 def test_deactivating_user_requires_and_audits_task_reassignment(
     report_users, report_statuses
 ):
