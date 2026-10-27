@@ -1,10 +1,13 @@
+from datetime import timedelta
 from types import SimpleNamespace
 
 import pytest
 from django.core.cache import cache
 from django.test import override_settings
+from django.utils import timezone
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
+from rest_framework_simplejwt.tokens import AccessToken
 
 from apps.accounts.models import Role, User
 from apps.accounts.permissions import IsAdmin, IsAdminOrManager, IsSelfOrAdmin
@@ -127,6 +130,35 @@ def test_logout_blacklists_refresh_and_clears_cookie(roles):
         ).status_code
         == 401
     )
+
+
+@pytest.mark.django_db
+@override_settings(PASSWORD_HASHERS=AUTH_HASHERS)
+def test_logout_revokes_refresh_when_access_token_is_expired(roles):
+    user = create_user(roles)
+    client = APIClient(enforce_csrf_checks=True)
+    assert login(client, user.email, "StrongPass@123").status_code == 200
+    refresh = client.cookies["refresh_token"].value
+    csrf = client.cookies["csrftoken"].value
+    expired_access = AccessToken.for_user(user)
+    expired_access.set_exp(
+        from_time=timezone.now() - timedelta(minutes=1),
+        lifetime=timedelta(seconds=0),
+    )
+    client.credentials(HTTP_AUTHORIZATION=f"Bearer {expired_access}")
+
+    logged_out = client.post(
+        "/api/v1/auth/logout/", {}, format="json", HTTP_X_CSRFTOKEN=csrf
+    )
+
+    assert logged_out.status_code == 200
+    assert logged_out.cookies["refresh_token"]["max-age"] == 0
+    client.credentials()
+    client.cookies["refresh_token"] = refresh
+    reused = client.post(
+        "/api/v1/auth/refresh/", {}, format="json", HTTP_X_CSRFTOKEN=csrf
+    )
+    assert reused.status_code == 401
 
 
 @pytest.mark.django_db
