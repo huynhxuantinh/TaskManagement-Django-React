@@ -85,6 +85,7 @@ export function TasksPage() {
     try {
       const saved = await apiRequest<Task>(`/api/v1/tasks/${task.id}/status/`, { method: 'PATCH', body: JSON.stringify(buildStatusChangePayload(status, note)) })
       setData((current) => current ? { ...current, results: current.results.map((item) => item.id === saved.id ? saved : item) } : current)
+      reload()
       notify('Đã cập nhật trạng thái.')
       return true
     } catch (caught) {
