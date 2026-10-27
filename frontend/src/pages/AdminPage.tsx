@@ -8,6 +8,7 @@ import { StatePanel } from '../components/ui/StatePanel'
 import { useToast } from '../components/ui/ToastContext'
 import { useAllPages } from '../hooks/useAllPages'
 import { apiRequest } from '../lib/api'
+import { updateUser } from '../lib/users'
 import type { RoleCode, User } from '../types/api'
 
 const selectClass = 'min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-bold outline-none focus:border-slate-700 focus:ring-2 focus:ring-[var(--accent-soft)]'
@@ -25,6 +26,10 @@ export function AdminPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [createError, setCreateError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [editing, setEditing] = useState<User | undefined>()
+  const [editFullName, setEditFullName] = useState('')
+  const [editEmail, setEditEmail] = useState('')
+  const [editError, setEditError] = useState('')
   const [deactivating, setDeactivating] = useState<User | undefined>()
   const [replacementId, setReplacementId] = useState('')
   const { data, setData, loading, error, reload } = useAllPages<User>(
@@ -34,6 +39,41 @@ export function AdminPage() {
   function closeCreate() {
     setCreating(false)
     setCreateError('')
+  }
+
+  function openEdit(user: User) {
+    setEditing(user)
+    setEditFullName(user.full_name)
+    setEditEmail(user.email)
+    setEditError('')
+  }
+
+  function closeEdit() {
+    setEditing(undefined)
+    setEditError('')
+  }
+
+  async function saveEdit(event: FormEvent) {
+    event.preventDefault()
+    if (!editing) return
+    setSaving(true)
+    setEditError('')
+    try {
+      const updated = await updateUser(editing.id, {
+        full_name: editFullName.trim(),
+        email: editEmail.trim(),
+      })
+      setData((current) => current ? {
+        ...current,
+        results: current.results.map((item) => item.id === updated.id ? updated : item),
+      } : current)
+      closeEdit()
+      notify('Đã cập nhật tài khoản.')
+    } catch (caught) {
+      setEditError((caught as Error).message)
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function createAccount(event: FormEvent) {
@@ -158,11 +198,27 @@ export function AdminPage() {
                 <option value="MANAGER">Quản lý</option>
                 <option value="EMPLOYEE">Nhân viên</option>
               </select>
-              <Button variant={user.is_active ? 'ghost' : 'secondary'} disabled={isSelf} className={user.is_active ? '!text-red-700' : ''} onClick={() => void toggleActive(user)}>{user.is_active ? 'Vô hiệu hóa' : 'Kích hoạt'}</Button>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="secondary" aria-label={`Sửa tài khoản ${user.full_name}`} onClick={() => openEdit(user)}>Sửa</Button>
+                <Button variant={user.is_active ? 'ghost' : 'secondary'} disabled={isSelf} className={user.is_active ? '!text-red-700' : ''} onClick={() => void toggleActive(user)}>{user.is_active ? 'Vô hiệu hóa' : 'Kích hoạt'}</Button>
+              </div>
             </article>
           )
         })}
       </section>
+
+      <Modal open={Boolean(editing)} title="Sửa tài khoản" onClose={closeEdit}>
+        <form className="space-y-4" onSubmit={saveEdit}>
+          <Field label="Họ và tên" value={editFullName} onChange={(event) => setEditFullName(event.target.value)} required maxLength={100} autoFocus />
+          <Field label="Email" type="email" value={editEmail} onChange={(event) => setEditEmail(event.target.value)} required maxLength={100} />
+          <p className="text-xs text-slate-500">Tên đăng nhập không thể thay đổi.</p>
+          {editError && <p role="alert" className="text-sm font-semibold text-red-700">{editError}</p>}
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={closeEdit}>Hủy</Button>
+            <Button type="submit" disabled={saving || !editFullName.trim() || !editEmail.trim()}>{saving ? 'Đang lưu…' : 'Lưu thay đổi'}</Button>
+          </div>
+        </form>
+      </Modal>
 
       <Modal open={creating} title="Tạo tài khoản nội bộ" onClose={closeCreate}>
         <form className="space-y-4" onSubmit={createAccount}>
