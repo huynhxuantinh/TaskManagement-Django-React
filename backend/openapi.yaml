@@ -1630,6 +1630,9 @@ components:
       properties:
         role:
           $ref: '#/components/schemas/RoleEnum'
+        reassign_to_id:
+          type: integer
+          writeOnly: true
     PatchedTaskChecklistItem:
       type: object
       properties:

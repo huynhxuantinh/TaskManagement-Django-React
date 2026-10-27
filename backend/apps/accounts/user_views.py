@@ -130,11 +130,12 @@ class UserViewSet(ModelViewSet):
         serializer = RoleUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         role = serializer.validated_data["role"]
+        replacement = serializer.validated_data.get("reassign_to")
         if user.pk == request.user.pk and role.code != Role.Code.ADMIN:
             raise ValidationError(
                 {"role": "Quản trị viên không thể tự hạ quyền."}
             )
-        change_user_role(user, role)
+        change_user_role(user, role, replacement)
         return success(UserSerializer(user).data, "Cập nhật vai trò thành công.")
 
     @extend_schema(

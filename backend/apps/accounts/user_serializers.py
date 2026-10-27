@@ -78,6 +78,12 @@ class RoleUpdateSerializer(serializers.Serializer):
     role = serializers.SlugRelatedField(
         slug_field="code", queryset=Role.objects.all()
     )
+    reassign_to_id = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.filter(is_active=True),
+        source="reassign_to",
+        write_only=True,
+        required=False,
+    )
 
 
 class AvatarUploadSerializer(serializers.Serializer):

@@ -40,9 +40,50 @@ def ensure_active_admin_remains(user):
 
 
 @transaction.atomic
-def change_user_role(user, role):
+def transfer_owned_projects(user, replacement):
+    from apps.projects.models import Project, ProjectMember
+
+    projects = list(
+        Project.objects.filter(creator=user, is_deleted=False)
+        .order_by("id")
+        .select_for_update(of=("self",))
+    )
+    if not projects:
+        return 0
+    if replacement is None:
+        raise ValidationError(
+            {"reassign_to_id": "Hãy chọn quản trị viên hoặc quản lý tiếp quản dự án."}
+        )
+    replacement = (
+        User.objects.select_related("role")
+        .select_for_update(of=("self",))
+        .get(pk=replacement.pk)
+    )
+    if replacement.pk == user.pk:
+        raise ValidationError(
+            {"reassign_to_id": "Người tiếp quản phải khác chủ dự án hiện tại."}
+        )
+    if not replacement.is_active or replacement.role.code not in {
+        Role.Code.ADMIN,
+        Role.Code.MANAGER,
+    }:
+        raise ValidationError(
+            {"reassign_to_id": "Người tiếp quản phải là quản trị viên hoặc quản lý đang hoạt động."}
+        )
+    for project in projects:
+        ProjectMember.objects.get_or_create(project=project, user=replacement)
+    Project.objects.filter(pk__in=[project.pk for project in projects]).update(
+        creator=replacement
+    )
+    return len(projects)
+
+
+@transaction.atomic
+def change_user_role(user, role, replacement=None):
     if role.code != Role.Code.ADMIN:
         ensure_active_admin_remains(user)
+    if role.code not in {Role.Code.ADMIN, Role.Code.MANAGER}:
+        transfer_owned_projects(user, replacement)
     user.role = role
     user.save(update_fields=["role"])
     return user
@@ -98,6 +139,7 @@ def deactivate_and_reassign_tasks(user, replacement, actor):
     from apps.tasks.services import TaskService
 
     ensure_active_admin_remains(user)
+    transfer_owned_projects(user, replacement)
     tasks = list(
         Task.objects.filter(
             assignee=user,
