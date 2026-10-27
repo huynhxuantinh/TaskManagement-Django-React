@@ -1,6 +1,6 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { ProjectReport, Task } from '../../types/api'
 import { ProjectDashboard } from './ProjectDashboard'
@@ -73,5 +73,18 @@ describe('ProjectDashboard', () => {
     expect(screen.getByText('Công việc của bạn')).toBeInTheDocument()
     expect(screen.getByText('Chỉ hiển thị công việc được giao cho bạn')).toBeInTheDocument()
     expect(screen.getByText('Chưa có công việc nào trong phạm vi của bạn.')).toBeInTheDocument()
+  })
+
+  it('cho người quản lý tạo công việc ngay từ Kanban dự án', () => {
+    const onCreateTask = vi.fn()
+    render(
+      <MemoryRouter>
+        <ProjectDashboard projectId={4} report={report} tasks={[]} taskCount={0} showAllTasks canCreateTask onCreateTask={onCreateTask} loading={false} reportError="" tasksError="" />
+      </MemoryRouter>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /giao công việc/i }))
+
+    expect(onCreateTask).toHaveBeenCalledOnce()
   })
 })
