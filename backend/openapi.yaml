@@ -89,7 +89,7 @@ paths:
       tags:
       - Auth
       security:
-      - jwtAuth: []
+      - {}
       responses:
         '200':
           content:

@@ -116,10 +116,12 @@ def test_logout_blacklists_refresh_and_clears_cookie(roles):
     csrf = client.cookies["csrftoken"].value
     client.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")
 
+    missing_csrf = client.post("/api/v1/auth/logout/", {}, format="json")
     response = client.post(
         "/api/v1/auth/logout/", {}, format="json", HTTP_X_CSRFTOKEN=csrf
     )
 
+    assert missing_csrf.status_code == 403
     assert response.status_code == 200
     assert response.cookies["refresh_token"]["max-age"] == 0
     client.credentials()

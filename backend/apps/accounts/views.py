@@ -168,7 +168,8 @@ class RefreshView(GenericAPIView):
 
 
 class LogoutView(GenericAPIView):
-    permission_classes = [IsAuthenticated]
+    authentication_classes = []
+    permission_classes = [AllowAny]
     serializer_class = EmptySerializer
 
     @extend_schema(
