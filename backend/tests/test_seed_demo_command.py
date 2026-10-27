@@ -1,5 +1,6 @@
 import pytest
 from django.core.management import call_command
+from django.test import override_settings
 
 from apps.accounts.models import Role, User
 from apps.notifications.models import Notification, NotificationType
@@ -9,6 +10,7 @@ from apps.tasks.models import Task, TaskStatus
 
 
 @pytest.mark.django_db
+@override_settings(DEBUG=True)
 def test_seed_demo_creates_stable_idempotent_e2e_dataset():
     call_command('seed_demo')
 
