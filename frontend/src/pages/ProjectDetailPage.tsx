@@ -6,12 +6,14 @@ import { MembersPanel } from '../features/core/MembersPanel'
 import { ProjectDashboard } from '../features/core/ProjectDashboard'
 import { ProjectActions } from '../features/core/ProjectActions'
 import { ProjectForm } from '../features/core/ProjectForm'
+import { TaskForm } from '../features/core/TaskForm'
+import { canManageProject } from '../features/core/permissions'
 import { Modal } from '../components/ui/Modal'
 import { StatePanel } from '../components/ui/StatePanel'
 import { useToast } from '../components/ui/ToastContext'
 import { useApiResource } from '../hooks/useApiResource'
 import { apiRequest } from '../lib/api'
-import type { Paginated, Project, ProjectReport, Task } from '../types/api'
+import type { Paginated, Project, ProjectReport, Task, TaskStatus } from '../types/api'
 
 export function ProjectDetailPage() {
   const { projectId } = useParams()
@@ -19,9 +21,11 @@ export function ProjectDetailPage() {
   const { user } = useAuth()
   const notify = useToast()
   const [editing, setEditing] = useState(false)
-  const { data: project, setData: setProject, loading, error } = useApiResource<Project>(projectId ? `/api/v1/projects/${projectId}/` : null)
-  const { data: report, loading: reportLoading, error: reportError } = useApiResource<ProjectReport>(projectId ? `/api/v1/reports/projects/${projectId}/` : null)
-  const { data: tasks, loading: tasksLoading, error: tasksError } = useApiResource<Paginated<Task>>(projectId ? `/api/v1/tasks/?project=${projectId}&page_size=100&ordering=deadline` : null)
+  const [creatingTask, setCreatingTask] = useState(false)
+  const { data: project, setData: setProject, loading, error, reload: reloadProject } = useApiResource<Project>(projectId ? `/api/v1/projects/${projectId}/` : null)
+  const { data: report, loading: reportLoading, error: reportError, reload: reloadReport } = useApiResource<ProjectReport>(projectId ? `/api/v1/reports/projects/${projectId}/` : null)
+  const { data: tasks, loading: tasksLoading, error: tasksError, reload: reloadTasks } = useApiResource<Paginated<Task>>(projectId ? `/api/v1/tasks/?project=${projectId}&page_size=100&ordering=deadline` : null)
+  const { data: statuses } = useApiResource<TaskStatus[]>('/api/v1/metadata/task-statuses/')
 
   async function remove() {
     if (!project || !window.confirm(`Xóa dự án “${project.name}”?`)) return
@@ -52,11 +56,27 @@ export function ProjectDetailPage() {
         tasks={tasks?.results ?? []}
         taskCount={tasks?.count ?? 0}
         showAllTasks={user.role !== 'EMPLOYEE'}
+        canCreateTask={canManageProject(user, project)}
+        onCreateTask={() => setCreatingTask(true)}
         loading={reportLoading || tasksLoading}
         reportError={reportError}
         tasksError={tasksError}
       />
       <MembersPanel project={project} user={user} />
+      <Modal open={creatingTask} title="Giao công việc mới" onClose={() => setCreatingTask(false)}>
+        <TaskForm
+          projects={[project]}
+          statuses={statuses ?? []}
+          onCancel={() => setCreatingTask(false)}
+          onSaved={() => {
+            setCreatingTask(false)
+            reloadProject()
+            reloadReport()
+            reloadTasks()
+            notify('Đã tạo công việc.')
+          }}
+        />
+      </Modal>
       <Modal open={editing} title="Cập nhật dự án" onClose={() => setEditing(false)}>
         <ProjectForm project={project} onCancel={() => setEditing(false)} onSaved={(saved) => { setProject(saved); setEditing(false); notify('Đã cập nhật dự án.') }} />
       </Modal>

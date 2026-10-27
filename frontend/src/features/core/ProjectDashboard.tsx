@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 
+import { Button } from '../../components/ui/Button'
 import { StatePanel } from '../../components/ui/StatePanel'
 import type { ProjectReport, Task } from '../../types/api'
 import { ReportProgress } from '../support/ReportProgress'
@@ -10,6 +11,8 @@ interface ProjectDashboardProps {
   tasks: Task[]
   taskCount: number
   showAllTasks: boolean
+  canCreateTask?: boolean
+  onCreateTask?: () => void
   loading: boolean
   reportError: string
   tasksError: string
@@ -40,6 +43,8 @@ export function ProjectDashboard({
   tasks,
   taskCount,
   showAllTasks,
+  canCreateTask = false,
+  onCreateTask,
   loading,
   reportError,
   tasksError,
@@ -115,7 +120,10 @@ export function ProjectDashboard({
             <p className="section-kicker">Danh sách thực hiện / {taskCount}</p>
             <h3 className="section-title">{showAllTasks ? 'Công việc của dự án' : 'Công việc của bạn'}</h3>
           </div>
-          {!showAllTasks && <span className="text-xs text-slate-500">Chỉ hiển thị công việc được giao cho bạn</span>}
+          <div className="flex items-center gap-3">
+            {!showAllTasks && <span className="text-xs text-slate-500">Chỉ hiển thị công việc được giao cho bạn</span>}
+            {canCreateTask && <Button onClick={onCreateTask}>+ Giao công việc</Button>}
+          </div>
         </div>
 
         {tasksError && <div className="mt-5"><StatePanel eyebrow="Công việc" title="Không tải được danh sách" description={tasksError} /></div>}
