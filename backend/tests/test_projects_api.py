@@ -263,11 +263,15 @@ def test_removed_member_cannot_access_stale_completed_assignment(project_users):
         format="json",
     )
     task_list = api_as(employee).get("/api/v1/tasks/")
+    checklist = api_as(employee).get(f"/api/v1/tasks/{task.id}/checklist/")
+    dashboard = api_as(employee).get("/api/v1/dashboard/summary/")
 
     assert removed.status_code == 204
     assert task_detail.status_code == 404
     assert status_change.status_code == 404
     assert task_list.data["data"]["count"] == 0
+    assert checklist.status_code == 404
+    assert dashboard.data["data"]["task_count"] == 0
 
 
 @pytest.mark.django_db

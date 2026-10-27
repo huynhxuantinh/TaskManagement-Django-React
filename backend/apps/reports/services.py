@@ -23,7 +23,10 @@ def scoped_tasks(user):
         return queryset
     if has_role(user, Role.Code.MANAGER):
         return queryset.filter(project__memberships__user=user).distinct()
-    return queryset.filter(assignee=user)
+    return queryset.filter(
+        assignee=user,
+        project__memberships__user=user,
+    ).distinct()
 
 
 def dashboard_summary(user):

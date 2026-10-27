@@ -113,7 +113,10 @@ class TaskViewSet(ModelViewSet):
         if has_role(user, Role.Code.MANAGER):
             queryset = queryset.filter(project__memberships__user=user).distinct()
         else:
-            queryset = queryset.filter(assignee=user)
+            queryset = queryset.filter(
+                assignee=user,
+                project__memberships__user=user,
+            ).distinct()
         return self._apply_filters(queryset)
 
     def _apply_filters(self, queryset):
@@ -270,7 +273,10 @@ class TaskChecklistAccessMixin:
             if has_role(request.user, Role.Code.MANAGER):
                 queryset = queryset.filter(project__memberships__user=request.user).distinct()
             else:
-                queryset = queryset.filter(assignee=request.user)
+                queryset = queryset.filter(
+                    assignee=request.user,
+                    project__memberships__user=request.user,
+                ).distinct()
         task = get_object_or_404(queryset, pk=pk)
         if require_change and not can_change_task_status(task, request.user):
             raise PermissionDenied("Bạn không có quyền cập nhật checklist công việc này.")

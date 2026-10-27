@@ -24,7 +24,12 @@ from .serializers import (
     ProjectSerializer,
     ProjectWriteSerializer,
 )
-from .services import CreatorRemovalConflict, MembershipConflict, ProjectService
+from .services import (
+    AssignedTasksConflict,
+    CreatorRemovalConflict,
+    MembershipConflict,
+    ProjectService,
+)
 
 
 def project_queryset():
@@ -193,6 +198,11 @@ class ProjectViewSet(ModelViewSet):
             removed = ProjectService.remove_member(project, int(user_id))
         except CreatorRemovalConflict:
             return failure("Không thể xóa chủ dự án khỏi thành viên.", status=409)
+        except AssignedTasksConflict:
+            return failure(
+                "Thành viên còn công việc đang mở. Hãy chuyển giao trước khi xóa.",
+                status=409,
+            )
         if not removed:
             return failure("Không tìm thấy thành viên.", status=404)
         return Response(status=204)
