@@ -10,7 +10,8 @@ export function TaskStatusSelect({
   onChange: (transition: TaskTransition) => void
 }) {
   if (task.allowed_transitions.length === 0) {
-    return <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">{task.status.name}</span>
+    const reason = 'Không thể đổi trạng thái: bạn không có quyền hoặc không có bước chuyển hợp lệ.'
+    return <span title={reason} aria-label={`${task.status.name}. ${reason}`} className="cursor-help rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">{task.status.name}</span>
   }
   return (
     <select
