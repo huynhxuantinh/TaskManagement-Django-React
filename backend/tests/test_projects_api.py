@@ -103,6 +103,45 @@ def test_project_dates_are_validated(project_users):
 
 
 @pytest.mark.django_db
+def test_project_end_date_cannot_precede_existing_task_deadline(project_users):
+    owner = project_users["manager"]
+    project = make_project(owner)
+    project.end_date = date(2026, 12, 31)
+    project.save(update_fields=["end_date"])
+    todo = TaskStatus.objects.get_or_create(
+        code=TaskStatus.Code.TODO,
+        defaults={"name": TaskStatus.Code.TODO.label},
+    )[0]
+    task = Task.objects.create(
+        title="Later task",
+        project=project,
+        status=todo,
+        deadline=date(2026, 12, 15),
+    )
+    client = api_as(owner)
+
+    rejected = client.patch(
+        f"/api/v1/projects/{project.id}/",
+        {"end_date": "2026-12-01"},
+        format="json",
+    )
+
+    project.refresh_from_db()
+    assert rejected.status_code == 400
+    assert "end_date" in rejected.data["errors"]
+    assert project.end_date == date(2026, 12, 31)
+
+    task.is_deleted = True
+    task.save(update_fields=["is_deleted"])
+    accepted = client.patch(
+        f"/api/v1/projects/{project.id}/",
+        {"end_date": "2026-12-01"},
+        format="json",
+    )
+    assert accepted.status_code == 200
+
+
+@pytest.mark.django_db
 def test_project_list_is_scoped_searchable_ordered_and_hides_deleted(project_users):
     visible = make_project(
         project_users["manager"], "Alpha", members=[project_users["employee"]]
