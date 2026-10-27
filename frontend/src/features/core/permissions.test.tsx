@@ -101,6 +101,7 @@ describe('core workflow permissions', () => {
   it('hiện trạng thái dạng nhãn khi không có quyền thay đổi', () => {
     render(<TaskStatusSelect task={{ ...task, allowed_transitions: [] }} statuses={statuses} onChange={vi.fn()} />)
     expect(screen.getByText('Cần làm')).toBeInTheDocument()
+    expect(screen.getByTitle('Không thể đổi trạng thái: bạn không có quyền hoặc không có bước chuyển hợp lệ.')).toBeInTheDocument()
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
   })
 })
