@@ -4,6 +4,7 @@ import pytest
 from django.core.cache import cache
 from django.test import override_settings
 from rest_framework.test import APIClient
+from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
 
 from apps.accounts.models import Role, User
 from apps.accounts.permissions import IsAdmin, IsAdminOrManager, IsSelfOrAdmin
@@ -57,6 +58,22 @@ def test_login_accepts_username_and_keeps_password_hashed(roles):
     user.refresh_from_db()
     assert user.password != "123"
     assert user.check_password("123")
+
+
+@pytest.mark.django_db
+@override_settings(PASSWORD_HASHERS=AUTH_HASHERS)
+def test_locked_account_login_returns_localized_forbidden_without_leaking_on_wrong_password(
+    roles,
+):
+    user = create_user(roles, is_active=False)
+
+    locked = login(APIClient(), user.email, "StrongPass@123")
+    wrong_password = login(APIClient(), user.email, "wrong")
+
+    assert locked.status_code == 403
+    assert locked.data["message"] == "Tài khoản đã bị khóa."
+    assert wrong_password.status_code == 401
+    assert wrong_password.data["message"] == "Tên đăng nhập hoặc mật khẩu không đúng."
 
 
 @pytest.mark.django_db
@@ -153,6 +170,37 @@ def test_change_password_checks_current_password_and_revokes_refresh_sessions(ro
         ).status_code
         == 401
     )
+
+
+@pytest.mark.django_db
+@override_settings(PASSWORD_HASHERS=AUTH_HASHERS)
+def test_password_change_rejects_refresh_even_without_outstanding_token_record(roles):
+    user = create_user(roles)
+    client = APIClient(enforce_csrf_checks=True)
+    signed_in = login(client, user.email, "StrongPass@123")
+    access = signed_in.data["data"]["access"]
+    old_refresh = client.cookies["refresh_token"].value
+    csrf = client.cookies["csrftoken"].value
+    OutstandingToken.objects.filter(user=user).delete()
+    client.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")
+
+    changed = client.post(
+        "/api/v1/auth/change-password/",
+        {
+            "current_password": "StrongPass@123",
+            "new_password": "NewStrongPass@456",
+        },
+        format="json",
+        HTTP_X_CSRFTOKEN=csrf,
+    )
+
+    assert changed.status_code == 200
+    client.credentials()
+    client.cookies["refresh_token"] = old_refresh
+    refreshed = client.post(
+        "/api/v1/auth/refresh/", {}, format="json", HTTP_X_CSRFTOKEN=csrf
+    )
+    assert refreshed.status_code == 401
 
 
 @pytest.mark.django_db

@@ -8,11 +8,13 @@ from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.generics import GenericAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework_simplejwt.settings import api_settings
 from rest_framework_simplejwt.token_blacklist.models import (
     BlacklistedToken,
     OutstandingToken,
 )
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.utils import get_md5_hash_password
 
 from apps.core.api import enforce_csrf, failure, success
 
@@ -104,11 +106,16 @@ class LoginView(GenericAPIView):
         identifier = serializer.validated_data["email"].strip().lower()
         matched_user = User.objects.filter(
             Q(username__iexact=identifier) | Q(email__iexact=identifier)
-        ).only("email").first()
+        ).only("email", "password", "is_active").first()
+        password = serializer.validated_data["password"]
+        if matched_user and not matched_user.is_active:
+            if matched_user.check_password(password):
+                return failure("Tài khoản đã bị khóa.", status=403)
+            return failure("Tên đăng nhập hoặc mật khẩu không đúng.", status=401)
         user = authenticate(
             request=request,
             email=matched_user.email if matched_user else identifier,
-            password=serializer.validated_data["password"],
+            password=password,
         )
         if user is None:
             return failure("Tên đăng nhập hoặc mật khẩu không đúng.", status=401)
@@ -142,6 +149,12 @@ class RefreshView(GenericAPIView):
         try:
             old_token = RefreshToken(encoded)
             user = User.objects.get(pk=old_token["user_id"], is_active=True)
+            if (
+                api_settings.CHECK_REVOKE_TOKEN
+                and old_token.get(api_settings.REVOKE_TOKEN_CLAIM)
+                != get_md5_hash_password(user.password)
+            ):
+                raise TokenError("Password changed")
             old_token.blacklist()
             new_token = RefreshToken.for_user(user)
         except (TokenError, User.DoesNotExist, KeyError) as error:

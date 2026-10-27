@@ -220,6 +220,25 @@ def test_member_add_list_remove_conflicts_and_management_scope(project_users):
 
 
 @pytest.mark.django_db
+def test_archived_project_rejects_member_add(project_users):
+    owner = project_users["manager"]
+    employee = project_users["employee"]
+    project = make_project(owner, deleted=True)
+
+    response = api_as(owner).post(
+        f"/api/v1/projects/{project.id}/members/",
+        {"user_id": employee.id},
+        format="json",
+    )
+
+    assert response.status_code == 404
+    assert not ProjectMember.objects.filter(project=project, user=employee).exists()
+    assert not Notification.objects.filter(
+        user=employee, type=NotificationType.PROJECT_ADDED
+    ).exists()
+
+
+@pytest.mark.django_db
 def test_project_progress_uses_only_active_tasks(project_users):
     project = make_project(project_users["manager"])
     todo = TaskStatus.objects.create(code="TODO", name="To Do")

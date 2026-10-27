@@ -134,6 +134,10 @@ class AssigneeMembershipMixin:
             )
         if start_date and deadline and start_date > deadline:
             raise serializers.ValidationError({"start_date": ["Ngày bắt đầu phải trước hoặc bằng hạn hoàn thành."]})
+        if deadline and project and project.end_date and deadline > project.end_date:
+            raise serializers.ValidationError(
+                {"deadline": ["Hạn hoàn thành không được sau ngày kết thúc dự án."]}
+            )
         if parent:
             if parent.is_deleted or parent.project_id != project.id:
                 raise serializers.ValidationError({"parent": ["Công việc cha phải thuộc cùng dự án và chưa bị xóa."]})
