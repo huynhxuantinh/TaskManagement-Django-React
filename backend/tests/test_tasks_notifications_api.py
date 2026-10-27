@@ -136,6 +136,43 @@ def test_task_create_enforces_role_membership_and_only_notifies_assignment(
 
 
 @pytest.mark.django_db
+def test_task_deadline_cannot_exceed_project_end_date(
+    task_users, task_statuses, task_project
+):
+    project_end = timezone.localdate() + timedelta(days=10)
+    task_project.end_date = project_end
+    task_project.save(update_fields=["end_date"])
+    client = api_as(task_users["manager"])
+    payload = {
+        "title": "Bounded task",
+        "project_id": task_project.id,
+        "deadline": project_end.isoformat(),
+    }
+
+    created = client.post("/api/v1/tasks/", payload, format="json")
+    invalid_create = client.post(
+        "/api/v1/tasks/",
+        {
+            **payload,
+            "title": "Too late",
+            "deadline": (project_end + timedelta(days=1)).isoformat(),
+        },
+        format="json",
+    )
+    invalid_update = client.patch(
+        f"/api/v1/tasks/{created.data['data']['id']}/",
+        {"deadline": (project_end + timedelta(days=1)).isoformat()},
+        format="json",
+    )
+
+    assert created.status_code == 201
+    assert invalid_create.status_code == 400
+    assert "deadline" in invalid_create.data["errors"]
+    assert invalid_update.status_code == 400
+    assert "deadline" in invalid_update.data["errors"]
+
+
+@pytest.mark.django_db
 def test_task_list_scope_filters_search_and_hides_deleted(
     task_users, task_statuses, task_project
 ):
@@ -943,4 +980,24 @@ def test_task_status_metadata_and_overdue_field(
     detail = api_as(task_users["employee"]).get(f"/api/v1/tasks/{task.id}/")
 
     assert {row["code"] for row in metadata.data["data"]} == set(task_statuses)
+
+
+@pytest.mark.django_db
+def test_task_assignee_metadata_is_scoped_to_visible_projects(
+    task_users, task_project
+):
+    response = api_as(task_users["manager2"]).get(
+        "/api/v1/metadata/task-assignees/"
+    )
+
+    assert response.status_code == 200
+    assert {row["id"] for row in response.data["data"]} == {
+        task_users["manager"].id,
+        task_users["manager2"].id,
+        task_users["employee"].id,
+        task_users["employee2"].id,
+    }
+    assert task_users["outsider"].id not in {
+        row["id"] for row in response.data["data"]
+    }
     assert detail.data["data"]["is_overdue"] is True
