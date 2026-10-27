@@ -19,6 +19,7 @@ from rest_framework_simplejwt.utils import get_md5_hash_password
 from apps.core.api import enforce_csrf, failure, success
 
 from .models import Role, User
+from .permissions import has_role
 from .serializers import (
     AccessResponseSerializer,
     ChangePasswordSerializer,
@@ -237,6 +238,10 @@ class DeactivateView(GenericAPIView):
     )
     def post(self, request):
         enforce_csrf(request)
+        if has_role(request.user, Role.Code.ADMIN):
+            return failure(
+                "Quản trị viên không thể tự vô hiệu hóa tài khoản.", status=400
+            )
         serializer = DeactivateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         if not request.user.check_password(serializer.validated_data["password"]):

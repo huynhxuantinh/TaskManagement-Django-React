@@ -22,6 +22,7 @@ from .user_serializers import (
     UserSelfUpdateSerializer,
 )
 from .user_services import (
+    change_user_role,
     complete_preferences,
     deactivate_and_reassign_tasks,
     save_avatar,
@@ -99,10 +100,16 @@ class UserViewSet(ModelViewSet):
         serializer = serializer_class(user, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         replacement = serializer.validated_data.pop("reassign_to", None)
+        requested_deactivation = (
+            user.is_active and serializer.validated_data.get("is_active") is False
+        )
+        if requested_deactivation and user.pk == request.user.pk:
+            raise ValidationError(
+                {"is_active": "Quản trị viên không thể tự vô hiệu hóa tài khoản."}
+            )
         if (
             has_role(request.user, Role.Code.ADMIN)
-            and user.is_active
-            and serializer.validated_data.get("is_active") is False
+            and requested_deactivation
         ):
             deactivate_and_reassign_tasks(user, replacement, request.user)
         elif replacement is not None:
@@ -122,8 +129,12 @@ class UserViewSet(ModelViewSet):
         user = get_object_or_404(User.objects.select_related("role"), pk=pk)
         serializer = RoleUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        user.role = serializer.validated_data["role"]
-        user.save(update_fields=["role"])
+        role = serializer.validated_data["role"]
+        if user.pk == request.user.pk and role.code != Role.Code.ADMIN:
+            raise ValidationError(
+                {"role": "Quản trị viên không thể tự hạ quyền."}
+            )
+        change_user_role(user, role)
         return success(UserSerializer(user).data, "Cập nhật vai trò thành công.")
 
     @extend_schema(

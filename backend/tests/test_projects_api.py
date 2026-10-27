@@ -224,7 +224,10 @@ def test_cannot_remove_member_with_open_assigned_task(project_users):
     owner = project_users["manager"]
     employee = project_users["employee"]
     project = make_project(owner, members=[employee])
-    todo = TaskStatus.objects.get(code=TaskStatus.Code.TODO)
+    todo = TaskStatus.objects.get_or_create(
+        code=TaskStatus.Code.TODO,
+        defaults={"name": TaskStatus.Code.TODO.label},
+    )[0]
     Task.objects.create(
         title="Open assigned task",
         project=project,
@@ -245,7 +248,10 @@ def test_removed_member_cannot_access_stale_completed_assignment(project_users):
     owner = project_users["manager"]
     employee = project_users["employee"]
     project = make_project(owner, members=[employee])
-    completed = TaskStatus.objects.get(code=TaskStatus.Code.COMPLETED)
+    completed = TaskStatus.objects.get_or_create(
+        code=TaskStatus.Code.COMPLETED,
+        defaults={"name": TaskStatus.Code.COMPLETED.label},
+    )[0]
     task = Task.objects.create(
         title="Completed assigned task",
         project=project,

@@ -8,6 +8,8 @@ from rest_framework import serializers
 
 from apps.notifications.models import NotificationType, Preference
 
+from .models import Role, User
+
 
 MAX_AVATAR_SIZE = 2 * 1024 * 1024
 AVATAR_SIGNATURES = {
@@ -19,6 +21,31 @@ AVATAR_SIGNATURES = {
         lambda data: len(data) >= 12 and data.startswith(b"RIFF") and data[8:12] == b"WEBP",
     ),
 }
+
+
+def ensure_active_admin_remains(user):
+    active_admin_ids = list(
+        User.objects.filter(
+            is_active=True,
+            role__code=Role.Code.ADMIN,
+        )
+        .order_by("id")
+        .select_for_update(of=("self",))
+        .values_list("id", flat=True)
+    )
+    if user.pk in active_admin_ids and len(active_admin_ids) == 1:
+        raise ValidationError(
+            {"detail": "Hệ thống phải còn ít nhất một quản trị viên hoạt động."}
+        )
+
+
+@transaction.atomic
+def change_user_role(user, role):
+    if role.code != Role.Code.ADMIN:
+        ensure_active_admin_remains(user)
+    user.role = role
+    user.save(update_fields=["role"])
+    return user
 
 
 def save_avatar(user, uploaded_file):
@@ -70,6 +97,7 @@ def deactivate_and_reassign_tasks(user, replacement, actor):
     from apps.tasks.models import Task, TaskStatus
     from apps.tasks.services import TaskService
 
+    ensure_active_admin_remains(user)
     tasks = list(
         Task.objects.filter(
             assignee=user,

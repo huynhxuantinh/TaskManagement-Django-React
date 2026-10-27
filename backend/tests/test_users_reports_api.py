@@ -259,6 +259,37 @@ def test_two_admins_cannot_demote_each_other_to_zero_active_admins(
 
 
 @pytest.mark.django_db
+def test_two_admins_cannot_deactivate_each_other_to_zero_active_admins(
+    report_users, report_roles
+):
+    first = report_users["admin"]
+    second = User.objects.create_user(
+        email="backup-admin@example.com",
+        full_name="Backup Admin",
+        password="StrongPass@123",
+        role=report_roles[Role.Code.ADMIN],
+    )
+
+    first_change = api_as(first).patch(
+        f"/api/v1/users/{second.id}/",
+        {"is_active": False},
+        format="json",
+    )
+    second_change = api_as(second).patch(
+        f"/api/v1/users/{first.id}/",
+        {"is_active": False},
+        format="json",
+    )
+
+    first.refresh_from_db()
+    second.refresh_from_db()
+    assert first_change.status_code == 200
+    assert second_change.status_code == 400
+    assert first.is_active is True
+    assert second.is_active is False
+
+
+@pytest.mark.django_db
 def test_deactivating_user_requires_and_audits_task_reassignment(
     report_users, report_statuses
 ):
