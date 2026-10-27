@@ -59,6 +59,22 @@ class ProjectWriteSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"end_date": ["Ngày kết thúc phải từ ngày bắt đầu trở đi."]}
             )
+        if (
+            self.instance
+            and "end_date" in attrs
+            and end
+            and self.instance.tasks.filter(
+                is_deleted=False,
+                deadline__gt=end,
+            ).exists()
+        ):
+            raise serializers.ValidationError(
+                {
+                    "end_date": [
+                        "Ngày kết thúc không được sớm hơn hạn của công việc đang có."
+                    ]
+                }
+            )
         return attrs
 
 
