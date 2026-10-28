@@ -4,10 +4,10 @@ import { Button } from '../../components/ui/Button'
 import { Field } from '../../components/ui/Field'
 import { StatePanel } from '../../components/ui/StatePanel'
 import { useToast } from '../../components/ui/ToastContext'
-import { useApiResource } from '../../hooks/useApiResource'
+import { useAllPages } from '../../hooks/useAllPages'
 import { apiRequest } from '../../lib/api'
 import { roleLabel } from '../../lib/labels'
-import type { Paginated, Project, ProjectMember, User } from '../../types/api'
+import type { Project, ProjectMember, User } from '../../types/api'
 import { canManageProject } from './permissions'
 
 function initials(name: string) {
@@ -16,7 +16,7 @@ function initials(name: string) {
 
 export function MembersPanel({ project, user }: { project: Project; user: User }) {
   const path = `/api/v1/projects/${project.id}/members/?page_size=100`
-  const { data, loading, error, reload } = useApiResource<Paginated<ProjectMember>>(path)
+  const { data, loading, error, reload } = useAllPages<ProjectMember>(path)
   const [email, setEmail] = useState('')
   const [saving, setSaving] = useState(false)
   const notify = useToast()

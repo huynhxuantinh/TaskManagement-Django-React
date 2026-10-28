@@ -6,20 +6,21 @@ import { Field } from '../components/ui/Field'
 import { StatePanel } from '../components/ui/StatePanel'
 import { useToast } from '../components/ui/ToastContext'
 import { ReportProgress } from '../features/support/ReportProgress'
+import { useAllPages } from '../hooks/useAllPages'
 import { useApiResource } from '../hooks/useApiResource'
 import { apiRequest } from '../lib/api'
-import type { Contributor, Paginated, Project, ProjectMember, ProjectReport, ReportMessage, WorkloadRow } from '../types/api'
+import type { Contributor, Project, ProjectMember, ProjectReport, ReportMessage, WorkloadRow } from '../types/api'
 
 function ReportsMessages({ projects }: { projects: Project[] }) {
   const { user } = useAuth()
   const notify = useToast()
-  const { data, setData, loading, error, reload } = useApiResource<Paginated<ReportMessage>>('/api/v1/reports/messages/?page_size=100')
+  const { data, setData, loading, error, reload } = useAllPages<ReportMessage>('/api/v1/reports/messages/?page_size=100')
   const [projectId, setProjectId] = useState(String(projects[0]?.id ?? ''))
   const [receiverId, setReceiverId] = useState('')
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [sending, setSending] = useState(false)
-  const { data: members } = useApiResource<Paginated<ProjectMember>>(projectId ? `/api/v1/projects/${projectId}/members/?page_size=100` : null)
+  const { data: members } = useAllPages<ProjectMember>(projectId ? `/api/v1/projects/${projectId}/members/?page_size=100` : null)
 
   async function send(event: FormEvent) {
     event.preventDefault()
@@ -47,7 +48,7 @@ function ReportsMessages({ projects }: { projects: Project[] }) {
 
 export function ReportsPage() {
   const { user } = useAuth()
-  const { data: projectsData, loading, error } = useApiResource<Paginated<Project>>('/api/v1/projects/?page_size=100&ordering=name')
+  const { data: projectsData, loading, error } = useAllPages<Project>('/api/v1/projects/?page_size=100&ordering=name')
   const [selectedId, setSelectedId] = useState('')
   const effectiveId = selectedId || String(projectsData?.results[0]?.id ?? '')
   const { data: report } = useApiResource<ProjectReport>(effectiveId ? `/api/v1/reports/projects/${effectiveId}/` : null)

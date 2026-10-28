@@ -3,9 +3,8 @@ import { useMemo, useState, type FormEvent } from 'react'
 import { Button } from '../../components/ui/Button'
 import { Field } from '../../components/ui/Field'
 import { useAllPages } from '../../hooks/useAllPages'
-import { useApiResource } from '../../hooks/useApiResource'
 import { apiRequest } from '../../lib/api'
-import type { Paginated, Project, ProjectMember, Task, TaskStatus } from '../../types/api'
+import type { Project, ProjectMember, Task, TaskStatus } from '../../types/api'
 
 const selectClass = 'min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none focus:border-slate-700 focus:ring-2 focus:ring-[var(--accent-soft)]'
 
@@ -24,7 +23,7 @@ export function TaskForm({ task, projects, statuses, onSaved, onCancel }: { task
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const membersPath = projectId ? `/api/v1/projects/${projectId}/members/?page_size=100` : null
-  const { data: members } = useApiResource<Paginated<ProjectMember>>(membersPath)
+  const { data: members } = useAllPages<ProjectMember>(membersPath)
   const tasksPath = projectId ? `/api/v1/tasks/?project=${projectId}&page_size=100` : null
   const { data: projectTasks } = useAllPages<Task>(tasksPath)
   const selectedProject = useMemo(() => projects.find((project) => String(project.id) === projectId), [projectId, projects])

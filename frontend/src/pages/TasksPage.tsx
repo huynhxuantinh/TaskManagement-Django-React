@@ -16,7 +16,7 @@ import { buildStatusChangePayload } from '../features/core/statusChange'
 import { useAllPages } from '../hooks/useAllPages'
 import { useApiResource } from '../hooks/useApiResource'
 import { apiDownload, apiRequest } from '../lib/api'
-import type { Paginated, Project, Task, TaskStatus, TaskTransition, User } from '../types/api'
+import type { Project, Task, TaskStatus, TaskTransition, User } from '../types/api'
 import { buildTaskListParams } from './taskFilters'
 
 const selectClass = 'min-h-12 rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold outline-none focus:border-slate-700 focus:ring-2 focus:ring-[var(--accent-soft)]'
@@ -54,7 +54,7 @@ export function TasksPage() {
     ordering,
   })
   const { data, setData, loading, error, reload } = useAllPages<Task>(`/api/v1/tasks/?${params}`)
-  const { data: projectsData } = useApiResource<Paginated<Project>>('/api/v1/projects/?page_size=100')
+  const { data: projectsData } = useAllPages<Project>('/api/v1/projects/?page_size=100')
   const { data: statuses } = useApiResource<TaskStatus[]>('/api/v1/metadata/task-statuses/')
   const { data: assignees } = useApiResource<User[]>('/api/v1/metadata/task-assignees/')
   const projectById = useMemo(() => new Map(projectsData?.results.map((project) => [project.id, project]) ?? []), [projectsData])

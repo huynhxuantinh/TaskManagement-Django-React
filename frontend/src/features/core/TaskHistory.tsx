@@ -1,5 +1,5 @@
-import { useApiResource } from '../../hooks/useApiResource'
-import type { Paginated, Task, TaskAuditLog } from '../../types/api'
+import { useAllPages } from '../../hooks/useAllPages'
+import type { Task, TaskAuditLog } from '../../types/api'
 
 const actionLabels: Record<TaskAuditLog['action'], string> = {
   CREATED: 'Tạo công việc',
@@ -57,7 +57,7 @@ function newValue(change: unknown) {
 }
 
 export function TaskHistory({ task }: { task: Task }) {
-  const { data, loading, error } = useApiResource<Paginated<TaskAuditLog>>(
+  const { data, loading, error } = useAllPages<TaskAuditLog>(
     `/api/v1/tasks/${task.id}/history/?page_size=100`,
   )
 

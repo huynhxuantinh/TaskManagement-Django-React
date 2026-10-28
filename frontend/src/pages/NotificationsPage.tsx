@@ -4,14 +4,14 @@ import { Button } from '../components/ui/Button'
 import { StatePanel } from '../components/ui/StatePanel'
 import { useToast } from '../components/ui/ToastContext'
 import { NotificationCard } from '../features/support/NotificationCard'
-import { useApiResource } from '../hooks/useApiResource'
+import { useAllPages } from '../hooks/useAllPages'
 import { apiRequest } from '../lib/api'
-import type { Notification, Paginated } from '../types/api'
+import type { Notification } from '../types/api'
 
 export function NotificationsPage() {
   const [filter, setFilter] = useState<'all' | 'unread'>('all')
   const path = `/api/v1/notifications/?page_size=100${filter === 'unread' ? '&is_read=false' : ''}`
-  const { data, setData, loading, error, reload } = useApiResource<Paginated<Notification>>(path)
+  const { data, setData, loading, error, reload } = useAllPages<Notification>(path)
   const notify = useToast()
 
   async function markRead(notification: Notification) {

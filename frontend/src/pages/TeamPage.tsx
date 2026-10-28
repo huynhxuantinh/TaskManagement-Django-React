@@ -3,12 +3,12 @@ import { useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import { StatePanel } from '../components/ui/StatePanel'
 import { MembersPanel } from '../features/core/MembersPanel'
-import { useApiResource } from '../hooks/useApiResource'
-import type { Paginated, Project } from '../types/api'
+import { useAllPages } from '../hooks/useAllPages'
+import type { Project } from '../types/api'
 
 export function TeamPage() {
   const { user } = useAuth()
-  const { data, loading, error } = useApiResource<Paginated<Project>>('/api/v1/projects/?page_size=100&ordering=name')
+  const { data, loading, error } = useAllPages<Project>('/api/v1/projects/?page_size=100&ordering=name')
   const [selectedId, setSelectedId] = useState('')
   const effectiveId = selectedId || String(data?.results[0]?.id ?? '')
   const selected = data?.results.find((project) => String(project.id) === effectiveId)

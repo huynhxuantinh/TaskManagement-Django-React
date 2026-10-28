@@ -14,7 +14,7 @@ import { useToast } from '../components/ui/ToastContext'
 import { useAllPages } from '../hooks/useAllPages'
 import { useApiResource } from '../hooks/useApiResource'
 import { apiRequest } from '../lib/api'
-import type { Paginated, Project, ProjectReport, Task, TaskStatus, User } from '../types/api'
+import type { Project, ProjectReport, Task, TaskStatus, User } from '../types/api'
 
 export function ProjectDetailPage() {
   const { projectId } = useParams()
@@ -25,7 +25,7 @@ export function ProjectDetailPage() {
   const [creatingTask, setCreatingTask] = useState(false)
   const { data: project, setData: setProject, loading, error, reload: reloadProject } = useApiResource<Project>(projectId ? `/api/v1/projects/${projectId}/` : null)
   const { data: report, loading: reportLoading, error: reportError, reload: reloadReport } = useApiResource<ProjectReport>(projectId ? `/api/v1/reports/projects/${projectId}/` : null)
-  const { data: tasks, loading: tasksLoading, error: tasksError, reload: reloadTasks } = useApiResource<Paginated<Task>>(projectId ? `/api/v1/tasks/?project=${projectId}&page_size=100&ordering=deadline` : null)
+  const { data: tasks, loading: tasksLoading, error: tasksError, reload: reloadTasks } = useAllPages<Task>(projectId ? `/api/v1/tasks/?project=${projectId}&page_size=100&ordering=deadline` : null)
   const { data: statuses } = useApiResource<TaskStatus[]>('/api/v1/metadata/task-statuses/')
   const { data: managers } = useAllPages<User>(
     user?.role === 'ADMIN'
