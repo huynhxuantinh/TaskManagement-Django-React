@@ -96,3 +96,9 @@ Trước khi chạy lệnh thứ hai, đặt các biến sau trong file môi tr�
 - `BOOTSTRAP_ADMIN_PASSWORD` (phải đạt chính sách mật khẩu Django)
 
 Lệnh có tính idempotent: nếu đúng tài khoản quản trị đã tồn tại thì không đổi mật khẩu. Sau khi bootstrap thành công, xóa `BOOTSTRAP_ADMIN_PASSWORD` khỏi môi trường triển khai. Lệnh chuẩn `python manage.py createsuperuser` cũng hoạt động và tự gắn vai trò Admin.
+
+## Phạm vi và giới hạn
+
+- Hệ thống không triển khai chức năng “Quên mật khẩu” tự phục vụ hoặc gửi liên kết đặt lại mật khẩu qua email.
+- Đây là hệ thống nội bộ; khi mất mật khẩu, người dùng liên hệ quản trị viên để được cấp lại theo quy trình quản trị tài khoản của đơn vị.
+- Email reset mật khẩu, OTP và tích hợp nhà cung cấp email được xác định là ngoài phạm vi của đồ án hiện tại.
