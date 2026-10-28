@@ -11,9 +11,10 @@ import { canManageProject } from '../features/core/permissions'
 import { Modal } from '../components/ui/Modal'
 import { StatePanel } from '../components/ui/StatePanel'
 import { useToast } from '../components/ui/ToastContext'
+import { useAllPages } from '../hooks/useAllPages'
 import { useApiResource } from '../hooks/useApiResource'
 import { apiRequest } from '../lib/api'
-import type { Paginated, Project, ProjectReport, Task, TaskStatus } from '../types/api'
+import type { Paginated, Project, ProjectReport, Task, TaskStatus, User } from '../types/api'
 
 export function ProjectDetailPage() {
   const { projectId } = useParams()
@@ -26,6 +27,11 @@ export function ProjectDetailPage() {
   const { data: report, loading: reportLoading, error: reportError, reload: reloadReport } = useApiResource<ProjectReport>(projectId ? `/api/v1/reports/projects/${projectId}/` : null)
   const { data: tasks, loading: tasksLoading, error: tasksError, reload: reloadTasks } = useApiResource<Paginated<Task>>(projectId ? `/api/v1/tasks/?project=${projectId}&page_size=100&ordering=deadline` : null)
   const { data: statuses } = useApiResource<TaskStatus[]>('/api/v1/metadata/task-statuses/')
+  const { data: managers } = useAllPages<User>(
+    user?.role === 'ADMIN'
+      ? '/api/v1/users/?role=MANAGER&is_active=true&page_size=100'
+      : null,
+  )
 
   async function remove() {
     if (!project || !window.confirm(`Xóa dự án “${project.name}”?`)) return
@@ -78,7 +84,7 @@ export function ProjectDetailPage() {
         />
       </Modal>
       <Modal open={editing} title="Cập nhật dự án" onClose={() => setEditing(false)}>
-        <ProjectForm project={project} onCancel={() => setEditing(false)} onSaved={(saved) => { setProject(saved); setEditing(false); notify('Đã cập nhật dự án.') }} />
+        <ProjectForm project={project} ownerOptions={managers?.results ?? []} onCancel={() => setEditing(false)} onSaved={(saved) => { setProject(saved); setEditing(false); notify('Đã cập nhật dự án.') }} />
       </Modal>
     </div>
   )

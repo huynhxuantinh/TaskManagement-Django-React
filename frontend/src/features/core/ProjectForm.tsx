@@ -20,7 +20,9 @@ export function ProjectForm({ project, ownerOptions = [], onSaved, onCancel }: {
     setError('')
     try {
       const payload: Record<string, unknown> = { name, description, start_date: startDate, end_date: endDate }
-      if (!project && ownerOptions.length > 0) payload.creator_id = Number(ownerId)
+      if (ownerOptions.length > 0 && (!project || Number(ownerId) !== project.creator.id)) {
+        payload.creator_id = Number(ownerId)
+      }
       const saved = await apiRequest<Project>(project ? `/api/v1/projects/${project.id}/` : '/api/v1/projects/', {
         method: project ? 'PATCH' : 'POST',
         body: JSON.stringify(payload),
@@ -44,7 +46,7 @@ export function ProjectForm({ project, ownerOptions = [], onSaved, onCancel }: {
         <Field label="Ngày bắt đầu" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} required />
         <Field label="Ngày kết thúc" type="date" value={endDate} min={startDate} onChange={(event) => setEndDate(event.target.value)} required />
       </div>
-      {!project && ownerOptions.length > 0 && (
+      {ownerOptions.length > 0 && (
         <label className="block">
           <span className="mb-2 block text-sm font-bold text-slate-800">Chủ dự án</span>
           <select className="min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm" value={ownerId} onChange={(event) => setOwnerId(event.target.value)} required>
