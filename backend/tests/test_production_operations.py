@@ -124,13 +124,19 @@ def test_production_settings_enable_https_proxy_security_and_same_origin():
     }
 
 
+def fake_postgres_connection(cursor):
+    connection = MagicMock()
+    connection.vendor = "postgresql"
+    connection.cursor.return_value = cursor
+    return connection
+
+
 def test_locked_migration_holds_and_releases_postgres_advisory_lock(monkeypatch):
     from apps.core.management.commands import migrate_locked
 
     cursor = MagicMock()
     cursor.__enter__.return_value = cursor
-    monkeypatch.setattr(migrate_locked.connection, "vendor", "postgresql")
-    monkeypatch.setattr(migrate_locked.connection, "cursor", lambda: cursor)
+    monkeypatch.setattr(migrate_locked, "connection", fake_postgres_connection(cursor))
     migrate = MagicMock()
     monkeypatch.setattr(migrate_locked, "call_command", migrate)
 
@@ -150,8 +156,7 @@ def test_locked_migration_releases_lock_when_migrate_fails(monkeypatch):
 
     cursor = MagicMock()
     cursor.__enter__.return_value = cursor
-    monkeypatch.setattr(migrate_locked.connection, "vendor", "postgresql")
-    monkeypatch.setattr(migrate_locked.connection, "cursor", lambda: cursor)
+    monkeypatch.setattr(migrate_locked, "connection", fake_postgres_connection(cursor))
     monkeypatch.setattr(
         migrate_locked,
         "call_command",
