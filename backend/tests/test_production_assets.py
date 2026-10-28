@@ -11,11 +11,15 @@ def test_production_compose_keeps_data_services_private_and_migrations_one_shot(
     compose = yaml.safe_load(compose_path.read_text(encoding="utf-8"))
     services = compose["services"]
 
-    assert {"db", "migration", "backend", "scheduler", "proxy", "backup", "restore"} <= set(
+    assert {"db", "cache", "migration", "backend", "scheduler", "proxy", "backup", "restore"} <= set(
         services
     )
     assert "ports" not in services["db"]
+    assert "ports" not in services["cache"]
     assert "ports" not in services["backend"]
+    assert services["cache"]["healthcheck"]["test"] == ["CMD", "redis-cli", "ping"]
+    assert services["backend"]["environment"]["CACHE_URL"].startswith("redis://cache:")
+    assert services["backend"]["depends_on"]["cache"]["condition"] == "service_healthy"
     assert "migrate_locked" in " ".join(services["migration"]["command"])
     assert services["migration"]["restart"] == "no"
     assert services["backend"]["depends_on"]["migration"]["condition"] == (
@@ -52,6 +56,7 @@ def test_production_images_build_assets_and_drop_root():
         encoding="utf-8"
     )
     assert "postgres:18.6-alpine3.23@sha256:" in compose
+    assert "redis:8.4.0-alpine@sha256:" in compose
 
 
 def test_root_docker_context_excludes_secrets_data_and_build_artifacts():

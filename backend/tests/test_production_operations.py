@@ -14,6 +14,7 @@ PRODUCTION_ENV_KEYS = (
     "DJANGO_SECRET_KEY",
     "DJANGO_ALLOWED_HOSTS",
     "POSTGRES_PASSWORD",
+    "CACHE_URL",
     "CORS_ALLOWED_ORIGINS",
     "CSRF_TRUSTED_ORIGINS",
     "ALLOW_PUBLIC_REGISTRATION",
@@ -40,6 +41,8 @@ print(json.dumps({
     "secure_session_cookie": settings.SESSION_COOKIE_SECURE,
     "ssl_redirect": settings.SECURE_SSL_REDIRECT,
     "public_registration": settings.ALLOW_PUBLIC_REGISTRATION,
+    "cache_backend": settings.CACHES["default"]["BACKEND"],
+    "cache_location": settings.CACHES["default"]["LOCATION"],
 }))
 """
     return subprocess.run(
@@ -76,6 +79,14 @@ print(json.dumps({
             },
             "POSTGRES_PASSWORD",
         ),
+        (
+            {
+                "DJANGO_SECRET_KEY": "s" * 64,
+                "DJANGO_ALLOWED_HOSTS": "tasks.example.test",
+                "POSTGRES_PASSWORD": "database-only-secret",
+            },
+            "CACHE_URL",
+        ),
     ],
 )
 def test_production_settings_require_explicit_secrets_and_hosts(
@@ -92,6 +103,7 @@ def test_production_settings_enable_https_proxy_security_and_same_origin():
         DJANGO_SECRET_KEY="s" * 64,
         DJANGO_ALLOWED_HOSTS="tasks.example.test",
         POSTGRES_PASSWORD="database-only-secret",
+        CACHE_URL="redis://cache:6379/0",
         ALLOW_PUBLIC_REGISTRATION="true",
     )
 
@@ -107,6 +119,8 @@ def test_production_settings_enable_https_proxy_security_and_same_origin():
         "secure_session_cookie": True,
         "ssl_redirect": True,
         "public_registration": False,
+        "cache_backend": "django.core.cache.backends.redis.RedisCache",
+        "cache_location": "redis://cache:6379/0",
     }
 
 
