@@ -29,6 +29,22 @@ if database_password == "task_management_dev":
     raise ImproperlyConfigured("POSTGRES_PASSWORD must not use the dev default")
 DATABASES["default"]["PASSWORD"] = database_password  # noqa: F405
 
+cache_url = required_environment("CACHE_URL")
+if not cache_url.startswith(("redis://", "rediss://")):
+    raise ImproperlyConfigured("CACHE_URL must use redis:// or rediss://")
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": cache_url,
+        "KEY_PREFIX": "task-management",
+        "TIMEOUT": 300,
+        "OPTIONS": {
+            "socket_connect_timeout": 3,
+            "socket_timeout": 3,
+        },
+    }
+}
+
 DEBUG = False
 CORS_ALLOWED_ORIGINS = env_list("CORS_ALLOWED_ORIGINS")  # noqa: F405
 CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS")  # noqa: F405

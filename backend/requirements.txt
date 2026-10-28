@@ -19,6 +19,7 @@ python-json-logger==4.2.0
 pycparser==3.11
 PyYAML==6.0.3
 referencing==0.37.0
+redis==8.1.0
 rpds-py==2026.9.1
 sqlparse==0.6.0
 tzdata==2026.5; sys_platform == "win32"
