@@ -82,6 +82,57 @@ def test_deadline_command_sends_real_reminders_once_and_skips_inactive_tasks():
 
 
 @pytest.mark.django_db
+def test_overdue_reminder_is_sent_once_per_deadline_and_skips_on_hold():
+    role = Role.objects.get_or_create(
+        code=Role.Code.EMPLOYEE, defaults={"name": "Employee"}
+    )[0]
+    manager_role = Role.objects.get_or_create(
+        code=Role.Code.MANAGER, defaults={"name": "Manager"}
+    )[0]
+    assignee = User.objects.create_user(
+        email="overdue-employee@example.com", password="test", role=role
+    )
+    manager = User.objects.create_user(
+        email="overdue-manager@example.com", password="test", role=manager_role
+    )
+    project = Project.objects.create(name="Overdue project", creator=manager)
+    todo = TaskStatus.objects.get_or_create(
+        code=TaskStatus.Code.TODO, defaults={"name": "Todo"}
+    )[0]
+    on_hold = TaskStatus.objects.get_or_create(
+        code=TaskStatus.Code.ON_HOLD, defaults={"name": "On hold"}
+    )[0]
+    today = timezone.localdate()
+    Task.objects.create(
+        title="Overdue once",
+        project=project,
+        assignee=assignee,
+        status=todo,
+        deadline=today - timedelta(days=1),
+    )
+    Task.objects.create(
+        title="Paused overdue",
+        project=project,
+        assignee=assignee,
+        status=on_hold,
+        deadline=today - timedelta(days=1),
+    )
+
+    for offset in range(4):
+        call_command(
+            "send_deadline_notifications",
+            date=(today + timedelta(days=offset)).isoformat(),
+        )
+
+    notifications = Notification.objects.filter(
+        user=assignee,
+        type=NotificationType.DEADLINE_OVERDUE,
+    )
+    assert notifications.count() == 1
+    assert "Overdue once" in notifications.get().message
+
+
+@pytest.mark.django_db
 def test_deadline_command_accepts_default_current_date():
     call_command("send_deadline_notifications")
 
