@@ -1,5 +1,7 @@
 from uuid import uuid4
+from urllib.parse import urlparse
 
+from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.db import transaction
@@ -102,12 +104,23 @@ def save_avatar(user, uploaded_file):
             {"file": ["Chỉ chấp nhận ảnh PNG, JPEG, GIF hoặc WebP hợp lệ."]}
         )
     extension = detected[0]
+    old_avatar = user.avatar
     storage_name = default_storage.save(
         f"avatars/{uuid4().hex}.{extension}",
         ContentFile(uploaded_file.read()),
     )
-    user.avatar = default_storage.url(storage_name)
-    user.save(update_fields=["avatar"])
+    try:
+        user.avatar = default_storage.url(storage_name)
+        user.save(update_fields=["avatar"])
+    except Exception:
+        default_storage.delete(storage_name)
+        raise
+    old_path = urlparse(old_avatar).path.lstrip("/")
+    media_prefix = settings.MEDIA_URL.strip("/")
+    if media_prefix and old_path.startswith(f"{media_prefix}/"):
+        old_path = old_path[len(media_prefix) + 1 :]
+    if old_path.startswith("avatars/") and old_path != storage_name:
+        default_storage.delete(old_path)
     return user
 
 
