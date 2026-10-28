@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 import pytest
+from django.core.files.storage import default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
 from django.utils import timezone
@@ -434,14 +435,27 @@ def test_avatar_upload_validates_real_file_and_uses_generated_name(
         b"\x89PNG\r\n\x1a\n" + b"safe-image-data",
         "image/png",
     )
+    replacement = SimpleUploadedFile(
+        "replacement.png",
+        b"\x89PNG\r\n\x1a\n" + b"replacement-image-data",
+        "image/png",
+    )
 
     with override_settings(MEDIA_ROOT=tmp_path):
         rejected = api_as(employee).post(url, {"file": fake}, format="multipart")
         uploaded = api_as(employee).post(url, {"file": png}, format="multipart")
+        employee.refresh_from_db()
+        old_avatar = employee.avatar.removeprefix("/media/")
+        assert default_storage.exists(old_avatar)
+        replaced = api_as(employee).post(
+            url, {"file": replacement}, format="multipart"
+        )
+        assert not default_storage.exists(old_avatar)
 
     employee.refresh_from_db()
     assert rejected.status_code == 400
     assert uploaded.status_code == 200
+    assert replaced.status_code == 200
     assert employee.avatar.startswith("/media/avatars/")
     assert ".." not in employee.avatar
     assert employee.avatar.endswith(".png")
