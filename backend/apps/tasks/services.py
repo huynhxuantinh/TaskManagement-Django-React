@@ -125,7 +125,12 @@ def send_deadline_notifications(reference_date=None):
             deadline__isnull=False,
             deadline__lte=today + timedelta(days=1),
         )
-        .exclude(status__code=TaskStatus.Code.COMPLETED)
+        .exclude(
+            status__code__in=[
+                TaskStatus.Code.COMPLETED,
+                TaskStatus.Code.ON_HOLD,
+            ]
+        )
         .select_related("assignee")
         .order_by("id")
     )
@@ -158,8 +163,7 @@ def send_deadline_notifications(reference_date=None):
             message,
             default_priority=True,
             dedupe_key=(
-                f"deadline:{task.id}:{task.assignee_id}:{task.deadline}:{stage}:"
-                f"{today if stage == 'overdue' else task.deadline}"
+                f"deadline:{task.id}:{task.assignee_id}:{task.deadline}:{stage}"
             ),
         )
         processed += 1
