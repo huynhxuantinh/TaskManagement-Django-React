@@ -102,3 +102,5 @@ Lệnh có tính idempotent: nếu đúng tài khoản quản trị đã tồn t
 - Hệ thống không triển khai chức năng “Quên mật khẩu” tự phục vụ hoặc gửi liên kết đặt lại mật khẩu qua email.
 - Đây là hệ thống nội bộ; khi mất mật khẩu, người dùng liên hệ quản trị viên để được cấp lại theo quy trình quản trị tài khoản của đơn vị.
 - Email reset mật khẩu, OTP và tích hợp nhà cung cấp email được xác định là ngoài phạm vi của đồ án hiện tại.
+- Production dùng Redis để lưu giới hạn số lần đăng nhập giữa các tiến trình. Nếu Redis không khả dụng, thao tác đăng nhập có thể trả lỗi 500; cần theo dõi trạng thái Redis và khôi phục dịch vụ. Rủi ro này được xác định từ thiết kế, chưa kiểm thử bằng cách ngắt Redis.
+- Redis dùng bộ nhớ tạm, giới hạn 64 MB và không lưu dữ liệu xuống đĩa; khởi động lại Redis sẽ đặt lại bộ đếm giới hạn đăng nhập.

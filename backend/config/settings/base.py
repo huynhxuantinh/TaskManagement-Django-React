@@ -100,6 +100,7 @@ REST_FRAMEWORK = {
     "PAGE_SIZE": 20,
     "DEFAULT_THROTTLE_RATES": {
         "login": os.getenv("AUTH_LOGIN_RATE", "5/min"),
+        "login_ip": os.getenv("AUTH_LOGIN_IP_RATE", "20/min"),
         "register": os.getenv("AUTH_REGISTER_RATE", "5/hour"),
         "refresh": os.getenv("AUTH_REFRESH_RATE", "30/min"),
     },

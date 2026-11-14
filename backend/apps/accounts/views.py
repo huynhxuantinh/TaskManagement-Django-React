@@ -33,7 +33,7 @@ from .serializers import (
     UserResponseSerializer,
 )
 from .user_services import deactivate_and_reassign_tasks
-from .throttles import LoginRateThrottle, RefreshRateThrottle, RegisterRateThrottle
+from .throttles import LoginIPRateThrottle, LoginRateThrottle, RefreshRateThrottle, RegisterRateThrottle
 
 
 def _set_refresh_cookie(response, token):
@@ -95,7 +95,7 @@ class RegisterView(GenericAPIView):
 
 class LoginView(GenericAPIView):
     permission_classes = [AllowAny]
-    throttle_classes = [LoginRateThrottle]
+    throttle_classes = [LoginRateThrottle, LoginIPRateThrottle]
     serializer_class = LoginSerializer
 
     @extend_schema(

@@ -11,7 +11,7 @@ from rest_framework_simplejwt.tokens import AccessToken
 
 from apps.accounts.models import Role, User
 from apps.accounts.permissions import IsAdmin, IsAdminOrManager, IsSelfOrAdmin
-from apps.accounts.throttles import LoginRateThrottle, RegisterRateThrottle
+from apps.accounts.throttles import LoginIPRateThrottle, LoginRateThrottle, RegisterRateThrottle
 
 
 AUTH_HASHERS = [
@@ -424,3 +424,17 @@ def test_login_is_rate_limited_per_ip_and_email(roles, monkeypatch):
     assert first.status_code == 401
     assert second.status_code == 401
     assert limited.status_code == 429
+
+
+@pytest.mark.django_db
+def test_login_is_rate_limited_per_ip_across_emails(roles, monkeypatch):
+    cache.clear()
+    monkeypatch.setattr(LoginIPRateThrottle, "get_rate", lambda _self: "2/min")
+    client = APIClient()
+
+    assert login(client, "first@example.com", "wrong").status_code == 401
+    assert login(client, "second@example.com", "wrong").status_code == 401
+    assert login(client, "third@example.com", "wrong").status_code == 429
+
+    other_ip = APIClient(REMOTE_ADDR="192.0.2.2")
+    assert login(other_ip, "fourth@example.com", "wrong").status_code == 401

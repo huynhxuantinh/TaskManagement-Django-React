@@ -12,6 +12,10 @@ class LoginRateThrottle(AnonRateThrottle):
         }
 
 
+class LoginIPRateThrottle(AnonRateThrottle):
+    scope = "login_ip"
+
+
 class RegisterRateThrottle(AnonRateThrottle):
     scope = "register"
 

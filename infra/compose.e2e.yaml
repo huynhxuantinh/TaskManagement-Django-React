@@ -30,6 +30,7 @@ services:
       CORS_ALLOWED_ORIGINS: http://localhost:${E2E_FRONTEND_PORT:-5173}
       CSRF_TRUSTED_ORIGINS: http://localhost:${E2E_FRONTEND_PORT:-5173}
       AUTH_LOGIN_RATE: 1000/min
+      AUTH_LOGIN_IP_RATE: 1000/min
     depends_on:
       db:
         condition: service_healthy
