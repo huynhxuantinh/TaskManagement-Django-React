@@ -126,7 +126,7 @@ class AssigneeMembershipMixin:
         parent = attrs.get("parent", getattr(self.instance, "parent", None))
         deadline = attrs.get("deadline", getattr(self.instance, "deadline", None))
         start_date = attrs.get("start_date", getattr(self.instance, "start_date", None))
-        if assignee and project and not ProjectMember.objects.filter(
+        if "assignee" in attrs and assignee and project and not ProjectMember.objects.filter(
             project=project, user=assignee
         ).exists():
             raise serializers.ValidationError(
@@ -138,7 +138,7 @@ class AssigneeMembershipMixin:
             raise serializers.ValidationError(
                 {"deadline": ["Hạn hoàn thành không được sau ngày kết thúc dự án."]}
             )
-        if parent:
+        if "parent" in attrs and parent:
             if parent.is_deleted or parent.project_id != project.id:
                 raise serializers.ValidationError({"parent": ["Công việc cha phải thuộc cùng dự án và chưa bị xóa."]})
             if parent.status.code == TaskStatus.Code.COMPLETED:

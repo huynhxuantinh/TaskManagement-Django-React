@@ -621,6 +621,31 @@ def test_report_messages_validate_members_and_scope_sender_receiver(
 
 
 @pytest.mark.django_db
+def test_report_long_notification_and_atomic_failure(report_users, report_statuses, report_data, monkeypatch):
+    sender = report_users["manager"]
+    sender.full_name = "A" * 100
+    sender.save(update_fields=["full_name"])
+    payload = {
+        "project_id": report_data["managed"].id,
+        "receiver_id": report_users["employee"].id,
+        "title": "T" * 200,
+        "content": "Content",
+    }
+    client = api_as(sender)
+    response = client.post("/api/v1/reports/messages/", payload, format="json")
+    assert response.status_code == 201
+    assert len(Notification.objects.get(user=report_users["employee"]).message) > 255
+
+    def fail_notification(*args, **kwargs):
+        raise RuntimeError("notification failed")
+
+    monkeypatch.setattr("apps.reports.views.create_notification", fail_notification)
+    with pytest.raises(RuntimeError, match="notification failed"):
+        client.post("/api/v1/reports/messages/", payload, format="json")
+    assert ReportMessage.objects.count() == 1
+
+
+@pytest.mark.django_db
 def test_dashboard_query_count_is_bounded(
     django_assert_max_num_queries, report_users, report_statuses, report_data
 ):

@@ -777,6 +777,31 @@ def test_child_of_completed_parent_hides_reopen_transition(
 
 
 @pytest.mark.django_db
+def test_completed_child_can_be_edited_without_reassigning_completed_parent(
+    task_users, task_statuses, task_project
+):
+    parent = make_task(
+        task_project, task_statuses, task_users["employee"],
+        status=task_statuses[TaskStatus.Code.COMPLETED],
+    )
+    child = make_task(
+        task_project, task_statuses, task_users["employee"], parent=parent,
+        status=task_statuses[TaskStatus.Code.COMPLETED],
+    )
+    other = make_task(task_project, task_statuses, task_users["employee"])
+    client = api_as(task_users["manager"])
+
+    edited = client.patch(f"/api/v1/tasks/{child.id}/", {"title": "Updated"}, format="json")
+    blocked = client.patch(f"/api/v1/tasks/{other.id}/", {"parent": parent.id}, format="json")
+
+    assert edited.status_code == 200
+    child.refresh_from_db()
+    assert child.title == "Updated"
+    assert child.parent_id == parent.id
+    assert blocked.status_code == 400
+
+
+@pytest.mark.django_db
 def test_invalid_completed_transition_returns_bad_request_for_manager(
     task_users, task_statuses, task_project
 ):

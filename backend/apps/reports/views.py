@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
@@ -132,6 +133,7 @@ class ReportMessageListCreateView(APIView):
         tags=["Report messages"], request=ReportMessageCreateSerializer,
         responses={201: ReportMessageResponseSerializer}
     )
+    @transaction.atomic
     def post(self, request):
         serializer = ReportMessageCreateSerializer(
             data=request.data, context={"request": request}

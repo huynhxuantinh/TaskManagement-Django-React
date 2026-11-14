@@ -301,6 +301,17 @@ def test_removed_member_cannot_access_stale_completed_assignment(project_users):
     removed = api_as(owner).delete(
         f"/api/v1/projects/{project.id}/members/{employee.id}/"
     )
+    edited = api_as(owner).patch(
+        f"/api/v1/tasks/{task.id}/", {"title": "Updated completed task"}, format="json"
+    )
+    reassigned = api_as(owner).patch(
+        f"/api/v1/tasks/{task.id}/", {"assignee_id": employee.id}, format="json"
+    )
+    assert edited.status_code == 200
+    task.refresh_from_db()
+    assert task.title == "Updated completed task"
+    assert task.assignee_id == employee.id
+    assert reassigned.status_code == 400
     task_detail = api_as(employee).get(f"/api/v1/tasks/{task.id}/")
     status_change = api_as(employee).patch(
         f"/api/v1/tasks/{task.id}/status/",
