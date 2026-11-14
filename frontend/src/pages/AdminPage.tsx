@@ -31,9 +31,13 @@ export function AdminPage() {
   const [editEmail, setEditEmail] = useState('')
   const [editError, setEditError] = useState('')
   const [deactivating, setDeactivating] = useState<User | undefined>()
+  const [demoting, setDemoting] = useState<User | undefined>()
   const [replacementId, setReplacementId] = useState('')
   const { data, setData, loading, error, reload } = useAllPages<User>(
     `/api/v1/users/?page_size=100&search=${encodeURIComponent(query)}`,
+  )
+  const { data: candidates, loading: candidatesLoading, error: candidatesError } = useAllPages<User>(
+    deactivating || demoting ? '/api/v1/users/?page_size=100' : null,
   )
 
   function closeCreate() {
@@ -111,17 +115,18 @@ export function AdminPage() {
     }
   }
 
-  async function changeRole(user: User, nextRole: RoleCode) {
+  async function changeRole(user: User, nextRole: RoleCode, replacement = '') {
     try {
       const updated = await apiRequest<User>(`/api/v1/users/${user.id}/role/`, {
         method: 'PATCH',
-        body: JSON.stringify({ role: nextRole }),
+        body: JSON.stringify({ role: nextRole, ...(replacement ? { reassign_to_id: replacement } : {}) }),
       })
       setData((current) => current ? {
         ...current,
         results: current.results.map((item) => item.id === updated.id ? updated : item),
       } : current)
       notify('Đã cập nhật vai trò.')
+      setDemoting(undefined)
     } catch (caught) {
       notify((caught as Error).message, 'error')
     }
@@ -193,7 +198,13 @@ export function AdminPage() {
                 <strong className="block">{user.full_name}{isSelf ? ' (Bạn)' : ''}</strong>
                 <span className="text-sm text-slate-500">{user.username ? `@${user.username} · ` : ''}{user.email}</span>
               </div>
-              <select aria-label={`Vai trò ${user.full_name}`} value={user.role} disabled={isSelf} onChange={(event) => void changeRole(user, event.target.value as RoleCode)} className={`${selectClass} disabled:opacity-60`}>
+              <select aria-label={`Vai trò ${user.full_name}`} value={user.role} disabled={isSelf} onChange={(event) => {
+                const nextRole = event.target.value as RoleCode
+                if (nextRole === 'EMPLOYEE' && user.role !== 'EMPLOYEE') {
+                  setReplacementId('')
+                  setDemoting(user)
+                } else void changeRole(user, nextRole)
+              }} className={`${selectClass} disabled:opacity-60`}>
                 <option value="ADMIN">Quản trị viên</option>
                 <option value="MANAGER">Quản lý</option>
                 <option value="EMPLOYEE">Nhân viên</option>
@@ -254,12 +265,29 @@ export function AdminPage() {
           <label className="block text-sm font-bold">Người nhận
             <select className={`${selectClass} mt-2`} value={replacementId} onChange={(event) => setReplacementId(event.target.value)}>
               <option value="">Không chuyển (chỉ khi không còn task mở)</option>
-              {data?.results.filter((item) => item.is_active && item.id !== deactivating?.id).map((item) => <option key={item.id} value={item.id}>{item.full_name} · {item.email}</option>)}
+              {candidates?.results.filter((item) => item.is_active && item.id !== deactivating?.id && (deactivating?.role === 'EMPLOYEE' || item.role !== 'EMPLOYEE')).map((item) => <option key={item.id} value={item.id}>{item.full_name} · {item.email}</option>)}
             </select>
           </label>
+          {candidatesError && <p role="alert" className="text-sm text-red-700">{candidatesError}</p>}
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setDeactivating(undefined)}>Hủy</Button>
-            <Button onClick={() => void deactivate()}>Xác nhận vô hiệu hóa</Button>
+            <Button disabled={candidatesLoading || Boolean(candidatesError)} onClick={() => void deactivate()}>Xác nhận vô hiệu hóa</Button>
+          </div>
+        </div>
+      </Modal>
+      <Modal open={Boolean(demoting)} title="Chuyển giao dự án" onClose={() => setDemoting(undefined)}>
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600">Nếu tài khoản đang làm chủ dự án, hãy chọn quản trị viên hoặc quản lý tiếp quản.</p>
+          <label className="block text-sm font-bold">Người tiếp quản
+            <select className={`${selectClass} mt-2`} value={replacementId} onChange={(event) => setReplacementId(event.target.value)}>
+              <option value="">Không chuyển (chỉ khi không có dự án)</option>
+              {candidates?.results.filter((item) => item.is_active && item.id !== demoting?.id && item.role !== 'EMPLOYEE').map((item) => <option key={item.id} value={item.id}>{item.full_name} · {item.email}</option>)}
+            </select>
+          </label>
+          {candidatesError && <p role="alert" className="text-sm text-red-700">{candidatesError}</p>}
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setDemoting(undefined)}>Hủy</Button>
+            <Button disabled={candidatesLoading || Boolean(candidatesError)} onClick={() => { if (demoting) void changeRole(demoting, 'EMPLOYEE', replacementId) }}>Xác nhận hạ quyền</Button>
           </div>
         </div>
       </Modal>

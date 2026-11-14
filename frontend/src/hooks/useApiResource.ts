@@ -13,10 +13,12 @@ export function useApiResource<T>(path: string | null) {
     if (!path) return
     const controller = new AbortController()
     async function load() {
+      setData(null)
       setLoading(true)
       setError('')
       try {
-        setData(await apiRequest<T>(path as string, { signal: controller.signal }))
+        const result = await apiRequest<T>(path as string, { signal: controller.signal })
+        if (!controller.signal.aborted) setData(result)
       } catch (caught) {
         if ((caught as Error).name !== 'AbortError') setError((caught as Error).message)
       } finally {
@@ -27,5 +29,5 @@ export function useApiResource<T>(path: string | null) {
     return () => controller.abort()
   }, [path, version])
 
-  return { data, setData, loading, error, reload }
+  return { data: path ? data : null, setData, loading: path ? loading : false, error: path ? error : '', reload }
 }

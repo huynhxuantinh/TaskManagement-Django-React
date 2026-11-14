@@ -1,12 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 
 import { useAuth } from '../auth/AuthContext'
 import { Icon } from '../components/Icon'
 import { Button } from '../components/ui/Button'
-import { apiAssetUrl } from '../lib/api'
+import { apiAssetUrl, apiRequest } from '../lib/api'
 import { roleLabel } from '../lib/labels'
-import type { RoleCode } from '../types/api'
+import type { Notification, Paginated, RoleCode } from '../types/api'
 
 const navigation: Array<{
   to: string
@@ -108,6 +108,20 @@ export function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const location = useLocation()
   const { user } = useAuth()
+  const [unreadCount, setUnreadCount] = useState(0)
+  useEffect(() => {
+    if (!user) return
+    const controller = new AbortController()
+    const refresh = () => {
+      void apiRequest<Paginated<Notification>>('/api/v1/notifications/?is_read=false&page_size=1', { signal: controller.signal })
+        .then((result) => { if (!controller.signal.aborted) setUnreadCount(result.count) })
+        .catch(() => {})
+    }
+    refresh()
+    window.addEventListener('notifications-changed', refresh)
+    const timer = window.setInterval(refresh, 60_000)
+    return () => { controller.abort(); window.clearInterval(timer); window.removeEventListener('notifications-changed', refresh) }
+  }, [user, location.pathname])
   return (
     <div className="min-h-screen bg-[var(--canvas)]">
       <div className="fixed inset-y-0 left-0 hidden w-64 lg:block"><Sidebar /></div>
@@ -126,8 +140,9 @@ export function AppShell() {
             <p className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Không gian làm việc / {user ? roleLabel(user.role) : ''}</p>
             <h1 className="truncate text-lg font-extrabold tracking-tight text-slate-950">{location.pathname.startsWith('/projects/') ? 'Chi tiết dự án' : pageTitles[location.pathname] ?? 'Quản lý công việc'}</h1>
           </div>
-          <NavLink to="/notifications" className="relative grid size-10 place-items-center rounded-xl border border-slate-300 bg-white text-slate-700 hover:border-slate-500" aria-label="Thông báo">
+          <NavLink to="/notifications" className="relative grid size-10 place-items-center rounded-xl border border-slate-300 bg-white text-slate-700 hover:border-slate-500" aria-label={unreadCount ? `Thông báo, ${unreadCount} chưa đọc` : 'Thông báo'}>
             <Icon name="bell" />
+            {unreadCount > 0 && <span aria-hidden="true" className="absolute -right-1 -top-1 grid min-h-5 min-w-5 place-items-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">{unreadCount > 99 ? '99+' : unreadCount}</span>}
           </NavLink>
         </header>
         <main className="px-4 py-6 md:px-8 md:py-8"><Outlet /></main>

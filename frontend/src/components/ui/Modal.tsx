@@ -17,7 +17,7 @@ export function Modal({
   }, [open])
   if (!open) return null
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/55 p-4" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/55 p-4">
       <div
         ref={modalRef}
         role="dialog"

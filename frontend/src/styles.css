@@ -70,6 +70,7 @@ a {
 
 .dashboard-hero {
   position: relative;
+  overflow: hidden;
   background-image:
     radial-gradient(circle at 92% 10%, rgb(199 244 100 / 30%), transparent 26%),
     linear-gradient(115deg, #101828 55%, #1d2939);

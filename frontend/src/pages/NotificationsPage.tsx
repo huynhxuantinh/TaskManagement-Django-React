@@ -17,6 +17,7 @@ export function NotificationsPage() {
   async function markRead(notification: Notification) {
     try {
       const updated = await apiRequest<Notification>(`/api/v1/notifications/${notification.id}/read/`, { method: 'PATCH' })
+      window.dispatchEvent(new Event('notifications-changed'))
       setData((current) => current ? {
         ...current,
         count: filter === 'unread' ? Math.max(0, current.count - 1) : current.count,
@@ -30,6 +31,7 @@ export function NotificationsPage() {
   async function markAllRead() {
     try {
       const result = await apiRequest<{ updated_count: number }>('/api/v1/notifications/read-all/', { method: 'POST' })
+      window.dispatchEvent(new Event('notifications-changed'))
       reload()
       notify(`Đã đánh dấu ${result.updated_count} thông báo là đã đọc.`)
     } catch (caught) {

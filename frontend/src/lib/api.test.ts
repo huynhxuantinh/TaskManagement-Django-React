@@ -100,8 +100,25 @@ describe('api client', () => {
     await expect(apiRequest('/api/v1/projects/', { authRetry: false })).rejects.toMatchObject({
       name: ApiError.name,
       status: 400,
+      message: 'invalid Required',
       errors: { name: ['Required'] },
     })
+  })
+
+  it('shows all distinct validation messages, including nested errors', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({
+      success: false,
+      message: 'Dữ liệu không hợp lệ.',
+      errors: { deadline: ['Hạn không hợp lệ.'], nested: { name: ['Bắt buộc.', 'Bắt buộc.'] } },
+    }, 400)))
+
+    await expect(apiRequest('/api/v1/tasks/', { authRetry: false })).rejects.toThrow(
+      'Dữ liệu không hợp lệ. Hạn không hợp lệ. Bắt buộc.',
+    )
+  })
+
+  it('keeps the original message when error details are empty', () => {
+    expect(new ApiError('Không có quyền.', 403, {}).message).toBe('Không có quyền.')
   })
 })
 

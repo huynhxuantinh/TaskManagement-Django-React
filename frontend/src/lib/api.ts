@@ -11,6 +11,13 @@ let accessToken: string | null = null
 let refreshPromise: Promise<string> | null = null
 let authExpiredHandler: (() => void) | null = null
 
+function errorMessages(value: unknown): string[] {
+  if (typeof value === 'string') return value.trim() ? [value.trim()] : []
+  if (Array.isArray(value)) return value.flatMap(errorMessages)
+  if (value && typeof value === 'object') return Object.values(value).flatMap(errorMessages)
+  return []
+}
+
 export class ApiError extends Error {
   status: number
   errors: Record<string, string[] | string>
@@ -20,7 +27,8 @@ export class ApiError extends Error {
     status: number,
     errors: Record<string, string[] | string> = {},
   ) {
-    super(message)
+    const details = [...new Set(errorMessages(errors))].filter((detail) => detail !== message)
+    super(details.length ? [message, ...details].join(' ') : message)
     this.name = 'ApiError'
     this.status = status
     this.errors = errors

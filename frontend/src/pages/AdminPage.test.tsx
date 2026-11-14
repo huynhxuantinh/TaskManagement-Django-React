@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { AuthContext, type AuthContextValue } from '../auth/AuthContext'
 import { ToastContext } from '../components/ui/ToastContext'
@@ -10,7 +10,10 @@ const mocks = vi.hoisted(() => ({
   updateUser: vi.fn(),
   setData: vi.fn(),
   reload: vi.fn(),
+  apiRequest: vi.fn(),
 }))
+
+vi.mock('../lib/api', () => ({ apiRequest: mocks.apiRequest }))
 
 vi.mock('../hooks/useAllPages', () => ({
   useAllPages: () => ({
@@ -40,6 +43,10 @@ vi.mock('../hooks/useAllPages', () => ({
           is_active: true,
           created_at: '',
           permissions: ['EMPLOYEE'],
+        },
+        {
+          id: 3, username: 'manager', full_name: 'Manager', email: 'manager@example.com',
+          role: 'MANAGER', avatar_url: '', is_active: true, created_at: '', permissions: ['MANAGER'],
         },
       ],
     } satisfies Paginated<User>,
@@ -76,6 +83,28 @@ const auth: AuthContextValue = {
 }
 
 describe('AdminPage', () => {
+  afterEach(cleanup)
+  it('transfers projects when demoting a manager and filters recipients', async () => {
+    mocks.apiRequest.mockResolvedValue({ ...auth.user, id: 3, role: 'EMPLOYEE' })
+    render(<AuthContext.Provider value={auth}><ToastContext.Provider value={vi.fn()}><AdminPage /></ToastContext.Provider></AuthContext.Provider>)
+
+    fireEvent.change(screen.getByLabelText('Vai trò Manager'), { target: { value: 'EMPLOYEE' } })
+    const recipient = screen.getByLabelText('Người tiếp quản')
+    expect(recipient).not.toHaveTextContent('Employee One')
+    fireEvent.change(recipient, { target: { value: '1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Xác nhận hạ quyền' }))
+    await waitFor(() => expect(mocks.apiRequest).toHaveBeenCalledWith('/api/v1/users/3/role/', {
+      method: 'PATCH', body: JSON.stringify({ role: 'EMPLOYEE', reassign_to_id: '1' }),
+    }))
+  })
+
+  it('only offers managers and admins when deactivating a manager', () => {
+    render(<AuthContext.Provider value={auth}><ToastContext.Provider value={vi.fn()}><AdminPage /></ToastContext.Provider></AuthContext.Provider>)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Vô hiệu hóa' })[1])
+    expect(screen.getByLabelText('Người nhận')).not.toHaveTextContent('Employee One')
+    expect(screen.getByLabelText('Người nhận')).toHaveTextContent('Admin')
+  })
+
   it('lets an admin edit another account name and email', async () => {
     mocks.updateUser.mockResolvedValue({
       ...auth.user,

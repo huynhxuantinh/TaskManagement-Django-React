@@ -45,11 +45,13 @@ export function TaskForm({ task, projects, statuses, onSaved, onCancel }: { task
     const common: Record<string, unknown> = {
       title,
       description,
-      assignee_id: assigneeId ? Number(assigneeId) : null,
       priority: Number(priority),
       start_date: startDate || null,
       estimated_hours: estimatedHours || null,
       deadline: deadline || null,
+    }
+    if (!task || assigneeId !== String(task.assignee?.id ?? '')) {
+      common.assignee_id = assigneeId ? Number(assigneeId) : null
     }
     if (!progressIsAutomatic) common.progress = Number(progress)
     if (!task || parentId !== String(task.parent_id ?? '')) {
@@ -74,7 +76,7 @@ export function TaskForm({ task, projects, statuses, onSaved, onCancel }: { task
       <label className="block"><span className="mb-2 block text-sm font-bold text-slate-800">Mô tả</span><textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={3} className={`${selectClass} py-3`} /></label>
       <div className="grid gap-4 sm:grid-cols-2">
         <label><span className="mb-2 block text-sm font-bold text-slate-800">Dự án</span><select className={selectClass} value={projectId} disabled={Boolean(task)} onChange={(event) => { setProjectId(event.target.value); setAssigneeId(''); setParentId('') }} required>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
-        <label><span className="mb-2 block text-sm font-bold text-slate-800">Người thực hiện</span><select className={selectClass} value={assigneeId} onChange={(event) => setAssigneeId(event.target.value)}><option value="">Chưa phân công</option>{members?.results.map((member) => <option key={member.id} value={member.user.id}>{member.user.full_name}</option>)}</select></label>
+        <label><span className="mb-2 block text-sm font-bold text-slate-800">Người thực hiện</span><select className={selectClass} value={assigneeId} onChange={(event) => setAssigneeId(event.target.value)}><option value="">Chưa phân công</option>{task?.assignee && !members?.results.some((member) => member.user.id === task.assignee?.id) && <option value={task.assignee.id}>{task.assignee.full_name} (không còn trong danh sách)</option>}{members?.results.map((member) => <option key={member.id} value={member.user.id}>{member.user.full_name}</option>)}</select></label>
         {!task && <label><span className="mb-2 block text-sm font-bold text-slate-800">Trạng thái</span><select className={selectClass} value={status} onChange={(event) => setStatus(event.target.value)}>{statuses.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}</select></label>}
         <label><span className="mb-2 block text-sm font-bold text-slate-800">Ưu tiên</span><select className={selectClass} value={priority} onChange={(event) => setPriority(event.target.value)}><option value="1">Thấp</option><option value="2">Trung bình</option><option value="3">Cao</option></select></label>
         {!task?.has_subtasks && <label><span className="mb-2 block text-sm font-bold text-slate-800">Công việc cha</span><select className={selectClass} value={parentId} onChange={(event) => setParentId(event.target.value)}><option value="">Không có</option>{parentOptions.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label>}

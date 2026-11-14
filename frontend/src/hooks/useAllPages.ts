@@ -20,6 +20,7 @@ export function useAllPages<T>(path: string | null) {
     if (!path) return
     const controller = new AbortController()
     async function load() {
+      setData(null)
       setLoading(true)
       setError('')
       try {

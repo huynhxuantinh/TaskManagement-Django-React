@@ -126,7 +126,7 @@ export function TasksPage() {
       link.href = url
       link.download = 'cong-viec.csv'
       link.click()
-      URL.revokeObjectURL(url)
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
     } catch (caught) {
       notify((caught as Error).message, 'error')
     }
@@ -136,7 +136,7 @@ export function TasksPage() {
     <div className="space-y-6">
       <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between"><div><p className="section-kicker">Danh sách thực hiện / {data?.count ?? 0}</p><h2 className="mt-1 text-3xl font-black tracking-tight">Luồng công việc</h2><p className="mt-2 text-sm text-slate-600">Lọc nhanh, giao việc và cập nhật tiến độ ngay tại một nơi.</p></div><div className="flex gap-2"><Button variant="secondary" onClick={() => void exportCsv()}>Xuất CSV</Button>{user && canCreateProjects(user) && <Button disabled={manageableProjects.length === 0} onClick={() => setCreating(true)}>+ Giao công việc</Button>}</div></header>
 
-      <section className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 md:grid-cols-[minmax(14rem,1fr)_repeat(5,minmax(9rem,auto))] md:items-end">
+      <section className="grid min-w-0 grid-cols-1 items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         <form onSubmit={submitSearch} className="flex gap-2"><Field label="Tìm công việc" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tên hoặc mô tả…" /><Button type="submit" variant="secondary" className="self-end">Tìm</Button></form>
         <label><span className="mb-2 block text-sm font-bold">Dự án</span><select className={selectClass} value={projectFilter} onChange={(event) => setProjectFilter(event.target.value)}><option value="">Tất cả</option>{projectsData?.results.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
         <label><span className="mb-2 block text-sm font-bold">Người phụ trách</span><select className={selectClass} value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value)}><option value="">Tất cả</option>{assignees?.map((assignee) => <option key={assignee.id} value={assignee.id}>{assignee.full_name}</option>)}</select></label>
