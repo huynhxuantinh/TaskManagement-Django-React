@@ -184,7 +184,7 @@ def deactivate_and_reassign_tasks(user, replacement, actor):
                 {"reassign_to_id": "Người nhận phải là thành viên của mọi dự án có công việc cần chuyển."}
             )
         for task in tasks:
-            TaskService.update_task(task, {"assignee": replacement}, actor)
+            TaskService.update_task(task, {"assignee": replacement, "expected_updated_at": task.updated_at}, actor)
     user.is_active = False
     user.save(update_fields=["is_active"])
     return len(tasks)

@@ -48,18 +48,22 @@ export function TaskForm({ task, projects, statuses, onSaved, onCancel }: { task
     }
     setSaving(true)
     setError('')
-    const common: Record<string, unknown> = {
-      title,
-      description,
-      priority: Number(priority),
-      start_date: startDate || null,
-      estimated_hours: estimatedHours || null,
-      deadline: deadline || null,
+    const common: Record<string, unknown> = task ? { expected_updated_at: task.updated_at } : {
+      title, description, priority: Number(priority), start_date: startDate || null,
+      estimated_hours: estimatedHours || null, deadline: deadline || null,
+    }
+    if (task) {
+      if (title !== task.title) common.title = title
+      if (description !== task.description) common.description = description
+      if (Number(priority) !== task.priority) common.priority = Number(priority)
+      if (startDate !== (task.start_date ?? '')) common.start_date = startDate || null
+      if (estimatedHours !== (task.estimated_hours ?? '')) common.estimated_hours = estimatedHours || null
+      if (deadline !== (task.deadline ?? '')) common.deadline = deadline || null
     }
     if (!task || assigneeId !== String(task.assignee?.id ?? '')) {
       common.assignee_id = assigneeId ? Number(assigneeId) : null
     }
-    if (!progressIsAutomatic) common.progress = Number(progress)
+    if (!progressIsAutomatic && (!task || Number(progress) !== task.progress)) common.progress = Number(progress)
     if (!task && status === 'ON_HOLD') common.note = statusNote.trim()
     if (!task || parentId !== String(task.parent_id ?? '')) {
       common.parent = parentId ? Number(parentId) : null

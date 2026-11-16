@@ -16,6 +16,7 @@ import { buildStatusChangePayload } from '../features/core/statusChange'
 import { useAllPages } from '../hooks/useAllPages'
 import { useApiResource } from '../hooks/useApiResource'
 import { apiDownload, apiRequest } from '../lib/api'
+import { formatDate } from '../lib/date'
 import type { Project, Task, TaskStatus, TaskTransition, User } from '../types/api'
 import { buildTaskListParams } from './taskFilters'
 
@@ -54,27 +55,15 @@ export function TasksPage() {
     ordering,
   })
   const { data, setData, loading, error, reload } = useAllPages<Task>(`/api/v1/tasks/?${params}`)
-  const { data: projectsData } = useAllPages<Project>('/api/v1/projects/?page_size=100')
-  const { data: statuses } = useApiResource<TaskStatus[]>('/api/v1/metadata/task-statuses/')
-  const { data: assignees } = useApiResource<User[]>('/api/v1/metadata/task-assignees/')
+  const { data: projectsData, loading: projectsLoading, error: projectsError, reload: reloadProjects } = useAllPages<Project>('/api/v1/projects/?page_size=100')
+  const { data: statuses, loading: statusesLoading, error: statusesError, reload: reloadStatuses } = useApiResource<TaskStatus[]>('/api/v1/metadata/task-statuses/')
+  const { data: assignees, loading: assigneesLoading, error: assigneesError, reload: reloadAssignees } = useApiResource<Array<User & { has_former_project_assignment: boolean }>>('/api/v1/metadata/task-assignees/')
   const projectById = useMemo(() => new Map(projectsData?.results.map((project) => [project.id, project]) ?? []), [projectsData])
   const manageableProjects = useMemo(() => {
     if (!user) return []
     return projectsData?.results.filter((project) => canManageProject(user, project)) ?? []
   }, [projectsData, user])
-  const orderedTasks = useMemo(() => {
-    const rows = data?.results ?? []
-    const ids = new Set(rows.map((task) => task.id))
-    const children = new Map<number, Task[]>()
-    for (const task of rows) {
-      if (task.parent_id && ids.has(task.parent_id)) {
-        children.set(task.parent_id, [...(children.get(task.parent_id) ?? []), task])
-      }
-    }
-    return rows
-      .filter((task) => !task.parent_id || !ids.has(task.parent_id))
-      .flatMap((task) => [task, ...(children.get(task.id) ?? [])])
-  }, [data])
+  const orderedTasks = data?.results ?? []
 
   function submitSearch(event: FormEvent) {
     event.preventDefault()
@@ -106,7 +95,7 @@ export function TasksPage() {
   }
 
   async function remove(task: Task) {
-    if (!window.confirm(`Xóa công việc “${task.title}”?`)) return
+    if (!window.confirm(`Xóa công việc “${task.title}”?\n\nNếu công việc này có công việc con, tất cả công việc con trực tiếp cũng sẽ bị xóa mềm và biến mất khỏi danh sách thông thường.\n\nBạn có chắc chắn muốn tiếp tục?`)) return
     try {
       await apiRequest<void>(`/api/v1/tasks/${task.id}/`, { method: 'DELETE' })
       reload()
@@ -138,12 +127,15 @@ export function TasksPage() {
 
       <section className="grid min-w-0 grid-cols-1 items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         <form onSubmit={submitSearch} className="flex gap-2"><Field label="Tìm công việc" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tên hoặc mô tả…" /><Button type="submit" variant="secondary" className="self-end">Tìm</Button></form>
-        <label><span className="mb-2 block text-sm font-bold">Dự án</span><select className={selectClass} value={projectFilter} onChange={(event) => setProjectFilter(event.target.value)}><option value="">Tất cả</option>{projectsData?.results.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
-        <label><span className="mb-2 block text-sm font-bold">Người phụ trách</span><select className={selectClass} value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value)}><option value="">Tất cả</option>{assignees?.map((assignee) => <option key={assignee.id} value={assignee.id}>{assignee.full_name}</option>)}</select></label>
-        <label><span className="mb-2 block text-sm font-bold">Trạng thái</span><select className={selectClass} value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="">Tất cả</option>{statuses?.map((status) => <option key={status.code} value={status.code}>{status.name}</option>)}</select></label>
+        <label><span className="mb-2 block text-sm font-bold">Dự án</span><select disabled={projectsLoading || Boolean(projectsError) || !projectsData} className={selectClass} value={projectFilter} onChange={(event) => setProjectFilter(event.target.value)}><option value="">Tất cả</option>{projectsData?.results.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
+        <label><span className="mb-2 block text-sm font-bold">Người phụ trách</span><select disabled={assigneesLoading || Boolean(assigneesError) || !assignees} className={selectClass} value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value)}><option value="">Tất cả</option>{assignees?.map((assignee) => <option key={assignee.id} value={assignee.id}>{assignee.full_name}{!assignee.is_active ? ' (đã vô hiệu hóa)' : ''}{assignee.has_former_project_assignment ? ' (có việc ở dự án đã rời)' : ''}</option>)}</select></label>
+        <label><span className="mb-2 block text-sm font-bold">Trạng thái</span><select disabled={statusesLoading || Boolean(statusesError) || !statuses} className={selectClass} value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="">Tất cả</option>{statuses?.map((status) => <option key={status.code} value={status.code}>{status.name}</option>)}</select></label>
         <label><span className="mb-2 block text-sm font-bold">Ưu tiên</span><select className={selectClass} value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)}><option value="">Tất cả</option><option value="1">Thấp</option><option value="2">Trung bình</option><option value="3">Cao</option></select></label>
-        <label><span className="mb-2 block text-sm font-bold">Sắp xếp</span><select className={selectClass} value={ordering} onChange={(event) => setOrdering(event.target.value)}><option value="">Mới cập nhật</option><option value="deadline">Hạn gần nhất</option><option value="-priority">Ưu tiên cao trước</option><option value="title">Tên A–Z</option></select></label>
+        <label><span className="mb-2 block text-sm font-bold">Sắp xếp</span><select className={selectClass} value={ordering} onChange={(event) => setOrdering(event.target.value)}><option value="">Mới tạo</option><option value="deadline">Hạn gần nhất</option><option value="-priority">Ưu tiên cao trước</option><option value="title">Tên A–Z</option></select></label>
       </section>
+      {projectsError && <div role="alert" className="flex items-center gap-3 text-sm text-red-700">Không tải được bộ lọc dự án: {projectsError}<Button variant="secondary" onClick={reloadProjects}>Thử lại dự án</Button></div>}
+      {statusesError && <div role="alert" className="flex items-center gap-3 text-sm text-red-700">Không tải được bộ lọc trạng thái: {statusesError}<Button variant="secondary" onClick={reloadStatuses}>Thử lại trạng thái</Button></div>}
+      {assigneesError && <div role="alert" className="flex items-center gap-3 text-sm text-red-700">Không tải được bộ lọc người phụ trách: {assigneesError}<Button variant="secondary" onClick={reloadAssignees}>Thử lại người phụ trách</Button></div>}
       <section className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 md:grid-cols-3">
         <label><span className="mb-2 block text-sm font-bold">Hạn từ ngày</span><input type="date" className={selectClass} value={deadlineFrom} onChange={(event) => setDeadlineFrom(event.target.value)} /></label>
         <label><span className="mb-2 block text-sm font-bold">Đến ngày</span><input type="date" className={selectClass} value={deadlineTo} onChange={(event) => setDeadlineTo(event.target.value)} /></label>
@@ -158,10 +150,12 @@ export function TasksPage() {
           const project = projectById.get(task.project.id)
           const manageable = Boolean(user && project && canManageProject(user, project))
           return (
-            <article key={task.id} className={`grid gap-4 rounded-2xl border bg-white p-5 shadow-[var(--shadow)] md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center ${task.parent_id ? 'ml-5 border-l-4 border-l-sky-200 md:ml-10' : ''} ${task.is_overdue ? 'border-red-300' : 'border-slate-200'}`}>
+            <article key={task.id} className={`grid gap-4 rounded-2xl border bg-white p-5 shadow-[var(--shadow)] md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center ${task.parent_id ? 'border-l-4 border-l-sky-200' : ''} ${task.is_overdue ? 'border-red-300' : 'border-slate-200'}`}>
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2"><span className={`size-2.5 rounded-full ${task.priority === 3 ? 'bg-red-500' : task.priority === 2 ? 'bg-amber-400' : 'bg-slate-300'}`} /><h3 className="truncate font-extrabold text-slate-950">{task.title}</h3>{task.parent_id && <span className="rounded-full bg-sky-50 px-2 py-1 text-[10px] font-black uppercase text-sky-700">Task con</span>}{task.is_overdue && <span className="rounded-full bg-red-50 px-2 py-1 text-[10px] font-black uppercase text-red-700">Quá hạn</span>}</div>
                 <p className="mt-2 line-clamp-1 text-sm text-slate-500">{task.project.name} · {task.assignee?.full_name ?? 'Chưa phân công'} · {priorities[task.priority]} · {task.effective_estimated_hours ? `${task.effective_estimated_hours} giờ` : 'Chưa ước lượng'}</p>
+                <p className="mt-1 text-xs font-semibold text-slate-600">Hạn hoàn thành: {task.deadline ? formatDate(task.deadline) : 'Chưa đặt hạn'}</p>
+                {task.parent && <p className="mt-1 text-xs text-sky-700">Công việc cha: {task.parent.title}</p>}
                 <div className="mt-3 flex items-center gap-3"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${task.effective_progress}%` }} /></div><span className="font-mono text-xs font-black text-slate-600">{task.effective_progress}%</span></div>
               </div>
               {user && <TaskStatusSelect task={task} statuses={statuses ?? [task.status]} onChange={(transition) => { setStatusChange({ task, transition }); setStatusNote('') }} />}

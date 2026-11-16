@@ -3,7 +3,7 @@ from datetime import timedelta
 from django.db import transaction
 from django.db.models import Count, Max
 from django.utils import timezone
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import APIException, NotFound, ValidationError
 from apps.notifications.models import NotificationType
 from apps.notifications.services import create_notification
 from apps.projects.models import ProjectMember
@@ -13,6 +13,11 @@ from .workflow import validate_transition
 
 
 AUDITED_TASK_FIELDS = ("title", "description", "assignee", "priority", "deadline", "start_date", "estimated_hours", "progress", "parent")
+
+
+class TaskUpdateConflict(APIException):
+    status_code = 409
+    default_detail = 'Công việc đã được người khác cập nhật. Vui lòng tải lại trước khi lưu.'
 
 def audit_value(field, value):
     if field == "assignee":
@@ -187,6 +192,13 @@ class TaskService:
     def create_task(validated_data, actor=None):
         data = dict(validated_data)
         note = data.pop('note', '').strip()
+        if data.get('parent'):
+            parent = Task.objects.select_for_update(of=('self',)).select_related('status').filter(pk=data['parent'].pk).first()
+            if not parent or parent.is_deleted or parent.project_id != data['project'].id or parent.parent_id:
+                raise ValidationError({'parent': ['Công việc cha phải thuộc cùng dự án, chưa bị xóa và không phải công việc con.']})
+            if parent.status.code == TaskStatus.Code.COMPLETED:
+                raise ValidationError({'parent': ['Hãy mở lại công việc cha trước.']})
+            data['parent'] = parent
         TaskService.lock_assignee_membership(data['project'].id, data.get('assignee'))
         data.setdefault(
             "status", TaskStatus.objects.get(code=TaskStatus.Code.TODO)
@@ -225,14 +237,21 @@ class TaskService:
     @staticmethod
     @transaction.atomic
     def update_task(task, validated_data, actor=None):
+        validated_data = dict(validated_data)
+        expected = validated_data.pop('expected_updated_at', None)
         task = (
             Task.objects.select_for_update(of=("self",))
             .select_related("project", "project__creator", "assignee", "status")
             .get(pk=task.pk)
         )
+        if task.is_deleted or task.project.is_deleted:
+            raise NotFound('Không tìm thấy công việc.')
+        if expected is None or expected != task.updated_at:
+            raise TaskUpdateConflict()
         if 'assignee' in validated_data:
             TaskService.lock_assignee_membership(task.project_id, validated_data['assignee'])
         old_assignee_id = task.assignee_id
+        old_assignee = task.assignee
         changes = {}
         for field, value in validated_data.items():
             old_value = getattr(task, field)
@@ -252,12 +271,27 @@ class TaskService:
             changes=changes,
         )
 
+        if old_assignee and task.assignee_id != old_assignee_id:
+            is_member = ProjectMember.objects.filter(project_id=task.project_id, user_id=old_assignee_id).exists()
+            message = (
+                f'Bạn không còn được phân công công việc "{task.title}".'
+                if is_member else 'Một công việc trước đây được giao cho bạn đã thay đổi người phụ trách.'
+            )
+            create_notification(old_assignee, NotificationType.GENERAL, message)
         if task.assignee and task.assignee_id != old_assignee_id:
             create_notification(
                 task.assignee,
                 NotificationType.TASK_ASSIGNED,
                 f'Bạn được giao công việc "{task.title}".',
             )
+        elif task.assignee and task.assignee.is_active and (not actor or actor.pk != task.assignee_id):
+            labels = {'title': 'tên', 'description': 'nội dung', 'deadline': 'hạn hoàn thành', 'priority': 'mức ưu tiên'}
+            changed_fields = [label for field, label in labels.items() if field in changes]
+            if changed_fields and ProjectMember.objects.filter(project_id=task.project_id, user_id=task.assignee_id).exists():
+                create_notification(
+                    task.assignee, NotificationType.GENERAL,
+                    f'Công việc "{task.title}" đã thay đổi: {", ".join(changed_fields)}.',
+                )
         return task
 
     @staticmethod
@@ -314,6 +348,7 @@ class TaskService:
     @staticmethod
     @transaction.atomic
     def delete_task(task, actor):
+        task = Task.objects.select_for_update(of=('self',)).get(pk=task.pk)
         tasks = list(
             Task.objects.filter(pk__in=[task.pk, *task.subtasks.values_list("pk", flat=True)])
             .filter(is_deleted=False)

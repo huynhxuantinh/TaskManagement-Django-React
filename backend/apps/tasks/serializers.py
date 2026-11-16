@@ -2,11 +2,19 @@ from django.utils import timezone
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from apps.accounts.models import User
+from apps.accounts.models import Role, User
+from apps.accounts.serializers import UserSerializer
 from apps.projects.models import Project, ProjectMember
 
 from .models import Task, TaskAuditLog, TaskChecklistItem, TaskStatus
 from .workflow import allowed_transitions, can_change_task_status
+
+
+class TaskAssigneeSerializer(UserSerializer):
+    has_former_project_assignment = serializers.BooleanField(read_only=True)
+
+    class Meta(UserSerializer.Meta):
+        fields = (*UserSerializer.Meta.fields, 'has_former_project_assignment')
 
 
 class TaskUserSerializer(serializers.ModelSerializer):
@@ -49,6 +57,7 @@ class TaskSerializer(serializers.ModelSerializer):
     parent_id = serializers.IntegerField(read_only=True, allow_null=True)
     parent = TaskParentSerializer(read_only=True)
     has_subtasks = serializers.SerializerMethodField()
+    has_hidden_parent = serializers.SerializerMethodField()
     can_edit_checklist = serializers.SerializerMethodField()
     checklist_total = serializers.SerializerMethodField()
     checklist_done = serializers.SerializerMethodField()
@@ -65,6 +74,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "priority",
             "parent_id",
             "parent",
+            "has_hidden_parent",
             "has_subtasks",
             "start_date",
             "estimated_hours",
@@ -88,6 +98,22 @@ class TaskSerializer(serializers.ModelSerializer):
             and task.deadline < timezone.localdate()
             and task.status.code != TaskStatus.Code.COMPLETED
         )
+
+    def get_has_hidden_parent(self, task) -> bool:
+        if not task.parent_id:
+            return False
+        parent = task.parent
+        request = self.context.get('request')
+        if parent.is_deleted or not request or not request.user.is_authenticated:
+            return True
+        return request.user.role.code == Role.Code.EMPLOYEE and parent.assignee_id != request.user.id
+
+    def to_representation(self, task):
+        result = super().to_representation(task)
+        if result['has_hidden_parent']:
+            result['parent_id'] = None
+            result['parent'] = None
+        return result
 
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_allowed_transitions(self, task):
@@ -197,6 +223,7 @@ class TaskCreateSerializer(AssigneeMembershipMixin, serializers.ModelSerializer)
 
 
 class TaskUpdateSerializer(AssigneeMembershipMixin, serializers.ModelSerializer):
+    expected_updated_at = serializers.DateTimeField(write_only=True, required=False)
     parent = serializers.PrimaryKeyRelatedField(
         queryset=Task.objects.filter(is_deleted=False), required=False, allow_null=True
     )
@@ -209,7 +236,12 @@ class TaskUpdateSerializer(AssigneeMembershipMixin, serializers.ModelSerializer)
 
     class Meta:
         model = Task
-        fields = ("title", "description", "assignee_id", "priority", "deadline", "parent", "start_date", "estimated_hours", "progress")
+        fields = ("title", "description", "assignee_id", "priority", "deadline", "parent", "start_date", "estimated_hours", "progress", "expected_updated_at")
+
+    def validate(self, attrs):
+        if 'expected_updated_at' not in attrs:
+            raise serializers.ValidationError({'expected_updated_at': ['Vui lòng cung cấp phiên bản công việc.']})
+        return super().validate(attrs)
 
 
 class TaskStatusUpdateSerializer(serializers.Serializer):
@@ -308,6 +340,13 @@ class TaskAuditLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = TaskAuditLog
         fields = ("id", "actor", "action", "changes", "created_at")
+
+    def to_representation(self, instance):
+        result = super().to_representation(instance)
+        request = self.context.get('request')
+        if not request or request.user.role.code == Role.Code.EMPLOYEE:
+            result['changes'] = {key: value for key, value in result['changes'].items() if key != 'parent'}
+        return result
 
 
 class TaskAuditLogListDataSerializer(serializers.Serializer):

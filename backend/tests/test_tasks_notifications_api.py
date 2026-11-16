@@ -138,6 +138,129 @@ def test_task_create_enforces_role_membership_and_only_notifies_assignment(
 
 
 @pytest.mark.django_db(transaction=True)
+def test_edit_after_concurrent_soft_delete_returns_404_without_side_effects(task_users, task_statuses, task_project, monkeypatch):
+    task = make_task(task_project, task_statuses, task_users['employee'])
+    validated = Event()
+    proceed = Event()
+    original = TaskService.update_task
+
+    def delayed_update(*args, **kwargs):
+        validated.set()
+        assert proceed.wait(10)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(TaskService, 'update_task', delayed_update)
+
+    def edit():
+        close_old_connections()
+        try:
+            return api_as(task_users['manager']).patch(f'/api/v1/tasks/{task.id}/', {
+                'title': 'Changed after delete', 'expected_updated_at': task.updated_at.isoformat(),
+            }, format='json').status_code
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(edit)
+        try:
+            assert validated.wait(10)
+            assert api_as(task_users['manager']).delete(f'/api/v1/tasks/{task.id}/').status_code == 204
+        finally:
+            proceed.set()
+        assert future.result(timeout=10) == 404
+    task.refresh_from_db()
+    assert task.is_deleted and task.title != 'Changed after delete'
+    assert not TaskAuditLog.objects.filter(task=task, action=TaskAuditLog.Action.UPDATED).exists()
+    assert not Notification.objects.filter(user=task_users['employee'], message__contains='Changed after delete').exists()
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize('operation', ['complete', 'delete'])
+def test_parent_changes_after_child_validation_block_child_creation(task_users, task_statuses, task_project, monkeypatch, operation):
+    parent = make_task(task_project, task_statuses, task_users['employee'])
+    validated = Event()
+    proceed = Event()
+    original = TaskService.create_task
+
+    def delayed_create(validated_data, actor=None):
+        validated.set()
+        assert proceed.wait(10)
+        return original(validated_data, actor)
+
+    monkeypatch.setattr(TaskService, 'create_task', delayed_create)
+
+    def create_child():
+        close_old_connections()
+        try:
+            return api_as(task_users['manager']).post('/api/v1/tasks/', {
+                'title': 'Child', 'project_id': task_project.id, 'parent': parent.id,
+            }, format='json').status_code
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(create_child)
+        try:
+            assert validated.wait(10)
+            client = api_as(task_users['manager'])
+            if operation == 'complete':
+                changed = client.patch(f'/api/v1/tasks/{parent.id}/status/', {'status': 'COMPLETED'}, format='json')
+                assert changed.status_code == 200
+            else:
+                assert client.delete(f'/api/v1/tasks/{parent.id}/').status_code == 204
+        finally:
+            proceed.set()
+        assert future.result(timeout=10) == 400
+    assert not Task.objects.filter(parent=parent, is_deleted=False).exists()
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize('operation', ['complete', 'delete'])
+def test_parent_change_after_inflight_child_creation_is_consistent(task_users, task_statuses, task_project, monkeypatch, operation):
+    parent = make_task(task_project, task_statuses, task_users['employee'])
+    child_created = Event()
+    finish_create = Event()
+    from apps.tasks import services
+    original_notify = services.create_notification
+
+    def delayed_notify(*args, **kwargs):
+        child_created.set()
+        assert finish_create.wait(10)
+        return original_notify(*args, **kwargs)
+
+    monkeypatch.setattr(services, 'create_notification', delayed_notify)
+
+    def call(action):
+        close_old_connections()
+        try:
+            client = api_as(task_users['manager'])
+            if action == 'create':
+                return client.post('/api/v1/tasks/', {'title': 'Child', 'project_id': task_project.id, 'parent': parent.id, 'assignee_id': task_users['employee'].id}, format='json').status_code
+            if operation == 'complete':
+                return client.patch(f'/api/v1/tasks/{parent.id}/status/', {'status': 'COMPLETED'}, format='json').status_code
+            return client.delete(f'/api/v1/tasks/{parent.id}/').status_code
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        creating = executor.submit(call, 'create')
+        try:
+            assert child_created.wait(10)
+            changing = executor.submit(call, 'change')
+        finally:
+            finish_create.set()
+        assert creating.result(timeout=10) == 201
+        assert changing.result(timeout=10) == (400 if operation == 'complete' else 204)
+    parent.refresh_from_db()
+    if operation == 'complete':
+        assert parent.status.code != TaskStatus.Code.COMPLETED
+        assert Task.objects.filter(parent=parent, is_deleted=False).count() == 1
+    else:
+        assert parent.is_deleted
+        assert not Task.objects.filter(parent=parent, is_deleted=False).exists()
+
+
+@pytest.mark.django_db(transaction=True)
 def test_concurrent_member_removal_and_task_assignment(task_users, task_statuses, task_project, monkeypatch):
     checked = Event()
     continue_create = Event()
@@ -249,7 +372,7 @@ def test_task_deadline_cannot_exceed_project_end_date(
     )
     invalid_update = client.patch(
         f"/api/v1/tasks/{created.data['data']['id']}/",
-        {"deadline": (project_end + timedelta(days=1)).isoformat()},
+        {"deadline": (project_end + timedelta(days=1)).isoformat(), "expected_updated_at": created.data['data']['updated_at']},
         format="json",
     )
 
@@ -374,6 +497,85 @@ def test_task_csv_export_escapes_formula_values(task_users, task_statuses, task_
 
 
 @pytest.mark.django_db
+def test_reassignment_notifies_previous_assignee_without_leaking_to_former_member(task_users, task_statuses, task_project):
+    old = task_users['employee']
+    new = task_users['employee2']
+    task = make_task(task_project, task_statuses, old)
+    client = api_as(task_users['manager'])
+    updated = client.patch(f'/api/v1/tasks/{task.id}/', {
+        'assignee_id': new.id, 'expected_updated_at': task.updated_at.isoformat(),
+    }, format='json')
+    assert updated.status_code == 200
+    assert Notification.objects.filter(user=old, type=NotificationType.GENERAL, message=f'Bạn không còn được phân công công việc "{task.title}".').count() == 1
+    assert Notification.objects.filter(user=new, type=NotificationType.TASK_ASSIGNED).count() == 1
+    task.refresh_from_db()
+    unchanged = client.patch(f'/api/v1/tasks/{task.id}/', {'progress': 10, 'expected_updated_at': task.updated_at.isoformat()}, format='json')
+    assert unchanged.status_code == 200
+    assert Notification.objects.filter(user=old, type=NotificationType.GENERAL).count() == 1
+    task.refresh_from_db()
+    removed = client.patch(f'/api/v1/tasks/{task.id}/', {'assignee_id': None, 'expected_updated_at': task.updated_at.isoformat()}, format='json')
+    assert removed.status_code == 200
+    assert Notification.objects.filter(user=new, type=NotificationType.GENERAL).count() == 1
+
+    completed = make_task(task_project, task_statuses, old, status=task_statuses['COMPLETED'], title='Sensitive')
+    ProjectMember.objects.filter(project=task_project, user=old).delete()
+    response = client.patch(f'/api/v1/tasks/{completed.id}/', {'assignee_id': new.id, 'expected_updated_at': completed.updated_at.isoformat()}, format='json')
+    assert response.status_code == 200
+    latest = Notification.objects.filter(user=old, type=NotificationType.GENERAL).latest('id')
+    assert 'Sensitive' not in latest.message
+
+
+@pytest.mark.django_db
+def test_important_task_edits_notify_assignee_once_and_rollback_on_failure(task_users, task_statuses, task_project, monkeypatch):
+    assignee = task_users['employee']
+    task = make_task(task_project, task_statuses, assignee)
+    client = api_as(task_users['manager'])
+    url = f'/api/v1/tasks/{task.id}/'
+    response = client.patch(url, {
+        'description': 'Nội dung mới', 'deadline': '2027-01-01', 'priority': 3,
+        'expected_updated_at': task.updated_at.isoformat(),
+    }, format='json')
+    assert response.status_code == 200
+    notifications = Notification.objects.filter(user=assignee, type=NotificationType.GENERAL)
+    assert notifications.count() == 1
+    assert 'nội dung' in notifications.first().message
+    assert 'hạn hoàn thành' in notifications.first().message
+    assert 'mức ưu tiên' in notifications.first().message
+    task.refresh_from_db()
+    same = client.patch(url, {'description': task.description, 'expected_updated_at': task.updated_at.isoformat()}, format='json')
+    assert same.status_code == 200
+    assert notifications.count() == 1
+
+    def fail_notification(*args, **kwargs):
+        raise RuntimeError('notification failed')
+
+    monkeypatch.setattr('apps.tasks.services.create_notification', fail_notification)
+    task.refresh_from_db()
+    with pytest.raises(RuntimeError, match='notification failed'):
+        client.patch(url, {'title': 'Updated', 'expected_updated_at': task.updated_at.isoformat()}, format='json')
+    task.refresh_from_db()
+    assert task.title != 'Updated'
+
+
+@pytest.mark.django_db
+def test_task_update_requires_current_version_and_rejects_stale_changes(task_users, task_statuses, task_project):
+    task = make_task(task_project, task_statuses, task_users['employee'])
+    client = api_as(task_users['manager'])
+    url = f'/api/v1/tasks/{task.id}/'
+    version = task.updated_at.isoformat()
+    missing = client.patch(url, {'title': 'No version'}, format='json')
+    assert missing.status_code == 400
+    assert 'expected_updated_at' in missing.data['errors']
+    first = client.patch(url, {'description': 'New description', 'expected_updated_at': version}, format='json')
+    assert first.status_code == 200
+    stale = client.patch(url, {'title': 'Stale title', 'description': 'Old description', 'expected_updated_at': version}, format='json')
+    assert stale.status_code == 409
+    task.refresh_from_db()
+    assert task.description == 'New description'
+    assert task.title != 'Stale title'
+
+
+@pytest.mark.django_db
 def test_task_detail_update_delete_permissions_and_soft_delete(
     task_users, task_statuses, task_project
 ):
@@ -392,6 +594,7 @@ def test_task_detail_update_delete_permissions_and_soft_delete(
         url,
         {
             "title": "Updated safely",
+            "expected_updated_at": task.updated_at.isoformat(),
             "assignee_id": task_users["employee2"].id,
             "deadline": "2026-11-01",
         },
@@ -438,7 +641,7 @@ def test_task_planning_fields_are_json_safe_in_audit_log(
 
     response = api_as(task_users["manager"]).patch(
         f"/api/v1/tasks/{task.id}/",
-        {"start_date": start_date.isoformat(), "estimated_hours": "12.50", "parent": parent.id},
+        {"start_date": start_date.isoformat(), "estimated_hours": "12.50", "parent": parent.id, "expected_updated_at": task.updated_at.isoformat()},
         format="json",
     )
 
@@ -858,10 +1061,35 @@ def test_reopening_task_requires_assignee_to_remain_in_project(task_users, task_
     assert 'không còn là thành viên' in str(blocked.data['errors'])
     task.refresh_from_db()
     assert task.status.code == TaskStatus.Code.COMPLETED
-    reassigned = client.patch(f'/api/v1/tasks/{task.id}/', {'assignee_id': task_users['employee2'].id}, format='json')
+    reassigned = client.patch(f'/api/v1/tasks/{task.id}/', {'assignee_id': task_users['employee2'].id, 'expected_updated_at': task.updated_at.isoformat()}, format='json')
     assert reassigned.status_code == 200
     reopened = client.patch(f'/api/v1/tasks/{task.id}/status/', {'status': 'IN_PROGRESS', 'note': 'Mở lại'}, format='json')
     assert reopened.status_code == 200
+
+
+@pytest.mark.django_db
+def test_parent_information_respects_task_visibility(task_users, task_statuses, task_project):
+    parent = make_task(task_project, task_statuses, task_users['employee2'], title='Tên cha bí mật')
+    child = make_task(task_project, task_statuses, task_users['employee'], parent=parent)
+    TaskAuditLog.objects.create(task=child, actor=task_users['manager'], action=TaskAuditLog.Action.UPDATED, changes={'parent': {'old': None, 'new': {'id': parent.id, 'title': parent.title}}})
+    employee = api_as(task_users['employee'])
+    detail = employee.get(f'/api/v1/tasks/{child.id}/').data['data']
+    assert detail['parent'] is None
+    assert detail['parent_id'] is None
+    assert detail['has_hidden_parent'] is True
+    listing = employee.get('/api/v1/tasks/').data['data']['results']
+    assert all('Tên cha bí mật' not in str(row) for row in listing)
+    history = employee.get(f'/api/v1/tasks/{child.id}/history/').data['data']['results']
+    assert 'Tên cha bí mật' not in str(history)
+    dashboard = employee.get('/api/v1/dashboard/summary/').data['data']['recent_tasks']
+    assert 'Tên cha bí mật' not in str(dashboard)
+    manager_detail = api_as(task_users['manager']).get(f'/api/v1/tasks/{child.id}/').data['data']
+    assert manager_detail['parent'] == {'id': parent.id, 'title': parent.title}
+    parent.assignee = task_users['employee']
+    parent.save(update_fields=['assignee'])
+    visible = employee.get(f'/api/v1/tasks/{child.id}/').data['data']
+    assert visible['parent']['title'] == parent.title
+    assert visible['has_hidden_parent'] is False
 
 
 @pytest.mark.django_db
@@ -899,8 +1127,8 @@ def test_completed_child_can_be_edited_without_reassigning_completed_parent(
     other = make_task(task_project, task_statuses, task_users["employee"])
     client = api_as(task_users["manager"])
 
-    edited = client.patch(f"/api/v1/tasks/{child.id}/", {"title": "Updated"}, format="json")
-    blocked = client.patch(f"/api/v1/tasks/{other.id}/", {"parent": parent.id}, format="json")
+    edited = client.patch(f"/api/v1/tasks/{child.id}/", {"title": "Updated", "expected_updated_at": child.updated_at.isoformat()}, format="json")
+    blocked = client.patch(f"/api/v1/tasks/{other.id}/", {"parent": parent.id, "expected_updated_at": other.updated_at.isoformat()}, format="json")
 
     assert edited.status_code == 200
     child.refresh_from_db()
@@ -979,6 +1207,7 @@ def test_task_history_records_actor_time_and_before_after_values(
         {
             "assignee_id": task_users["employee2"].id,
             "deadline": "2026-11-01",
+            "expected_updated_at": task.updated_at.isoformat(),
         },
         format="json",
     )
@@ -1118,19 +1347,29 @@ def test_task_status_metadata_and_overdue_field(
 
 @pytest.mark.django_db
 def test_task_assignee_metadata_is_scoped_to_visible_projects(
-    task_users, task_project
+    task_users, task_project, task_statuses
 ):
+    former = task_users['employee']
+    inactive = task_users['employee2']
+    make_task(task_project, task_statuses, former, status=task_statuses['COMPLETED'])
+    make_task(task_project, task_statuses, inactive)
+    ProjectMember.objects.filter(project=task_project, user=former).delete()
+    inactive.is_active = False
+    inactive.save(update_fields=['is_active'])
+    other = Project.objects.create(name='Other project', creator=task_users['admin'])
+    make_task(other, task_statuses, task_users['outsider'])
     response = api_as(task_users["manager2"]).get(
         "/api/v1/metadata/task-assignees/"
     )
 
     assert response.status_code == 200
-    assert {row["id"] for row in response.data["data"]} == {
-        task_users["manager"].id,
-        task_users["manager2"].id,
-        task_users["employee"].id,
-        task_users["employee2"].id,
-    }
+    rows = {row['id']: row for row in response.data['data']}
+    assert set(rows) == {former.id, inactive.id}
+    assert rows[former.id]['has_former_project_assignment'] is True
+    assert rows[inactive.id]['is_active'] is False
+    assert rows[inactive.id]['has_former_project_assignment'] is False
+    assert api_as(task_users['manager2']).get(f'/api/v1/tasks/?assignee={former.id}').data['data']['count'] == 1
+    assert api_as(former).get('/api/v1/metadata/task-assignees/').data['data'] == []
     assert task_users["outsider"].id not in {
         row["id"] for row in response.data["data"]
     }

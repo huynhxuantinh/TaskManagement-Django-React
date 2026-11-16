@@ -18,7 +18,7 @@ def scoped_projects(user):
 def scoped_tasks(user):
     queryset = Task.objects.filter(
         is_deleted=False, project__is_deleted=False
-    ).select_related("project", "assignee", "assignee__role", "status")
+    ).select_related("project", "project__creator__role", "assignee", "assignee__role", "status", "parent__status")
     if has_role(user, Role.Code.ADMIN):
         return queryset
     if has_role(user, Role.Code.MANAGER):
@@ -70,6 +70,9 @@ def dashboard_summary(user):
         "recent_tasks": list(
             tasks.annotate(
                 assignee_is_member=Exists(ProjectMember.objects.filter(project_id=OuterRef('project_id'), user_id=OuterRef('assignee_id'))),
+                unfinished_subtasks_count=Count(
+                    'subtasks', filter=Q(subtasks__is_deleted=False) & ~Q(subtasks__status__code=TaskStatus.Code.COMPLETED), distinct=True,
+                ),
                 checklist_total_count=Count("checklist_items", distinct=True),
                 checklist_done_count=Count(
                     "checklist_items",

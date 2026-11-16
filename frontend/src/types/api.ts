@@ -74,6 +74,7 @@ export interface Task {
   priority: number
   parent_id: number | null
   parent: { id: number; title: string } | null
+  has_hidden_parent?: boolean
   has_subtasks: boolean
   start_date: string | null
   estimated_hours: string | null

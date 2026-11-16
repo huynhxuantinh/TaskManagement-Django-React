@@ -40,7 +40,7 @@ class DashboardSummaryView(APIView):
     @extend_schema(tags=["Dashboard"], responses={200: DashboardResponseSerializer})
     def get(self, request):
         data = dashboard_summary(request.user)
-        data["recent_tasks"] = TaskSerializer(data["recent_tasks"], many=True).data
+        data["recent_tasks"] = TaskSerializer(data["recent_tasks"], many=True, context={'request': request}).data
         return success(data, "Lấy tổng quan thành công.")
 
 

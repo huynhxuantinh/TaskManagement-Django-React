@@ -12,6 +12,7 @@ const task = {
   id: 2, title: 'Old task', description: '', project, assignee: { id: 3, full_name: 'Former member' },
   status: { code: 'COMPLETED' }, priority: 2, parent_id: null, checklist_total: 0,
   has_subtasks: false, progress: 100, deadline: null, start_date: null, estimated_hours: null,
+  updated_at: '2026-11-16T00:00:00Z',
 } as unknown as Task
 
 describe('TaskForm assignee', () => {
@@ -90,6 +91,9 @@ describe('TaskForm assignee', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Lưu thay đổi' }))
     await waitFor(() => expect(mocks.apiRequest).toHaveBeenCalled())
     const body = JSON.parse(mocks.apiRequest.mock.calls[0][1].body)
+    expect(body.expected_updated_at).toBe(task.updated_at)
+    expect(body).not.toHaveProperty('description')
+    expect(body).not.toHaveProperty('deadline')
     if (changed) expect(body.assignee_id).toBeNull()
     else expect(body).not.toHaveProperty('assignee_id')
   })

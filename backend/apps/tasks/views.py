@@ -15,7 +15,6 @@ from rest_framework.viewsets import ModelViewSet
 
 from apps.accounts.models import Role, User
 from apps.accounts.permissions import has_role
-from apps.accounts.serializers import UserSerializer
 from apps.core.api import success
 from apps.projects.permissions import can_manage_project
 from apps.projects.models import ProjectMember
@@ -24,6 +23,7 @@ from .models import Task, TaskChecklistItem, TaskStatus
 from .serializers import (
     TaskAuditLogListResponseSerializer,
     TaskAuditLogSerializer,
+    TaskAssigneeSerializer,
     TaskChecklistItemSerializer,
     TaskChecklistItemResponseSerializer,
     TaskChecklistListResponseSerializer,
@@ -92,7 +92,14 @@ def csv_safe(value):
         tags=["Tasks"], request=TaskCreateSerializer, responses={201: TaskResponseSerializer}
     ),
     partial_update=extend_schema(
-        tags=["Tasks"], request=TaskUpdateSerializer, responses={200: TaskResponseSerializer}
+        tags=["Tasks"], request={"application/json": {"type": "object", "required": ["expected_updated_at"], "properties": {
+            "expected_updated_at": {"type": "string", "format": "date-time"},
+            "title": {"type": "string", "maxLength": 200}, "description": {"type": "string", "maxLength": 500},
+            "assignee_id": {"type": "integer", "nullable": True}, "parent": {"type": "integer", "nullable": True},
+            "priority": {"type": "integer", "enum": [1, 2, 3]}, "progress": {"type": "integer", "minimum": 0, "maximum": 100},
+            "start_date": {"type": "string", "format": "date", "nullable": True}, "deadline": {"type": "string", "format": "date", "nullable": True},
+            "estimated_hours": {"type": "string", "format": "decimal", "nullable": True},
+        }}}, responses={200: TaskResponseSerializer}
     ),
     destroy=extend_schema(tags=["Tasks"], responses={204: None}),
 )
@@ -215,7 +222,7 @@ class TaskViewSet(ModelViewSet):
         task = self.get_object()
         queryset = task.audit_logs.select_related("actor", "actor__role")
         page = self.paginate_queryset(queryset)
-        return self.get_paginated_response(TaskAuditLogSerializer(page, many=True).data)
+        return self.get_paginated_response(TaskAuditLogSerializer(page, many=True, context={'request': request}).data)
 
     @extend_schema(
         tags=["Tasks"], request=TaskStatusUpdateSerializer, responses={200: TaskResponseSerializer}
@@ -252,18 +259,23 @@ class TaskStatusListView(APIView):
 class TaskAssigneeListView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(tags=["Task metadata"], responses={200: UserSerializer(many=True)})
+    @extend_schema(tags=["Task metadata"], responses={200: TaskAssigneeSerializer(many=True)})
     def get(self, request):
-        users = User.objects.filter(is_active=True).select_related("role")
+        tasks = Task.objects.filter(is_deleted=False, project__is_deleted=False)
         if has_role(request.user, Role.Code.MANAGER):
-            users = users.filter(
-                project_memberships__project__is_deleted=False,
-                project_memberships__project__memberships__user=request.user,
-            ).distinct()
+            tasks = tasks.filter(project__memberships__user=request.user)
         elif not has_role(request.user, Role.Code.ADMIN):
-            users = users.filter(pk=request.user.pk)
+            tasks = tasks.filter(assignee=request.user, project__memberships__user=request.user)
+        former_assignments = tasks.filter(assignee_id=OuterRef('pk')).annotate(
+            assignee_member=Exists(ProjectMember.objects.filter(
+                project_id=OuterRef('project_id'), user_id=OuterRef('assignee_id'),
+            )),
+        ).filter(assignee_member=False)
+        users = User.objects.filter(pk__in=tasks.values('assignee_id')).select_related('role').annotate(
+            has_former_project_assignment=Exists(former_assignments),
+        )
         users = users.order_by("full_name", "id")
-        return success(UserSerializer(users, many=True).data, "Lấy người phụ trách thành công.")
+        return success(TaskAssigneeSerializer(users, many=True).data, "Lấy người phụ trách thành công.")
 
 
 class TaskChecklistAccessMixin:

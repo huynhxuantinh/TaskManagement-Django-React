@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Paginated, Project, Task, User } from '../types/api'
 import { TasksPage } from './TasksPage'
@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   reload: vi.fn(),
   setData: vi.fn(),
   notify: vi.fn(),
+  projectRetry: vi.fn(), statusRetry: vi.fn(), assigneeRetry: vi.fn(), filterErrors: false,
 }))
 
 const employee = {
@@ -65,7 +66,7 @@ function task(id: number, parentId: number | null): Task {
     effective_estimated_hours: null,
     checklist_total: 0,
     checklist_done: 0,
-    deadline: null,
+    deadline: parentId ? '2026-11-16' : null,
     is_overdue: false,
     created_at: '',
     updated_at: '',
@@ -81,8 +82,10 @@ const child = task(2, 1)
 vi.mock('../auth/AuthContext', () => ({ useAuth: () => ({ user: employee }) }))
 vi.mock('../components/ui/ToastContext', () => ({ useToast: () => mocks.notify }))
 vi.mock('../hooks/useAllPages', () => ({
-  useAllPages: () => ({
-    data: { count: 2, next: null, previous: null, results: [parent, child] } satisfies Paginated<Task>,
+  useAllPages: (path: string) => path.includes('/projects/') && mocks.filterErrors ? {
+    data: null, loading: false, error: 'Lỗi dự án', reload: mocks.projectRetry,
+  } : ({
+    data: { count: 2, next: null, previous: null, results: [child, parent] } satisfies Paginated<Task>,
     setData: mocks.setData,
     loading: false,
     error: '',
@@ -95,8 +98,9 @@ vi.mock('../hooks/useApiResource', () => ({
       return { data: { count: 1, next: null, previous: null, results: [project] } }
     }
     if (path.includes('task-statuses')) {
-      return { data: [{ code: 'IN_PROGRESS', name: 'In progress' }, { code: 'COMPLETED', name: 'Completed' }] }
+      return mocks.filterErrors ? { data: null, error: 'Lỗi trạng thái', reload: mocks.statusRetry } : { data: [{ code: 'IN_PROGRESS', name: 'In progress' }, { code: 'COMPLETED', name: 'Completed' }] }
     }
+    if (mocks.filterErrors) return { data: null, error: 'Lỗi người phụ trách', reload: mocks.assigneeRetry }
     return { data: [employee] }
   },
 }))
@@ -114,6 +118,7 @@ vi.mock('../features/core/TaskDetails', () => ({ TaskDetails: () => null }))
 vi.mock('../features/core/TaskHistory', () => ({ TaskHistory: () => null }))
 
 describe('TasksPage status synchronization', () => {
+  afterEach(() => { cleanup(); mocks.filterErrors = false })
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.apiRequest.mockResolvedValue({
@@ -121,6 +126,28 @@ describe('TasksPage status synchronization', () => {
       status: { code: 'COMPLETED', name: 'Completed' },
       effective_progress: 100,
     })
+  })
+
+  it('preserves API ordering even when a child precedes its parent', () => {
+    render(<MemoryRouter><TasksPage /></MemoryRouter>)
+    expect(screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual(['Child', 'Parent'])
+    expect(screen.getByText('Công việc cha: Parent')).toBeInTheDocument()
+    expect(screen.getByText('Hạn hoàn thành: 16/11/2026')).toBeInTheDocument()
+    expect(screen.getByText('Hạn hoàn thành: Chưa đặt hạn')).toBeInTheDocument()
+  })
+
+  it('reports each filter failure and retries independently', () => {
+    mocks.filterErrors = true
+    render(<MemoryRouter><TasksPage /></MemoryRouter>)
+    expect(screen.getByLabelText('Dự án')).toBeDisabled()
+    expect(screen.getByLabelText('Trạng thái')).toBeDisabled()
+    expect(screen.getByLabelText('Người phụ trách')).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Thử lại dự án' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Thử lại trạng thái' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Thử lại người phụ trách' }))
+    expect(mocks.projectRetry).toHaveBeenCalledOnce()
+    expect(mocks.statusRetry).toHaveBeenCalledOnce()
+    expect(mocks.assigneeRetry).toHaveBeenCalledOnce()
   })
 
   it('reloads the list after a child status changes', async () => {
