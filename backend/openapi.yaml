@@ -348,13 +348,30 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PatchedProjectWrite'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedProjectWrite'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedProjectWrite'
+              type: object
+              required:
+              - expected_updated_at
+              properties:
+                name:
+                  type: string
+                  maxLength: 200
+                description:
+                  type: string
+                  maxLength: 500
+                start_date:
+                  type: string
+                  format: date
+                  nullable: true
+                end_date:
+                  type: string
+                  format: date
+                  nullable: true
+                creator_id:
+                  type: integer
+                expected_updated_at:
+                  type: string
+                  format: date-time
+                  description: Giá trị updated_at đã đọc gần nhất.
       security:
       - jwtAuth: []
       responses:
@@ -1605,29 +1622,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/UserListResponse'
-    PatchedProjectWrite:
-      type: object
-      properties:
-        name:
-          type: string
-          maxLength: 200
-        description:
-          type: string
-          maxLength: 500
-        start_date:
-          type: string
-          format: date
-          nullable: true
-        end_date:
-          type: string
-          format: date
-          nullable: true
-        creator_id:
-          type: integer
-        expected_updated_at:
-          type: string
-          format: date-time
-          writeOnly: true
     PatchedRoleUpdate:
       type: object
       properties:
@@ -1974,6 +1968,8 @@ components:
         avatar_url:
           type: string
           readOnly: true
+        is_active:
+          type: boolean
       required:
       - avatar_url
       - email
@@ -2428,6 +2424,10 @@ components:
           nullable: true
         status:
           $ref: '#/components/schemas/TaskStatusCodeEnum'
+        note:
+          type: string
+          writeOnly: true
+          maxLength: 500
         priority:
           allOf:
           - $ref: '#/components/schemas/PriorityEnum'

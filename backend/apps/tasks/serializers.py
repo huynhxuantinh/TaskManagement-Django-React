@@ -155,6 +155,7 @@ class AssigneeMembershipMixin:
 
 
 class TaskCreateSerializer(AssigneeMembershipMixin, serializers.ModelSerializer):
+    note = serializers.CharField(write_only=True, required=False, allow_blank=True, max_length=500, trim_whitespace=True)
     parent = serializers.PrimaryKeyRelatedField(
         queryset=Task.objects.filter(is_deleted=False), required=False, allow_null=True
     )
@@ -179,6 +180,7 @@ class TaskCreateSerializer(AssigneeMembershipMixin, serializers.ModelSerializer)
             "project_id",
             "assignee_id",
             "status",
+            "note",
             "priority",
             "parent",
             "start_date",
@@ -186,6 +188,12 @@ class TaskCreateSerializer(AssigneeMembershipMixin, serializers.ModelSerializer)
             "progress",
             "deadline",
         )
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        if attrs.get('status') and attrs['status'].code == TaskStatus.Code.ON_HOLD and not attrs.get('note', '').strip():
+            raise serializers.ValidationError({'note': ['Vui lòng nhập lý do tạm dừng.']})
+        return attrs
 
 
 class TaskUpdateSerializer(AssigneeMembershipMixin, serializers.ModelSerializer):

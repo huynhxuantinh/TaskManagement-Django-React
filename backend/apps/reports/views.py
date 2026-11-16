@@ -113,7 +113,8 @@ class ReportMessageListCreateView(APIView):
     def get_queryset(self, user):
         return (
             ReportMessage.objects.filter(
-                Q(sender=user) | Q(receiver=user), project__is_deleted=False
+                Q(sender=user) | Q(receiver=user), project__is_deleted=False,
+                project__memberships__user=user,
             )
             .select_related(
                 "project", "sender", "sender__role", "receiver", "receiver__role"
@@ -165,7 +166,10 @@ class ReportMessageReadView(APIView):
         message = get_object_or_404(
             ReportMessage.objects.select_related(
                 "project", "sender", "sender__role", "receiver", "receiver__role"
-            ).filter(Q(sender=request.user) | Q(receiver=request.user)),
+            ).filter(
+                Q(sender=request.user) | Q(receiver=request.user),
+                project__is_deleted=False, project__memberships__user=request.user,
+            ),
             pk=pk,
         )
         if message.receiver_id != request.user.id:

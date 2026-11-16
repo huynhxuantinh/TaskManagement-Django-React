@@ -43,6 +43,45 @@ describe('ProjectForm', () => {
   beforeEach(() => vi.clearAllMocks())
   afterEach(cleanup)
 
+  it('reloads a conflicting project while retaining edited fields', async () => {
+    const conflict = Object.assign(new Error('Dự án đã thay đổi.'), { status: 409 })
+    const latest = { ...project, description: 'Mô tả mới từ người khác', updated_at: '2026-11-02T00:00:00Z' }
+    vi.mocked(apiRequest).mockRejectedValueOnce(conflict).mockResolvedValueOnce(latest).mockResolvedValueOnce(latest)
+    render(<ProjectForm project={project} ownerOptions={[manager]} onSaved={vi.fn()} onCancel={vi.fn()} />)
+    fireEvent.change(screen.getByLabelText('Tên dự án'), { target: { value: 'Tên tôi sửa' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu thay đổi' }))
+    const reloadButton = await screen.findByRole('button', { name: 'Tải dữ liệu mới' })
+    expect(screen.getByRole('button', { name: 'Lưu thay đổi' })).toBeDisabled()
+    fireEvent.click(reloadButton)
+    await waitFor(() => expect(screen.getByLabelText('Mô tả')).toHaveValue(latest.description))
+    expect(screen.getByLabelText('Tên dự án')).toHaveValue('Tên tôi sửa')
+    expect(screen.getByRole('status')).toHaveTextContent('Hãy kiểm tra lại')
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu thay đổi' }))
+    await waitFor(() => expect(apiRequest).toHaveBeenCalledTimes(3))
+    const [, options] = vi.mocked(apiRequest).mock.calls[2]
+    expect(JSON.parse(options!.body as string)).toEqual({ name: 'Tên tôi sửa', expected_updated_at: latest.updated_at })
+  })
+
+  it('edits a project without dates without requiring or sending them', async () => {
+    vi.mocked(apiRequest).mockResolvedValue({ ...project, start_date: null, end_date: null })
+    render(<ProjectForm project={{ ...project, start_date: null, end_date: null }} onSaved={vi.fn()} onCancel={vi.fn()} />)
+    fireEvent.change(screen.getByLabelText('Tên dự án'), { target: { value: 'Tên mới' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu thay đổi' }))
+    await waitFor(() => expect(apiRequest).toHaveBeenCalled())
+    const [, options] = vi.mocked(apiRequest).mock.calls[0]
+    expect(JSON.parse(options!.body as string)).toEqual({ name: 'Tên mới', expected_updated_at: project.updated_at })
+  })
+
+  it('creates a project with null dates when left empty', async () => {
+    vi.mocked(apiRequest).mockResolvedValue({ id: 1 })
+    render(<ProjectForm onSaved={vi.fn()} onCancel={vi.fn()} />)
+    fireEvent.change(screen.getByLabelText('Tên dự án'), { target: { value: 'Không có ngày' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Tạo dự án' }))
+    await waitFor(() => expect(apiRequest).toHaveBeenCalled())
+    const [, options] = vi.mocked(apiRequest).mock.calls[0]
+    expect(JSON.parse(options!.body as string)).toMatchObject({ start_date: null, end_date: null })
+  })
+
   it('shows the project description limit and current length', () => {
     render(<ProjectForm onSaved={vi.fn()} onCancel={vi.fn()} />)
     const description = screen.getByLabelText('Mô tả')

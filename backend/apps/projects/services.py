@@ -56,7 +56,7 @@ class ProjectService:
 
         if project.creator_id == user_id:
             raise CreatorRemovalConflict
-        membership = ProjectMember.objects.filter(
+        membership = ProjectMember.objects.select_for_update(of=('self',)).filter(
             project=project, user_id=user_id
         ).first()
         if membership is None:
@@ -67,5 +67,10 @@ class ProjectService:
             is_deleted=False,
         ).exclude(status__code=TaskStatus.Code.COMPLETED).exists():
             raise AssignedTasksConflict
+        removed_user = membership.user
         membership.delete()
+        create_notification(
+            removed_user, NotificationType.GENERAL,
+            f'Bạn đã được xóa khỏi dự án "{project.name}".',
+        )
         return True

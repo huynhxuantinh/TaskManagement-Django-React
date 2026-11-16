@@ -11,6 +11,8 @@ function apiPath(value: string) {
 
 export function useAllPages<T>(path: string | null) {
   const [data, setData] = useState<Paginated<T> | null>(null)
+  const [dataPath, setDataPath] = useState<string | null>(null)
+  const [requestPath, setRequestPath] = useState<string | null>(null)
   const [loading, setLoading] = useState(Boolean(path))
   const [error, setError] = useState('')
   const [version, setVersion] = useState(0)
@@ -21,6 +23,7 @@ export function useAllPages<T>(path: string | null) {
     if (!path) { loadedPath.current = null; return }
     const controller = new AbortController()
     async function load() {
+      setRequestPath(path)
       const isNewPath = loadedPath.current !== path
       if (isNewPath) setData(null)
       setLoading(isNewPath)
@@ -41,6 +44,7 @@ export function useAllPages<T>(path: string | null) {
         }
         if (!controller.signal.aborted) {
           loadedPath.current = path
+          setDataPath(path)
           setData({ count, next: null, previous: null, results })
         }
       } catch (caught) {
@@ -54,10 +58,10 @@ export function useAllPages<T>(path: string | null) {
   }, [path, version])
 
   return {
-    data: path ? data : null,
+    data: path && dataPath === path ? data : null,
     setData,
-    loading: path ? loading : false,
-    error: path ? error : '',
+    loading: path ? loading || requestPath !== path : false,
+    error: path && requestPath === path ? error : '',
     reload,
   }
 }

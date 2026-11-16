@@ -93,8 +93,7 @@ class ReportMessageCreateSerializer(serializers.ModelSerializer):
         project = attrs["project"]
         receiver = attrs["receiver"]
         request = self.context["request"]
-        is_admin = request.user.role.code == "ADMIN"
-        if not is_admin and not ProjectMember.objects.filter(
+        if not ProjectMember.objects.filter(
             project=project, user=request.user
         ).exists():
             raise serializers.ValidationError(

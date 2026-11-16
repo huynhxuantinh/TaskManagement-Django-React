@@ -2,6 +2,7 @@ import csv
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 from io import StringIO
+from threading import Event
 
 import pytest
 from django.db import close_old_connections, connections
@@ -12,6 +13,7 @@ from apps.accounts.models import Role, User
 from apps.notifications.models import Notification, NotificationType
 from apps.projects.models import Project, ProjectMember
 from apps.tasks.models import Task, TaskAuditLog, TaskChecklistItem, TaskStatus
+from apps.tasks.services import TaskService
 
 
 @pytest.fixture
@@ -133,6 +135,92 @@ def test_task_create_enforces_role_membership_and_only_notifies_assignment(
     ) == {
         'Bạn được giao công việc "Build task screen".',
     }
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_member_removal_and_task_assignment(task_users, task_statuses, task_project, monkeypatch):
+    checked = Event()
+    continue_create = Event()
+    original = TaskService.create_task
+
+    def delayed_create(validated_data, actor=None):
+        checked.set()
+        assert continue_create.wait(10)
+        return original(validated_data, actor)
+
+    monkeypatch.setattr(TaskService, 'create_task', delayed_create)
+
+    def create():
+        close_old_connections()
+        try:
+            return api_as(task_users['manager']).post('/api/v1/tasks/', {
+                'title': 'Concurrent task', 'project_id': task_project.id,
+                'assignee_id': task_users['employee'].id,
+            }, format='json').status_code
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(create)
+        try:
+            assert checked.wait(10)
+            removed = api_as(task_users['manager']).delete(
+                f"/api/v1/projects/{task_project.id}/members/{task_users['employee'].id}/"
+            )
+            assert removed.status_code == 204
+        finally:
+            continue_create.set()
+        status = future.result(timeout=10)
+    assert status == 400
+    assert not Task.objects.filter(project=task_project, assignee=task_users['employee'], is_deleted=False).exists()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_member_removal_waits_for_inflight_assignment(task_users, task_statuses, task_project, monkeypatch):
+    assigned = Event()
+    finish_assignment = Event()
+    from apps.tasks import services
+    original_notify = services.create_notification
+
+    def delayed_notify(*args, **kwargs):
+        assigned.set()
+        assert finish_assignment.wait(10)
+        return original_notify(*args, **kwargs)
+
+    monkeypatch.setattr(services, 'create_notification', delayed_notify)
+
+    def request(action):
+        close_old_connections()
+        try:
+            client = api_as(task_users['manager'])
+            if action == 'create':
+                return client.post('/api/v1/tasks/', {'title': 'Concurrent task', 'project_id': task_project.id, 'assignee_id': task_users['employee'].id}, format='json').status_code
+            return client.delete(f"/api/v1/projects/{task_project.id}/members/{task_users['employee'].id}/").status_code
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        creating = executor.submit(request, 'create')
+        try:
+            assert assigned.wait(10)
+            removing = executor.submit(request, 'remove')
+        finally:
+            finish_assignment.set()
+        assert creating.result(timeout=10) == 201
+        assert removing.result(timeout=10) == 409
+    assert ProjectMember.objects.filter(project=task_project, user=task_users['employee']).exists()
+
+
+@pytest.mark.django_db
+def test_creating_on_hold_requires_reason_and_records_it(task_users, task_statuses, task_project):
+    client = api_as(task_users['manager'])
+    payload = {'title': 'Paused task', 'project_id': task_project.id, 'status': 'ON_HOLD'}
+    assert client.post('/api/v1/tasks/', payload, format='json').status_code == 400
+    assert client.post('/api/v1/tasks/', {**payload, 'note': '   '}, format='json').status_code == 400
+    response = client.post('/api/v1/tasks/', {**payload, 'note': '  Chờ duyệt  '}, format='json')
+    assert response.status_code == 201
+    log = TaskAuditLog.objects.get(task_id=response.data['data']['id'], action=TaskAuditLog.Action.CREATED)
+    assert log.changes['note']['new'] == 'Chờ duyệt'
 
 
 @pytest.mark.django_db
@@ -754,6 +842,26 @@ def test_allowed_transitions_match_status_change_permission(
         TaskStatus.Code.ON_HOLD,
         TaskStatus.Code.COMPLETED,
     }
+
+
+@pytest.mark.django_db
+def test_reopening_task_requires_assignee_to_remain_in_project(task_users, task_statuses, task_project):
+    employee = task_users['employee']
+    task = make_task(task_project, task_statuses, employee, status=task_statuses[TaskStatus.Code.COMPLETED])
+    client = api_as(task_users['manager'])
+    removed = client.delete(f'/api/v1/projects/{task_project.id}/members/{employee.id}/')
+    assert removed.status_code == 204
+    detail = client.get(f'/api/v1/tasks/{task.id}/')
+    assert not any(item['code'] == TaskStatus.Code.IN_PROGRESS for item in detail.data['data']['allowed_transitions'])
+    blocked = client.patch(f'/api/v1/tasks/{task.id}/status/', {'status': 'IN_PROGRESS', 'note': 'Mở lại'}, format='json')
+    assert blocked.status_code == 400
+    assert 'không còn là thành viên' in str(blocked.data['errors'])
+    task.refresh_from_db()
+    assert task.status.code == TaskStatus.Code.COMPLETED
+    reassigned = client.patch(f'/api/v1/tasks/{task.id}/', {'assignee_id': task_users['employee2'].id}, format='json')
+    assert reassigned.status_code == 200
+    reopened = client.patch(f'/api/v1/tasks/{task.id}/status/', {'status': 'IN_PROGRESS', 'note': 'Mở lại'}, format='json')
+    assert reopened.status_code == 200
 
 
 @pytest.mark.django_db

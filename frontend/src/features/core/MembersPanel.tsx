@@ -68,7 +68,7 @@ export function MembersPanel({ project, user }: { project: Project; user: User }
         {data?.results.map((member) => (
           <article key={member.id} className="flex items-center gap-3 rounded-xl border border-slate-200 p-3">
             <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[var(--accent-soft)] text-xs font-black">{initials(member.user.full_name)}</span>
-            <div className="min-w-0 flex-1"><strong className="block truncate text-sm">{member.user.full_name}</strong><span className="block truncate text-xs text-slate-500">{member.user.email} · {roleLabel(member.user.role)}</span></div>
+            <div className="min-w-0 flex-1"><strong className="block truncate text-sm">{member.user.full_name}</strong><span className="block truncate text-xs text-slate-500">{member.user.email} · {roleLabel(member.user.role)}</span><span className={`mt-1 block text-xs font-semibold ${member.user.is_active ? 'text-emerald-700' : 'text-red-700'}`}>{member.user.is_active ? 'Đang hoạt động' : 'Đã vô hiệu hóa'}</span></div>
             {manageable && member.user.id !== project.creator.id && <Button variant="ghost" className="!min-h-9 !px-2 !text-red-700" onClick={() => void removeMember(member)} aria-label={`Xóa ${member.user.full_name}`}>×</Button>}
           </article>
         ))}

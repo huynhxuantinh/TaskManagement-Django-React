@@ -122,7 +122,7 @@ def test_project_end_date_cannot_precede_existing_task_deadline(project_users):
 
     rejected = client.patch(
         f"/api/v1/projects/{project.id}/",
-        {"end_date": "2026-12-01"},
+        {"end_date": "2026-12-01", "expected_updated_at": project.updated_at.isoformat()},
         format="json",
     )
 
@@ -135,7 +135,7 @@ def test_project_end_date_cannot_precede_existing_task_deadline(project_users):
     task.save(update_fields=["is_deleted"])
     accepted = client.patch(
         f"/api/v1/projects/{project.id}/",
-        {"end_date": "2026-12-01"},
+        {"end_date": "2026-12-01", "expected_updated_at": project.updated_at.isoformat()},
         format="json",
     )
     assert accepted.status_code == 200
@@ -196,7 +196,7 @@ def test_only_admin_or_creator_manager_can_update_and_soft_delete(project_users)
         f"/api/v1/projects/{project.id}/", {"name": "Hijacked"}, format="json"
     )
     updated = api_as(owner).patch(
-        f"/api/v1/projects/{project.id}/", {"name": "Updated"}, format="json"
+        f"/api/v1/projects/{project.id}/", {"name": "Updated", "expected_updated_at": project.updated_at.isoformat()}, format="json"
     )
     deleted = api_as(project_users["admin"]).delete(
         f"/api/v1/projects/{project.id}/"
@@ -240,6 +240,9 @@ def test_project_update_rejects_stale_version_without_overwriting(project_users)
     project = make_project(project_users['manager'])
     client = api_as(admin)
     original = client.get(f'/api/v1/projects/{project.id}/').data['data']['updated_at']
+    missing = client.patch(f'/api/v1/projects/{project.id}/', {'name': 'Không phiên bản'}, format='json')
+    assert missing.status_code == 400
+    assert 'expected_updated_at' in missing.data['errors']
     first = client.patch(f'/api/v1/projects/{project.id}/', {
         'description': 'Mô tả mới', 'expected_updated_at': original,
     }, format='json')
@@ -266,11 +269,45 @@ def test_owner_change_rolls_back_project_if_membership_creation_fails(project_us
     monkeypatch.setattr(ProjectMember.objects, 'get_or_create', fail_membership)
     with pytest.raises(RuntimeError, match='membership failed'):
         api_as(admin).patch(f'/api/v1/projects/{project.id}/', {
-            'name': 'Changed name', 'creator_id': admin.id,
+            'name': 'Changed name', 'creator_id': admin.id, 'expected_updated_at': project.updated_at.isoformat(),
         }, format='json')
     project.refresh_from_db()
     assert project.name == original_name
     assert project.creator_id == owner.id
+    assert not ProjectMember.objects.filter(project=project, user=admin).exists()
+
+
+@pytest.mark.django_db
+def test_owner_transfer_notifies_new_owner_and_rolls_back_on_failure(project_users, monkeypatch):
+    admin = project_users['admin']
+    owner = project_users['manager']
+    new_owner = project_users['manager2']
+    project = make_project(owner)
+    client = api_as(admin)
+    response = client.patch(f'/api/v1/projects/{project.id}/', {
+        'creator_id': new_owner.id, 'expected_updated_at': project.updated_at.isoformat(),
+    }, format='json')
+    assert response.status_code == 200
+    assert Notification.objects.filter(user=new_owner, type=NotificationType.PROJECT_ADDED, message=f'Bạn được chuyển giao quyền quản lý dự án "{project.name}".').count() == 1
+    project.refresh_from_db()
+    same = client.patch(f'/api/v1/projects/{project.id}/', {
+        'creator_id': new_owner.id, 'expected_updated_at': project.updated_at.isoformat(),
+    }, format='json')
+    assert same.status_code == 200
+    assert Notification.objects.filter(user=new_owner, type=NotificationType.PROJECT_ADDED).count() == 1
+    project.refresh_from_db()
+
+    def fail_notification(*args, **kwargs):
+        raise RuntimeError('notification failed')
+
+    monkeypatch.setattr('apps.projects.views.create_notification', fail_notification)
+    with pytest.raises(RuntimeError, match='notification failed'):
+        client.patch(f'/api/v1/projects/{project.id}/', {
+            'creator_id': admin.id, 'name': 'Updated', 'expected_updated_at': project.updated_at.isoformat(),
+        }, format='json')
+    project.refresh_from_db()
+    assert project.creator_id == new_owner.id
+    assert project.name != 'Updated'
     assert not ProjectMember.objects.filter(project=project, user=admin).exists()
 
 
@@ -280,12 +317,26 @@ def test_admin_can_assign_admin_as_project_owner(project_users):
     manager = project_users["manager"]
     project = make_project(manager)
     client = api_as(admin)
-    updated = client.patch(f"/api/v1/projects/{project.id}/", {"creator_id": admin.id}, format="json")
+    updated = client.patch(f"/api/v1/projects/{project.id}/", {"creator_id": admin.id, "expected_updated_at": project.updated_at.isoformat()}, format="json")
     assert updated.status_code == 200
     project.refresh_from_db()
     assert project.creator_id == admin.id
-    invalid = client.patch(f"/api/v1/projects/{project.id}/", {"creator_id": project_users["employee"].id}, format="json")
+    invalid = client.patch(f"/api/v1/projects/{project.id}/", {"creator_id": project_users["employee"].id, "expected_updated_at": project.updated_at.isoformat()}, format="json")
     assert invalid.status_code == 400
+
+
+@pytest.mark.django_db
+def test_project_members_include_account_active_status(project_users):
+    owner = project_users['manager']
+    employee = project_users['employee']
+    project = make_project(owner, members=[employee])
+    employee.is_active = False
+    employee.save(update_fields=['is_active'])
+    response = api_as(owner).get(f'/api/v1/projects/{project.id}/members/')
+    assert response.status_code == 200
+    statuses = {row['user']['id']: row['user']['is_active'] for row in response.data['data']['results']}
+    assert statuses[owner.id] is True
+    assert statuses[employee.id] is False
 
 
 @pytest.mark.django_db
@@ -338,6 +389,7 @@ def test_member_add_list_remove_conflicts_and_management_scope(project_users):
     assert hidden.status_code == 404
     assert remove_creator.status_code == 409
     assert removed.status_code == 204
+    assert Notification.objects.filter(user=employee, type=NotificationType.GENERAL, message='Bạn đã được xóa khỏi dự án "Project".').count() == 1
     assert missing.status_code == 404
 
 
@@ -362,6 +414,22 @@ def test_cannot_remove_member_with_open_assigned_task(project_users):
     )
 
     assert response.status_code == 409
+    assert ProjectMember.objects.filter(project=project, user=employee).exists()
+    assert not Notification.objects.filter(user=employee, type=NotificationType.GENERAL).exists()
+
+
+@pytest.mark.django_db
+def test_removing_member_rolls_back_if_notification_fails(project_users, monkeypatch):
+    owner = project_users['manager']
+    employee = project_users['employee']
+    project = make_project(owner, members=[employee])
+
+    def fail_notification(*args, **kwargs):
+        raise RuntimeError('notification failed')
+
+    monkeypatch.setattr('apps.projects.services.create_notification', fail_notification)
+    with pytest.raises(RuntimeError, match='notification failed'):
+        api_as(owner).delete(f'/api/v1/projects/{project.id}/members/{employee.id}/')
     assert ProjectMember.objects.filter(project=project, user=employee).exists()
 
 

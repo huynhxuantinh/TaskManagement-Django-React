@@ -11,7 +11,7 @@ class ProjectUserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ("id", "full_name", "email", "role", "avatar_url")
+        fields = ("id", "full_name", "email", "role", "avatar_url", "is_active")
 
 
 class ProjectSerializer(serializers.ModelSerializer):
@@ -55,6 +55,8 @@ class ProjectWriteSerializer(serializers.ModelSerializer):
         fields = ("name", "description", "start_date", "end_date", "creator_id", "expected_updated_at")
 
     def validate(self, attrs):
+        if self.instance and "expected_updated_at" not in attrs:
+            raise serializers.ValidationError({"expected_updated_at": ["Vui lòng cung cấp phiên bản dự án trước khi cập nhật."]})
         start = attrs.get("start_date", getattr(self.instance, "start_date", None))
         end = attrs.get("end_date", getattr(self.instance, "end_date", None))
         if start and end and end < start:

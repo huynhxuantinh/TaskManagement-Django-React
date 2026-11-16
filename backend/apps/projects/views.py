@@ -11,6 +11,8 @@ from rest_framework.viewsets import ModelViewSet
 from apps.accounts.models import Role, User
 from apps.accounts.permissions import has_role
 from apps.core.api import failure, success
+from apps.notifications.models import NotificationType
+from apps.notifications.services import create_notification
 from apps.tasks.progress import project_progress_summaries
 
 from .models import Project, ProjectMember
@@ -63,7 +65,18 @@ def attach_project_progress(projects):
     ),
     partial_update=extend_schema(
         tags=["Projects"],
-        request=ProjectWriteSerializer,
+        request={"application/json": {
+            "type": "object",
+            "required": ["expected_updated_at"],
+            "properties": {
+                "name": {"type": "string", "maxLength": 200},
+                "description": {"type": "string", "maxLength": 500},
+                "start_date": {"type": "string", "format": "date", "nullable": True},
+                "end_date": {"type": "string", "format": "date", "nullable": True},
+                "creator_id": {"type": "integer"},
+                "expected_updated_at": {"type": "string", "format": "date-time", "description": "Giá trị updated_at đã đọc gần nhất."},
+            },
+        }},
         responses={200: ProjectResponseSerializer},
     ),
     destroy=extend_schema(tags=["Projects"], responses={204: None}),
@@ -123,18 +136,24 @@ class ProjectViewSet(ModelViewSet):
         )
         serializer.is_valid(raise_exception=True)
         expected = serializer.validated_data.pop("expected_updated_at", None)
-        if expected is not None and expected != project.updated_at:
+        if expected != project.updated_at:
             return failure("Dự án đã được người khác cập nhật. Vui lòng tải lại trước khi lưu.", status=409)
         requested_creator = serializer.validated_data.pop("creator", None)
         if requested_creator is not None and not has_role(request.user, Role.Code.ADMIN):
             raise ValidationError(
                 {"creator_id": ["Chỉ quản trị viên được chọn chủ dự án."]}
             )
+        previous_creator_id = project.creator_id
         serializer.save()
         if requested_creator is not None:
             project.creator = requested_creator
             project.save(update_fields=["creator", "updated_at"])
             ProjectMember.objects.get_or_create(project=project, user=requested_creator)
+            if previous_creator_id != requested_creator.pk:
+                create_notification(
+                    requested_creator, NotificationType.PROJECT_ADDED,
+                    f'Bạn được chuyển giao quyền quản lý dự án "{project.name}".',
+                )
         project = attach_project_progress([project_queryset().get(pk=project.pk)])[0]
         return success(ProjectSerializer(project).data, "Cập nhật dự án thành công.")
 

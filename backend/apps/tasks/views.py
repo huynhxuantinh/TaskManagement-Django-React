@@ -2,7 +2,7 @@ import csv
 from datetime import timedelta
 
 from django.http import HttpResponse
-from django.db.models import Count, Prefetch, Q
+from django.db.models import Count, Exists, OuterRef, Prefetch, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view
@@ -18,6 +18,7 @@ from apps.accounts.permissions import has_role
 from apps.accounts.serializers import UserSerializer
 from apps.core.api import success
 from apps.projects.permissions import can_manage_project
+from apps.projects.models import ProjectMember
 
 from .models import Task, TaskChecklistItem, TaskStatus
 from .serializers import (
@@ -70,6 +71,7 @@ def task_queryset():
         "checklist_items",
         Prefetch("subtasks", queryset=active_subtasks, to_attr="active_subtasks"),
     ).annotate(
+        assignee_is_member=Exists(ProjectMember.objects.filter(project_id=OuterRef('project_id'), user_id=OuterRef('assignee_id'))),
         unfinished_subtasks_count=Count(
             "subtasks",
             filter=Q(subtasks__is_deleted=False)

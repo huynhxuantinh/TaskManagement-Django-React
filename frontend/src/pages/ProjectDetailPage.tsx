@@ -9,6 +9,7 @@ import { ProjectForm } from '../features/core/ProjectForm'
 import { TaskForm } from '../features/core/TaskForm'
 import { canManageProject } from '../features/core/permissions'
 import { Modal } from '../components/ui/Modal'
+import { Button } from '../components/ui/Button'
 import { StatePanel } from '../components/ui/StatePanel'
 import { useToast } from '../components/ui/ToastContext'
 import { useAllPages } from '../hooks/useAllPages'
@@ -27,7 +28,7 @@ export function ProjectDetailPage() {
   const { data: report, loading: reportLoading, error: reportError, reload: reloadReport } = useApiResource<ProjectReport>(projectId ? `/api/v1/reports/projects/${projectId}/` : null)
   const { data: tasks, loading: tasksLoading, error: tasksError, reload: reloadTasks } = useAllPages<Task>(projectId ? `/api/v1/tasks/?project=${projectId}&page_size=100&ordering=deadline` : null)
   const { data: statuses } = useApiResource<TaskStatus[]>('/api/v1/metadata/task-statuses/')
-  const { data: managers } = useAllPages<User>(
+  const { data: managers, loading: ownersLoading, error: ownersError, reload: reloadOwners } = useAllPages<User>(
     user?.role === 'ADMIN'
       ? '/api/v1/users/?is_active=true&page_size=100'
       : null,
@@ -84,6 +85,8 @@ export function ProjectDetailPage() {
         />
       </Modal>
       <Modal open={editing} title="Cập nhật dự án" onClose={() => setEditing(false)}>
+        {user.role === 'ADMIN' && ownersLoading && <p role="status" className="mb-4 text-sm text-slate-600">Đang tải danh sách chủ dự án…</p>}
+        {user.role === 'ADMIN' && ownersError && <div role="alert" className="mb-4 flex items-center gap-3 text-sm text-red-700"><span>Không tải được danh sách chủ dự án: {ownersError}</span><Button type="button" variant="secondary" onClick={reloadOwners}>Thử lại</Button></div>}
         <ProjectForm project={project} ownerOptions={managers?.results.filter((item) => item.is_active && item.role !== 'EMPLOYEE') ?? []} onCancel={() => setEditing(false)} onSaved={(saved) => { setProject(saved); setEditing(false); notify('Đã cập nhật dự án.') }} />
       </Modal>
     </div>

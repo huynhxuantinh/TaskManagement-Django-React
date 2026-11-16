@@ -3,8 +3,10 @@ from datetime import timedelta
 from django.db import transaction
 from django.db.models import Count, Max
 from django.utils import timezone
+from rest_framework.exceptions import ValidationError
 from apps.notifications.models import NotificationType
 from apps.notifications.services import create_notification
+from apps.projects.models import ProjectMember
 
 from .models import Task, TaskAuditLog, TaskChecklistItem, TaskStatus
 from .workflow import validate_transition
@@ -172,12 +174,25 @@ def send_deadline_notifications(reference_date=None):
 
 class TaskService:
     @staticmethod
+    def lock_assignee_membership(project_id, assignee):
+        if assignee is None:
+            return
+        if not ProjectMember.objects.select_for_update(of=('self',)).filter(
+            project_id=project_id, user_id=assignee.id,
+        ).exists():
+            raise ValidationError({'assignee_id': ['Người được giao phải là thành viên dự án.']})
+
+    @staticmethod
     @transaction.atomic
     def create_task(validated_data, actor=None):
         data = dict(validated_data)
+        note = data.pop('note', '').strip()
+        TaskService.lock_assignee_membership(data['project'].id, data.get('assignee'))
         data.setdefault(
             "status", TaskStatus.objects.get(code=TaskStatus.Code.TODO)
         )
+        if data['status'].code == TaskStatus.Code.ON_HOLD and not note:
+            raise ValidationError({'note': ['Vui lòng nhập lý do tạm dừng.']})
         if data["status"].code == TaskStatus.Code.COMPLETED:
             data["completed_at"] = timezone.now()
         task = Task.objects.create(**data)
@@ -196,6 +211,7 @@ class TaskService:
                     "new": audit_value("deadline", task.deadline),
                 },
                 "status": {"old": None, "new": task.status.code},
+                **({'note': {'old': None, 'new': note}} if note else {}),
             },
         )
         if task.assignee:
@@ -214,6 +230,8 @@ class TaskService:
             .select_related("project", "project__creator", "assignee", "status")
             .get(pk=task.pk)
         )
+        if 'assignee' in validated_data:
+            TaskService.lock_assignee_membership(task.project_id, validated_data['assignee'])
         old_assignee_id = task.assignee_id
         changes = {}
         for field, value in validated_data.items():
@@ -259,6 +277,10 @@ class TaskService:
         task.unfinished_subtasks_count = len(unfinished_subtasks)
         was_completed = task.status.code == TaskStatus.Code.COMPLETED
         is_completed = new_status.code == TaskStatus.Code.COMPLETED
+        if was_completed and not is_completed and task.assignee_id:
+            task.assignee_is_member = ProjectMember.objects.select_for_update(of=('self',)).filter(
+                project_id=task.project_id, user_id=task.assignee_id,
+            ).exists()
         if task.status_id == new_status.id:
             return task
         old_status = task.status.code

@@ -1,5 +1,6 @@
 from apps.accounts.models import Role
 from apps.projects.permissions import can_manage_project
+from apps.projects.models import ProjectMember
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from .models import TaskStatus
@@ -43,6 +44,8 @@ def allowed_transitions(task, actor):
     if not can_change_task_status(task, actor):
         return []
     codes = set(TRANSITIONS.get(task.status.code, set()))
+    if task.status.code == TaskStatus.Code.COMPLETED and task.assignee_id and not assignee_is_project_member(task):
+        codes.discard(TaskStatus.Code.IN_PROGRESS)
     if unfinished_subtasks_count(task):
         codes.discard(TaskStatus.Code.COMPLETED)
     if task.parent_id and task.parent.status.code == TaskStatus.Code.COMPLETED:
@@ -59,7 +62,16 @@ def allowed_transitions(task, actor):
     ]
 
 
+def assignee_is_project_member(task):
+    if hasattr(task, 'assignee_is_member'):
+        return task.assignee_is_member
+    return ProjectMember.objects.filter(project_id=task.project_id, user_id=task.assignee_id).exists()
+
+
 def validate_transition(task, new_status, actor, note):
+    if (task.status.code == TaskStatus.Code.COMPLETED and new_status.code == TaskStatus.Code.IN_PROGRESS
+            and task.assignee_id and not assignee_is_project_member(task)):
+        raise ValidationError({"status": "Người phụ trách không còn là thành viên dự án. Hãy chuyển công việc hoặc thêm lại thành viên trước khi mở lại."})
     if new_status.code == TaskStatus.Code.COMPLETED:
         count = unfinished_subtasks_count(task)
         if count:

@@ -1,9 +1,9 @@
-from django.db.models import Count, F, Prefetch, Q
+from django.db.models import Count, Exists, F, OuterRef, Prefetch, Q
 from django.utils import timezone
 
 from apps.accounts.models import Role, User
 from apps.accounts.permissions import has_role
-from apps.projects.models import Project
+from apps.projects.models import Project, ProjectMember
 from apps.tasks.models import Task, TaskStatus
 from apps.tasks.progress import progress_task_queryset, project_progress_summaries
 
@@ -69,6 +69,7 @@ def dashboard_summary(user):
         ],
         "recent_tasks": list(
             tasks.annotate(
+                assignee_is_member=Exists(ProjectMember.objects.filter(project_id=OuterRef('project_id'), user_id=OuterRef('assignee_id'))),
                 checklist_total_count=Count("checklist_items", distinct=True),
                 checklist_done_count=Count(
                     "checklist_items",

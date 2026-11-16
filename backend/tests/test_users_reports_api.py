@@ -588,6 +588,32 @@ def test_admin_rejects_cross_identifier_collisions(report_users):
 
 
 @pytest.mark.django_db
+def test_removed_members_cannot_view_or_mark_project_reports(report_users, report_data):
+    project = report_data['managed']
+    sender = report_users['employee']
+    receiver = report_users['employee2']
+    message = ReportMessage.objects.create(project=project, sender=sender, receiver=receiver, title='Private', content='Secret')
+    sender_client = api_as(sender)
+    receiver_client = api_as(receiver)
+    admin_post = api_as(report_users['admin']).post('/api/v1/reports/messages/', {
+        'project_id': project.id, 'receiver_id': receiver.id, 'title': 'Report', 'content': 'Secret',
+    }, format='json')
+    assert admin_post.status_code == 400
+    assert sender_client.get('/api/v1/reports/messages/').data['data']['count'] == 1
+    assert receiver_client.get('/api/v1/reports/messages/').data['data']['count'] == 1
+    ProjectMember.objects.filter(project=project, user__in=[sender, receiver]).delete()
+    assert sender_client.get('/api/v1/reports/messages/').data['data']['count'] == 0
+    assert receiver_client.get('/api/v1/reports/messages/').data['data']['count'] == 0
+    assert receiver_client.patch(f'/api/v1/reports/messages/{message.id}/read/').status_code == 404
+    assert ReportMessage.objects.filter(pk=message.id).exists()
+    ProjectMember.objects.create(project=project, user=receiver)
+    assert receiver_client.get('/api/v1/reports/messages/').data['data']['count'] == 1
+    project.is_deleted = True
+    project.save(update_fields=['is_deleted'])
+    assert receiver_client.patch(f'/api/v1/reports/messages/{message.id}/read/').status_code == 404
+
+
+@pytest.mark.django_db
 def test_report_messages_validate_members_and_scope_sender_receiver(
     report_users, report_statuses, report_data
 ):
