@@ -27,13 +27,13 @@ export function RoleRoute({ allowedRoles }: { allowedRoles: RoleCode[] }) {
   const { user } = useAuth()
   if (!user || !allowedRoles.includes(user.role)) {
     return (
-      <main className="grid min-h-[70vh] place-items-center p-6">
+      <div className="grid min-h-[70vh] place-items-center p-6">
         <StatePanel
           eyebrow="403 / Restricted"
           title="Bạn không có quyền truy cập"
           description="Khu vực này được giới hạn theo vai trò tài khoản."
         />
-      </main>
+      </div>
     )
   }
   return <Outlet />

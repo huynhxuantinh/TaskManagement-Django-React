@@ -43,6 +43,7 @@ const project = {
   progress: 50,
   missing_estimate_count: 0,
   created_at: '',
+  updated_at: '',
 } satisfies Project
 
 function task(id: number, parentId: number | null): Task {

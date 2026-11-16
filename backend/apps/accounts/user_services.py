@@ -1,6 +1,8 @@
 from uuid import uuid4
 from urllib.parse import urlparse
 
+from django.utils import timezone
+
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
@@ -75,7 +77,7 @@ def transfer_owned_projects(user, replacement):
     for project in projects:
         ProjectMember.objects.get_or_create(project=project, user=replacement)
     Project.objects.filter(pk__in=[project.pk for project in projects]).update(
-        creator=replacement
+        creator=replacement, updated_at=timezone.now()
     )
     return len(projects)
 

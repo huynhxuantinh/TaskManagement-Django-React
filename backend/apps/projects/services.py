@@ -21,9 +21,14 @@ class AssignedTasksConflict(Exception):
 class ProjectService:
     @staticmethod
     @transaction.atomic
-    def create_project(creator, validated_data):
+    def create_project(creator, validated_data, actor=None):
         project = Project.objects.create(creator=creator, **validated_data)
         ProjectMember.objects.create(project=project, user=creator)
+        if actor is not None and actor.pk != creator.pk:
+            create_notification(
+                creator, NotificationType.PROJECT_ADDED,
+                f'Bạn được chỉ định làm chủ dự án "{project.name}".',
+            )
         return project
 
     @staticmethod

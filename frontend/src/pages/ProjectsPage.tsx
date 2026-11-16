@@ -10,19 +10,20 @@ import { useAllPages } from '../hooks/useAllPages'
 import type { Project, User } from '../types/api'
 import { ProjectForm } from '../features/core/ProjectForm'
 import { canCreateProjects } from '../features/core/permissions'
-
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat('vi-VN').format(new Date(`${value}T00:00:00`))
-}
+import { formatDate } from '../lib/date'
 
 export function ProjectsPage() {
   const { user } = useAuth()
   const [query, setQuery] = useState('')
   const [search, setSearch] = useState('')
+  const [sortField, setSortField] = useState('created_at')
+  const [sortDirection, setSortDirection] = useState('desc')
   const [creating, setCreating] = useState(false)
-  const path = `/api/v1/projects/?page_size=100&search=${encodeURIComponent(search)}`
+  const ordering = `${sortDirection === 'desc' ? '-' : ''}${sortField}`
+  const path = `/api/v1/projects/?page_size=100&search=${encodeURIComponent(search)}&ordering=${ordering}`
   const { data, loading, error, reload } = useAllPages<Project>(path)
-  const { data: managers } = useAllPages<User>(user?.role === 'ADMIN' ? '/api/v1/users/?role=MANAGER&is_active=true&page_size=100' : null)
+  const { data: managers, loading: ownersLoading, error: ownersError, reload: reloadOwners } = useAllPages<User>(user?.role === 'ADMIN' ? '/api/v1/users/?is_active=true&page_size=100' : null)
+  const ownersReady = user?.role !== 'ADMIN' || Boolean(managers && !ownersLoading && !ownersError)
 
   function submitSearch(event: FormEvent) {
     event.preventDefault()
@@ -33,12 +34,17 @@ export function ProjectsPage() {
     <div className="space-y-6">
       <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div><p className="section-kicker">Danh mục dự án / {data?.count ?? 0}</p><h2 className="mt-1 text-3xl font-black tracking-tight text-slate-950">Dự án trong phạm vi</h2><p className="mt-2 text-sm text-slate-600">Theo dõi tiến độ, mốc thời gian và đội phụ trách.</p></div>
-        {user && canCreateProjects(user) && <Button onClick={() => setCreating(true)}>+ Tạo dự án</Button>}
+        {user && canCreateProjects(user) && <Button disabled={!ownersReady} onClick={() => setCreating(true)}>+ Tạo dự án</Button>}
       </header>
 
-      <form onSubmit={submitSearch} className="flex gap-2 rounded-2xl border border-slate-200 bg-white p-3">
+      {user?.role === 'ADMIN' && ownersLoading && <p role="status" className="text-sm text-slate-600">Đang tải danh sách chủ dự án…</p>}
+      {user?.role === 'ADMIN' && ownersError && <div role="alert" className="flex items-center gap-3 text-sm text-red-700"><span>Không tải được danh sách chủ dự án: {ownersError}</span><Button variant="secondary" onClick={reloadOwners}>Thử lại</Button></div>}
+
+      <form onSubmit={submitSearch} className="flex flex-wrap gap-3 rounded-2xl border border-slate-200 bg-white p-3">
         <Field aria-label="Tìm dự án" label="Tìm dự án" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tên hoặc mô tả…" className="md:w-96" />
         <Button type="submit" variant="secondary" className="self-end">Tìm</Button>
+        <label className="block text-sm font-bold"><span className="mb-2 block">Sắp xếp theo</span><select className="min-h-12 rounded-xl border border-slate-300 bg-white px-4" value={sortField} onChange={(event) => setSortField(event.target.value)}><option value="name">Tên dự án</option><option value="start_date">Ngày bắt đầu</option><option value="end_date">Ngày kết thúc</option><option value="created_at">Ngày tạo</option></select></label>
+        <label className="block text-sm font-bold"><span className="mb-2 block">Thứ tự</span><select className="min-h-12 rounded-xl border border-slate-300 bg-white px-4" value={sortDirection} onChange={(event) => setSortDirection(event.target.value)}><option value="asc">Tăng dần</option><option value="desc">Giảm dần</option></select></label>
       </form>
 
       {error && <StatePanel eyebrow="Lỗi đồng bộ" title="Không tải được dự án" description={error} />}
@@ -56,7 +62,7 @@ export function ProjectsPage() {
       </section>
 
       <Modal open={creating} title="Tạo dự án mới" onClose={() => setCreating(false)}>
-        <ProjectForm ownerOptions={managers?.results ?? []} onCancel={() => setCreating(false)} onSaved={() => { setCreating(false); reload() }} />
+        {ownersReady ? <ProjectForm ownerOptions={managers?.results.filter((item) => item.is_active && item.role !== 'EMPLOYEE') ?? []} onCancel={() => setCreating(false)} onSaved={() => { setCreating(false); reload() }} /> : <p role="status">Vui lòng tải lại danh sách chủ dự án trước khi tạo.</p>}
       </Modal>
     </div>
   )

@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.db.models import Count
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema, extend_schema_view
@@ -100,24 +101,30 @@ class ProjectViewSet(ModelViewSet):
             raise PermissionDenied("Bạn không có quyền tạo dự án.")
         serializer = ProjectWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        serializer.validated_data.pop("expected_updated_at", None)
         requested_creator = serializer.validated_data.pop("creator", None)
         if requested_creator is not None and not has_role(request.user, Role.Code.ADMIN):
             raise ValidationError(
                 {"creator_id": ["Chỉ quản trị viên được chọn chủ dự án."]}
             )
         project = ProjectService.create_project(
-            requested_creator or request.user, serializer.validated_data
+            requested_creator or request.user, serializer.validated_data, actor=request.user
         )
         project = attach_project_progress([project_queryset().get(pk=project.pk)])[0]
         return success(ProjectSerializer(project).data, "Tạo dự án thành công.", 201)
 
+    @transaction.atomic
     def partial_update(self, request, *args, **kwargs):
-        project = self.get_object()
+        visible_project = self.get_object()
+        project = Project.objects.select_for_update(of=("self",)).select_related("creator", "creator__role").get(pk=visible_project.pk)
         self._require_manager(project)
         serializer = ProjectWriteSerializer(
             project, data=request.data, partial=True
         )
         serializer.is_valid(raise_exception=True)
+        expected = serializer.validated_data.pop("expected_updated_at", None)
+        if expected is not None and expected != project.updated_at:
+            return failure("Dự án đã được người khác cập nhật. Vui lòng tải lại trước khi lưu.", status=409)
         requested_creator = serializer.validated_data.pop("creator", None)
         if requested_creator is not None and not has_role(request.user, Role.Code.ADMIN):
             raise ValidationError(
@@ -126,7 +133,7 @@ class ProjectViewSet(ModelViewSet):
         serializer.save()
         if requested_creator is not None:
             project.creator = requested_creator
-            project.save(update_fields=["creator"])
+            project.save(update_fields=["creator", "updated_at"])
             ProjectMember.objects.get_or_create(project=project, user=requested_creator)
         project = attach_project_progress([project_queryset().get(pk=project.pk)])[0]
         return success(ProjectSerializer(project).data, "Cập nhật dự án thành công.")
@@ -168,11 +175,11 @@ class ProjectViewSet(ModelViewSet):
                 User, pk=serializer.validated_data["user_id"], is_active=True
             )
         else:
-            user = get_object_or_404(
-                User,
-                email__iexact=serializer.validated_data["email"],
-                is_active=True,
-            )
+            user = User.objects.filter(
+                email__iexact=serializer.validated_data["email"], is_active=True
+            ).first()
+            if user is None:
+                return failure("Không tìm thấy người dùng với email này.", status=404)
         try:
             membership = ProjectService.add_member(project, user)
         except MembershipConflict:

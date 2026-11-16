@@ -16,6 +16,7 @@ class Project(models.Model):
     )
     is_deleted = models.BooleanField(default=False)
     created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["id"]

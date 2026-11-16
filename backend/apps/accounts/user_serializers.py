@@ -1,5 +1,6 @@
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db.models import Q
 from rest_framework import serializers
 
 from apps.notifications.models import NotificationType, Preference
@@ -25,13 +26,13 @@ class UserAdminCreateSerializer(serializers.Serializer):
 
     def validate_username(self, value):
         username = value.strip().lower()
-        if User.objects.filter(username__iexact=username).exists():
+        if User.objects.filter(Q(username__iexact=username) | Q(email__iexact=username)).exists():
             raise serializers.ValidationError("Tên đăng nhập đã tồn tại.")
         return username
 
     def validate_email(self, value):
         email = value.strip().lower()
-        if User.objects.filter(email__iexact=email).exists():
+        if User.objects.filter(Q(email__iexact=email) | Q(username__iexact=email)).exists():
             raise serializers.ValidationError("Email đã tồn tại.")
         return email
 
@@ -66,7 +67,7 @@ class UserAdminUpdateSerializer(serializers.ModelSerializer):
 
     def validate_email(self, value):
         email = value.strip().lower()
-        queryset = User.objects.filter(email__iexact=email)
+        queryset = User.objects.filter(Q(email__iexact=email) | Q(username__iexact=email))
         if self.instance:
             queryset = queryset.exclude(pk=self.instance.pk)
         if queryset.exists():

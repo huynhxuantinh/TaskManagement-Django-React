@@ -1624,6 +1624,10 @@ components:
           nullable: true
         creator_id:
           type: integer
+        expected_updated_at:
+          type: string
+          format: date-time
+          writeOnly: true
     PatchedRoleUpdate:
       type: object
       properties:
@@ -1812,6 +1816,10 @@ components:
         created_at:
           type: string
           format: date-time
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
       required:
       - creator
       - id
@@ -1819,6 +1827,7 @@ components:
       - missing_estimate_count
       - name
       - progress
+      - updated_at
     ProjectListData:
       type: object
       properties:
@@ -1990,6 +1999,10 @@ components:
           nullable: true
         creator_id:
           type: integer
+        expected_updated_at:
+          type: string
+          format: date-time
+          writeOnly: true
       required:
       - name
     ReadAllData:

@@ -49,6 +49,13 @@ const task: Task = {
 afterEach(cleanup)
 
 describe('ProjectDashboard', () => {
+  it('hides report metrics when the report request fails and keeps task list', () => {
+    render(<MemoryRouter><ProjectDashboard projectId={4} report={null} tasks={[task]} taskCount={1} showAllTasks loading={false} reportError="Lỗi kết nối" tasksError="" /></MemoryRouter>)
+    expect(screen.getByText('Không tải được số liệu')).toBeInTheDocument()
+    expect(screen.queryByText('Tổng công việc')).not.toBeInTheDocument()
+    expect(screen.queryByText('Đã hoàn thành')).not.toBeInTheDocument()
+    expect(screen.getByText('Viết kiểm thử giao diện')).toBeInTheDocument()
+  })
   it('hiển thị số liệu tổng quan và công việc dự án', () => {
     render(
       <MemoryRouter>

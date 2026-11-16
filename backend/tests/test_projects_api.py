@@ -213,6 +213,82 @@ def test_only_admin_or_creator_manager_can_update_and_soft_delete(project_users)
 
 
 @pytest.mark.django_db
+def test_project_owner_notified_only_when_assigned_by_other_user(project_users, monkeypatch):
+    admin = project_users["admin"]
+    manager = project_users["manager"]
+    client = api_as(admin)
+    response = client.post('/api/v1/projects/', {'name': 'Assigned project', 'creator_id': manager.id}, format='json')
+    assert response.status_code == 201
+    assert Notification.objects.filter(user=manager, type=NotificationType.PROJECT_ADDED, message='Bạn được chỉ định làm chủ dự án "Assigned project".').exists()
+    assert ProjectMember.objects.filter(project_id=response.data['data']['id'], user=manager).exists()
+    own = client.post('/api/v1/projects/', {'name': 'Own project'}, format='json')
+    assert own.status_code == 201
+    assert not Notification.objects.filter(user=admin, type=NotificationType.PROJECT_ADDED).exists()
+
+    def fail_notification(*args, **kwargs):
+        raise RuntimeError('notification failed')
+
+    monkeypatch.setattr('apps.projects.services.create_notification', fail_notification)
+    with pytest.raises(RuntimeError, match='notification failed'):
+        client.post('/api/v1/projects/', {'name': 'Rolled back', 'creator_id': manager.id}, format='json')
+    assert not Project.objects.filter(name='Rolled back').exists()
+
+
+@pytest.mark.django_db
+def test_project_update_rejects_stale_version_without_overwriting(project_users):
+    admin = project_users['admin']
+    project = make_project(project_users['manager'])
+    client = api_as(admin)
+    original = client.get(f'/api/v1/projects/{project.id}/').data['data']['updated_at']
+    first = client.patch(f'/api/v1/projects/{project.id}/', {
+        'description': 'Mô tả mới', 'expected_updated_at': original,
+    }, format='json')
+    assert first.status_code == 200
+    second = client.patch(f'/api/v1/projects/{project.id}/', {
+        'name': 'Tên mới', 'expected_updated_at': original,
+    }, format='json')
+    assert second.status_code == 409
+    project.refresh_from_db()
+    assert project.description == 'Mô tả mới'
+    assert project.name != 'Tên mới'
+
+
+@pytest.mark.django_db
+def test_owner_change_rolls_back_project_if_membership_creation_fails(project_users, monkeypatch):
+    admin = project_users['admin']
+    owner = project_users['manager']
+    project = make_project(owner)
+    original_name = project.name
+
+    def fail_membership(*args, **kwargs):
+        raise RuntimeError('membership failed')
+
+    monkeypatch.setattr(ProjectMember.objects, 'get_or_create', fail_membership)
+    with pytest.raises(RuntimeError, match='membership failed'):
+        api_as(admin).patch(f'/api/v1/projects/{project.id}/', {
+            'name': 'Changed name', 'creator_id': admin.id,
+        }, format='json')
+    project.refresh_from_db()
+    assert project.name == original_name
+    assert project.creator_id == owner.id
+    assert not ProjectMember.objects.filter(project=project, user=admin).exists()
+
+
+@pytest.mark.django_db
+def test_admin_can_assign_admin_as_project_owner(project_users):
+    admin = project_users["admin"]
+    manager = project_users["manager"]
+    project = make_project(manager)
+    client = api_as(admin)
+    updated = client.patch(f"/api/v1/projects/{project.id}/", {"creator_id": admin.id}, format="json")
+    assert updated.status_code == 200
+    project.refresh_from_db()
+    assert project.creator_id == admin.id
+    invalid = client.patch(f"/api/v1/projects/{project.id}/", {"creator_id": project_users["employee"].id}, format="json")
+    assert invalid.status_code == 400
+
+
+@pytest.mark.django_db
 def test_member_add_list_remove_conflicts_and_management_scope(project_users):
     owner = project_users["manager"]
     participant = project_users["manager2"]
@@ -220,6 +296,13 @@ def test_member_add_list_remove_conflicts_and_management_scope(project_users):
     outsider = project_users["outsider"]
     project = make_project(owner, members=[participant])
     url = f"/api/v1/projects/{project.id}/members/"
+
+    unknown = api_as(owner).post(url, {"email": "missing@example.com"}, format="json")
+    assert unknown.status_code == 404
+    assert unknown.data["message"] == "Không tìm thấy người dùng với email này."
+    invalid_page = api_as(owner).get(f"{url}?page=99999")
+    assert invalid_page.status_code == 404
+    assert invalid_page.data["message"] == "Trang không hợp lệ."
 
     added = api_as(owner).post(url, {"user_id": employee.id}, format="json")
     duplicate = api_as(owner).post(url, {"email": employee.email}, format="json")

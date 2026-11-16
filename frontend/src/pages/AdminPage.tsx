@@ -7,7 +7,7 @@ import { Modal } from '../components/ui/Modal'
 import { StatePanel } from '../components/ui/StatePanel'
 import { useToast } from '../components/ui/ToastContext'
 import { useAllPages } from '../hooks/useAllPages'
-import { apiRequest } from '../lib/api'
+import { ApiError, apiRequest } from '../lib/api'
 import { updateUser } from '../lib/users'
 import type { RoleCode, User } from '../types/api'
 
@@ -25,6 +25,7 @@ export function AdminPage() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [createError, setCreateError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
   const [editing, setEditing] = useState<User | undefined>()
   const [editFullName, setEditFullName] = useState('')
@@ -43,6 +44,13 @@ export function AdminPage() {
   function closeCreate() {
     setCreating(false)
     setCreateError('')
+    setFieldErrors({})
+    setFullName('')
+    setUsername('')
+    setEmail('')
+    setRole('EMPLOYEE')
+    setPassword('')
+    setConfirmPassword('')
   }
 
   function openEdit(user: User) {
@@ -82,8 +90,14 @@ export function AdminPage() {
 
   async function createAccount(event: FormEvent) {
     event.preventDefault()
+    setFieldErrors({})
+    setCreateError('')
+    if (!password.trim()) {
+      setFieldErrors({ password: 'Mật khẩu không được chỉ chứa khoảng trắng.' })
+      return
+    }
     if (password !== confirmPassword) {
-      setCreateError('Mật khẩu xác nhận không khớp.')
+      setFieldErrors({ confirmPassword: 'Mật khẩu xác nhận không khớp.' })
       return
     }
     setSaving(true)
@@ -99,17 +113,22 @@ export function AdminPage() {
           password,
         }),
       })
-      setFullName('')
-      setUsername('')
-      setEmail('')
-      setRole('EMPLOYEE')
-      setPassword('')
-      setConfirmPassword('')
       closeCreate()
       reload()
       notify('Đã tạo tài khoản nội bộ.')
     } catch (caught) {
-      setCreateError((caught as Error).message)
+      if (caught instanceof ApiError) {
+        const fields: Record<string, string> = {}
+        const general: string[] = []
+        for (const [key, value] of Object.entries(caught.errors ?? {})) {
+          const message = (Array.isArray(value) ? value : [value]).filter((item) => typeof item === 'string' && item.trim()).join(' ')
+          if (!message) continue
+          if (['full_name', 'username', 'email', 'role', 'password'].includes(key)) fields[key] = message
+          else general.push(message)
+        }
+        setFieldErrors(fields)
+        setCreateError(general.join(' ') || (Object.keys(fields).length ? '' : caught.message))
+      } else setCreateError((caught as Error).message)
     } finally {
       setSaving(false)
     }
@@ -233,24 +252,24 @@ export function AdminPage() {
 
       <Modal open={creating} title="Tạo tài khoản nội bộ" onClose={closeCreate}>
         <form className="space-y-4" onSubmit={createAccount}>
-          <Field label="Họ và tên" value={fullName} onChange={(event) => setFullName(event.target.value)} required maxLength={100} autoFocus />
+          <Field label="Họ và tên" value={fullName} onChange={(event) => setFullName(event.target.value)} error={fieldErrors.full_name} required maxLength={100} autoFocus />
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Tên đăng nhập" value={username} onChange={(event) => setUsername(event.target.value)} required maxLength={50} autoComplete="off" />
-            <Field label="Email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required maxLength={100} autoComplete="off" />
+            <Field label="Tên đăng nhập" value={username} onChange={(event) => setUsername(event.target.value)} error={fieldErrors.username} required maxLength={50} autoComplete="off" />
+            <Field label="Email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} error={fieldErrors.email} required maxLength={100} autoComplete="off" />
           </div>
           <label className="block">
             <span className="mb-2 block text-sm font-bold text-slate-800">Vai trò</span>
-            <select className={selectClass} value={role} onChange={(event) => setRole(event.target.value as RoleCode)}>
+            <select className={selectClass} value={role} aria-invalid={Boolean(fieldErrors.role)} aria-describedby={fieldErrors.role ? 'create-role-error' : undefined} onChange={(event) => setRole(event.target.value as RoleCode)}>
               <option value="EMPLOYEE">Nhân viên</option>
               <option value="MANAGER">Quản lý</option>
               <option value="ADMIN">Quản trị viên</option>
             </select>
+            {fieldErrors.role && <span id="create-role-error" className="mt-2 block text-sm text-red-700">{fieldErrors.role}</span>}
           </label>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Mật khẩu ban đầu" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={8} autoComplete="new-password" />
-            <Field label="Xác nhận mật khẩu" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required minLength={8} autoComplete="new-password" />
+            <Field label="Mật khẩu ban đầu" type="password" value={password} onChange={(event) => setPassword(event.target.value)} error={fieldErrors.password} hint="Tối thiểu 8 ký tự; không chỉ gồm khoảng trắng hoặc chữ số, không quá phổ biến hay quá giống thông tin tài khoản." required minLength={8} autoComplete="new-password" />
+            <Field label="Xác nhận mật khẩu" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} error={fieldErrors.confirmPassword} required minLength={8} autoComplete="new-password" />
           </div>
-          <p className="text-xs text-slate-500">Tối thiểu 8 ký tự và không dùng mật khẩu quá phổ biến.</p>
           {createError && <p role="alert" className="text-sm font-semibold text-red-700">{createError}</p>}
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={closeCreate}>Hủy</Button>

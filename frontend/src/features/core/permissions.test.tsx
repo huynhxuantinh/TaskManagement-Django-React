@@ -28,6 +28,7 @@ const project: Project = {
   progress: 40,
   missing_estimate_count: 0,
   created_at: '',
+  updated_at: '',
 }
 
 const statuses: TaskStatus[] = [

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { apiRequest } from '../lib/api'
 import type { Paginated } from '../types/api'
@@ -14,14 +14,16 @@ export function useAllPages<T>(path: string | null) {
   const [loading, setLoading] = useState(Boolean(path))
   const [error, setError] = useState('')
   const [version, setVersion] = useState(0)
+  const loadedPath = useRef<string | null>(null)
   const reload = useCallback(() => setVersion((value) => value + 1), [])
 
   useEffect(() => {
-    if (!path) return
+    if (!path) { loadedPath.current = null; return }
     const controller = new AbortController()
     async function load() {
-      setData(null)
-      setLoading(true)
+      const isNewPath = loadedPath.current !== path
+      if (isNewPath) setData(null)
+      setLoading(isNewPath)
       setError('')
       try {
         const results: T[] = []
@@ -38,6 +40,7 @@ export function useAllPages<T>(path: string | null) {
           next = page.next
         }
         if (!controller.signal.aborted) {
+          loadedPath.current = path
           setData({ count, next: null, previous: null, results })
         }
       } catch (caught) {

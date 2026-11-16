@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { apiRequest } from '../lib/api'
 
@@ -7,18 +7,20 @@ export function useApiResource<T>(path: string | null) {
   const [loading, setLoading] = useState(Boolean(path))
   const [error, setError] = useState('')
   const [version, setVersion] = useState(0)
+  const loadedPath = useRef<string | null>(null)
   const reload = useCallback(() => setVersion((value) => value + 1), [])
 
   useEffect(() => {
-    if (!path) return
+    if (!path) { loadedPath.current = null; return }
     const controller = new AbortController()
     async function load() {
-      setData(null)
-      setLoading(true)
+      const isNewPath = loadedPath.current !== path
+      if (isNewPath) setData(null)
+      setLoading(isNewPath)
       setError('')
       try {
         const result = await apiRequest<T>(path as string, { signal: controller.signal })
-        if (!controller.signal.aborted) setData(result)
+        if (!controller.signal.aborted) { loadedPath.current = path; setData(result) }
       } catch (caught) {
         if ((caught as Error).name !== 'AbortError') setError((caught as Error).message)
       } finally {

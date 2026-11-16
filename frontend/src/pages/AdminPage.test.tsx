@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { AuthContext, type AuthContextValue } from '../auth/AuthContext'
 import { ToastContext } from '../components/ui/ToastContext'
+import { ApiError } from '../lib/api'
 import type { Paginated, User } from '../types/api'
 import { AdminPage } from './AdminPage'
 
@@ -13,7 +14,7 @@ const mocks = vi.hoisted(() => ({
   apiRequest: vi.fn(),
 }))
 
-vi.mock('../lib/api', () => ({ apiRequest: mocks.apiRequest }))
+vi.mock('../lib/api', async (importOriginal) => ({ ...await importOriginal<typeof import('../lib/api')>(), apiRequest: mocks.apiRequest }))
 
 vi.mock('../hooks/useAllPages', () => ({
   useAllPages: () => ({
@@ -84,6 +85,41 @@ const auth: AuthContextValue = {
 
 describe('AdminPage', () => {
   afterEach(cleanup)
+  it('shows server validation errors alongside the corresponding fields', async () => {
+    mocks.apiRequest.mockRejectedValueOnce(new ApiError('Dữ liệu không hợp lệ.', 400, {
+      username: ['Tên đăng nhập đã tồn tại.'], email: ['Email đã tồn tại.'], password: ['Mật khẩu quá yếu.'],
+    }))
+    render(<AuthContext.Provider value={auth}><ToastContext.Provider value={vi.fn()}><AdminPage /></ToastContext.Provider></AuthContext.Provider>)
+    fireEvent.click(screen.getByRole('button', { name: '+ Tạo tài khoản' }))
+    fireEvent.change(screen.getByLabelText('Họ và tên'), { target: { value: 'Example' } })
+    fireEvent.change(screen.getByLabelText('Tên đăng nhập'), { target: { value: 'example' } })
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'example@example.com' } })
+    fireEvent.change(screen.getByLabelText('Mật khẩu ban đầu'), { target: { value: 'Password123!' } })
+    fireEvent.change(screen.getByLabelText('Xác nhận mật khẩu'), { target: { value: 'Password123!' } })
+    const usernameInput = screen.getByLabelText('Tên đăng nhập')
+    const emailInput = screen.getByLabelText('Email')
+    const passwordInput = screen.getByLabelText('Mật khẩu ban đầu')
+    fireEvent.click(screen.getByRole('button', { name: 'Tạo tài khoản' }))
+    await waitFor(() => expect(usernameInput).toHaveAccessibleDescription('Tên đăng nhập đã tồn tại.'))
+    expect(emailInput).toHaveAccessibleDescription('Email đã tồn tại.')
+    expect(passwordInput).toHaveAccessibleDescription('Mật khẩu quá yếu.')
+  })
+  it('clears account details and password when creation is cancelled', () => {
+    render(<AuthContext.Provider value={auth}><ToastContext.Provider value={vi.fn()}><AdminPage /></ToastContext.Provider></AuthContext.Provider>)
+    fireEvent.click(screen.getByRole('button', { name: '+ Tạo tài khoản' }))
+    fireEvent.change(screen.getByLabelText('Họ và tên'), { target: { value: 'Example' } })
+    fireEvent.change(screen.getByLabelText('Tên đăng nhập'), { target: { value: 'example' } })
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'example@example.com' } })
+    fireEvent.change(screen.getByLabelText('Vai trò'), { target: { value: 'ADMIN' } })
+    fireEvent.change(screen.getByLabelText('Mật khẩu ban đầu'), { target: { value: 'Password123!' } })
+    fireEvent.change(screen.getByLabelText('Xác nhận mật khẩu'), { target: { value: 'Password123!' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Hủy' }))
+    fireEvent.click(screen.getByRole('button', { name: '+ Tạo tài khoản' }))
+    for (const label of ['Họ và tên', 'Tên đăng nhập', 'Email', 'Mật khẩu ban đầu', 'Xác nhận mật khẩu']) {
+      expect(screen.getByLabelText(label)).toHaveValue('')
+    }
+    expect(screen.getByLabelText('Vai trò')).toHaveValue('EMPLOYEE')
+  })
   it('transfers projects when demoting a manager and filters recipients', async () => {
     mocks.apiRequest.mockResolvedValue({ ...auth.user, id: 3, role: 'EMPLOYEE' })
     render(<AuthContext.Provider value={auth}><ToastContext.Provider value={vi.fn()}><AdminPage /></ToastContext.Provider></AuthContext.Provider>)

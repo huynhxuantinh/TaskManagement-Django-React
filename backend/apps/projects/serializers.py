@@ -33,6 +33,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             "progress",
             "missing_estimate_count",
             "created_at",
+            "updated_at",
         )
 
     def get_progress(self, project) -> int:
@@ -40,17 +41,18 @@ class ProjectSerializer(serializers.ModelSerializer):
 
 
 class ProjectWriteSerializer(serializers.ModelSerializer):
+    expected_updated_at = serializers.DateTimeField(write_only=True, required=False)
     creator_id = serializers.PrimaryKeyRelatedField(
         source="creator",
         queryset=User.objects.filter(
-            is_active=True, role__code="MANAGER"
+            is_active=True, role__code__in=["ADMIN", "MANAGER"]
         ),
         required=False,
     )
 
     class Meta:
         model = Project
-        fields = ("name", "description", "start_date", "end_date", "creator_id")
+        fields = ("name", "description", "start_date", "end_date", "creator_id", "expected_updated_at")
 
     def validate(self, attrs):
         start = attrs.get("start_date", getattr(self.instance, "start_date", None))

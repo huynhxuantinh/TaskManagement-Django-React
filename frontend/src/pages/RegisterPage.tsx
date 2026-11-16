@@ -15,6 +15,10 @@ export function RegisterPage() {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
+    if (!form.password.trim()) {
+      setError('Mật khẩu không được chỉ chứa khoảng trắng.')
+      return
+    }
     setSubmitting(true)
     setError('')
     try {

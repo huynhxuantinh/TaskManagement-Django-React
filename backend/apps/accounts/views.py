@@ -75,6 +75,8 @@ class RegisterView(GenericAPIView):
         serializer = RegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         email = serializer.validated_data["email"].strip().lower()
+        if User.objects.filter(Q(username__iexact=email) | Q(email__iexact=email)).exists():
+            return success(message="Nếu thông tin đăng ký hợp lệ, tài khoản sẽ được tạo.", status=202)
         try:
             with transaction.atomic():
                 employee = Role.objects.get(code=Role.Code.EMPLOYEE)
@@ -105,9 +107,12 @@ class LoginView(GenericAPIView):
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         identifier = serializer.validated_data["email"].strip().lower()
-        matched_user = User.objects.filter(
+        matches = list(User.objects.filter(
             Q(username__iexact=identifier) | Q(email__iexact=identifier)
-        ).only("email", "password", "is_active").first()
+        ).only("email", "password", "is_active")[:2])
+        if len(matches) > 1:
+            return failure("Tên đăng nhập hoặc mật khẩu không đúng.", status=401)
+        matched_user = matches[0] if matches else None
         password = serializer.validated_data["password"]
         if matched_user and not matched_user.is_active:
             if matched_user.check_password(password):

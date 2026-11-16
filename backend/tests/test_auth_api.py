@@ -64,6 +64,40 @@ def test_login_accepts_username_and_keeps_password_hashed(roles):
 
 
 @pytest.mark.django_db
+@override_settings(ALLOW_PUBLIC_REGISTRATION=True)
+def test_whitespace_password_is_rejected_in_all_account_flows(roles):
+    admin = create_user(roles, role=Role.Code.ADMIN)
+    client = APIClient()
+    registered = client.post('/api/v1/auth/register/', {
+        'email': 'new@example.com', 'full_name': 'New User', 'password': '        ',
+    }, format='json')
+    assert registered.status_code == 400
+    client.force_authenticate(admin)
+    created = client.post('/api/v1/users/', {
+        'username': 'newuser', 'email': 'new@example.com', 'full_name': 'New User',
+        'role': 'EMPLOYEE', 'password': '        ',
+    }, format='json')
+    changed = client.post('/api/v1/auth/change-password/', {
+        'current_password': 'StrongPass@123', 'new_password': '        ',
+    }, format='json')
+    assert created.status_code == 400
+    assert changed.status_code == 400
+    assert 'khoảng trắng' in str(created.data['errors'])
+    assert 'khoảng trắng' in str(changed.data['errors'])
+    assert not User.objects.filter(email='new@example.com').exists()
+
+
+@pytest.mark.django_db
+def test_ambiguous_existing_login_is_rejected(roles):
+    create_user(roles, email="same@example.com", password="StrongPass@123")
+    create_user(roles, email="other@example.com", username="same@example.com", password="AnotherPass@123")
+    client = APIClient()
+    assert login(client, "same@example.com", "StrongPass@123").status_code == 401
+    assert login(client, "same@example.com", "AnotherPass@123").status_code == 401
+    assert login(client, "other@example.com", "AnotherPass@123").status_code == 200
+
+
+@pytest.mark.django_db
 @override_settings(PASSWORD_HASHERS=AUTH_HASHERS)
 def test_locked_account_login_returns_localized_forbidden_without_leaking_on_wrong_password(
     roles,
@@ -424,6 +458,8 @@ def test_login_is_rate_limited_per_ip_and_email(roles, monkeypatch):
     assert first.status_code == 401
     assert second.status_code == 401
     assert limited.status_code == 429
+    assert "quá nhiều yêu cầu" in limited.data["message"]
+    assert "giây" in limited.data["message"]
 
 
 @pytest.mark.django_db

@@ -29,12 +29,12 @@ export function ProjectDetailPage() {
   const { data: statuses } = useApiResource<TaskStatus[]>('/api/v1/metadata/task-statuses/')
   const { data: managers } = useAllPages<User>(
     user?.role === 'ADMIN'
-      ? '/api/v1/users/?role=MANAGER&is_active=true&page_size=100'
+      ? '/api/v1/users/?is_active=true&page_size=100'
       : null,
   )
 
   async function remove() {
-    if (!project || !window.confirm(`Xóa dự án “${project.name}”?`)) return
+    if (!project || !window.confirm(`Xóa dự án “${project.name}”?\n\nDự án, công việc và báo cáo liên quan sẽ không còn xuất hiện trong các danh sách thông thường. Dữ liệu được đánh dấu xóa, nhưng hiện chưa có chức năng khôi phục trên giao diện.\n\nBạn có chắc chắn muốn tiếp tục?`)) return
     try {
       await apiRequest<void>(`/api/v1/projects/${project.id}/`, { method: 'DELETE' })
       notify('Đã xóa dự án.')
@@ -84,7 +84,7 @@ export function ProjectDetailPage() {
         />
       </Modal>
       <Modal open={editing} title="Cập nhật dự án" onClose={() => setEditing(false)}>
-        <ProjectForm project={project} ownerOptions={managers?.results ?? []} onCancel={() => setEditing(false)} onSaved={(saved) => { setProject(saved); setEditing(false); notify('Đã cập nhật dự án.') }} />
+        <ProjectForm project={project} ownerOptions={managers?.results.filter((item) => item.is_active && item.role !== 'EMPLOYEE') ?? []} onCancel={() => setEditing(false)} onSaved={(saved) => { setProject(saved); setEditing(false); notify('Đã cập nhật dự án.') }} />
       </Modal>
     </div>
   )

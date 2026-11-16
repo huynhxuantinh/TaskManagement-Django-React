@@ -76,7 +76,7 @@ export function ProjectDashboard({
 
       {reportError && <StatePanel eyebrow="Tiến độ dự án" title="Không tải được số liệu" description={reportError} />}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {report && !reportError && <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {metrics.map((metric) => (
           <article key={metric.label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[var(--shadow)]">
             <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">{metric.label}</p>
@@ -84,9 +84,9 @@ export function ProjectDashboard({
             <span className="mt-1 block text-xs text-slate-500">{metric.note}</span>
           </article>
         ))}
-      </div>
+      </div>}
 
-      {report && (
+      {report && !reportError && (
         <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
           <article className="dashboard-hero rounded-3xl p-6 text-white">
             <p className="font-mono text-xs font-black uppercase tracking-[0.18em] text-[var(--accent)]">Tiến độ tổng thể</p>

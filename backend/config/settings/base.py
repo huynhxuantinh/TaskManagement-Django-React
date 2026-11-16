@@ -73,6 +73,7 @@ PASSWORD_HASHERS = [
     "django.contrib.auth.hashers.PBKDF2PasswordHasher",
 ]
 AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "apps.accounts.password_validators.NonWhitespacePasswordValidator"},
     {
         "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"
     },

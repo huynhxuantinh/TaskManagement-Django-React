@@ -4,6 +4,7 @@ from .api import success
 
 
 class StandardPagination(PageNumberPagination):
+    invalid_page_message = "Trang không hợp lệ."
     page_size = 20
     page_size_query_param = "page_size"
     max_page_size = 100

@@ -30,13 +30,14 @@ export interface Project {
   id: number
   name: string
   description: string
-  start_date: string
-  end_date: string
+  start_date: string | null
+  end_date: string | null
   creator: User
   member_count: number
   progress: number
   missing_estimate_count: number
   created_at: string
+  updated_at: string
 }
 
 export interface ProjectMember {

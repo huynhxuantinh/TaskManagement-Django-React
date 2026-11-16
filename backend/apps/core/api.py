@@ -1,5 +1,6 @@
 from django.middleware.csrf import CsrfViewMiddleware
-from rest_framework.exceptions import PermissionDenied
+from django.http import Http404
+from rest_framework.exceptions import NotAuthenticated, NotFound, PermissionDenied, Throttled
 from rest_framework.response import Response
 from rest_framework.views import exception_handler as drf_exception_handler
 
@@ -29,6 +30,16 @@ def exception_handler(exc, context):
     detail = response.data
     if isinstance(detail, dict) and set(detail) == {"detail"}:
         message = str(detail["detail"])
+        if isinstance(exc, Throttled):
+            message = "Bạn đã gửi quá nhiều yêu cầu."
+            if exc.wait is not None:
+                message += f" Vui lòng thử lại sau {exc.wait} giây."
+        elif isinstance(exc, NotAuthenticated):
+            message = "Vui lòng đăng nhập để tiếp tục."
+        elif isinstance(exc, Http404):
+            message = "Không tìm thấy tài nguyên."
+        elif isinstance(exc, NotFound) and str(exc.detail) == str(NotFound.default_detail):
+            message = "Không tìm thấy tài nguyên."
         errors = {}
     else:
         message = "Dữ liệu không hợp lệ."

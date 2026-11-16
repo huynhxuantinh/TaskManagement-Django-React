@@ -55,6 +55,7 @@ export function ProfilePage() {
 
   async function submitPassword(event: FormEvent) {
     event.preventDefault(); setPasswordError('')
+    if (!newPassword.trim()) { setPasswordError('Mật khẩu không được chỉ chứa khoảng trắng.'); return }
     if (newPassword !== confirmPassword) { setPasswordError('Mật khẩu xác nhận chưa khớp.'); return }
     try { await changePassword({ current_password: currentPassword, new_password: newPassword }); notify('Đã đổi mật khẩu. Vui lòng đăng nhập lại.') }
     catch (caught) { setPasswordError((caught as Error).message) }

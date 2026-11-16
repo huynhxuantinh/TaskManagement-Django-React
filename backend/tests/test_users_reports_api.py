@@ -574,6 +574,20 @@ def test_project_report_and_top_contributors_are_project_scoped(
 
 
 @pytest.mark.django_db
+def test_admin_rejects_cross_identifier_collisions(report_users):
+    admin = report_users["admin"]
+    employee = report_users["employee"]
+    employee.username = "alias@example.com"
+    employee.save(update_fields=["username"])
+    client = api_as(admin)
+    base = {"username": "newname", "email": "new@example.com", "full_name": "New User", "role": "EMPLOYEE", "password": "StrongPass@123"}
+    assert client.post('/api/v1/users/', {**base, 'username': employee.email.upper()}, format='json').status_code == 400
+    assert client.post('/api/v1/users/', {**base, 'email': employee.username.upper()}, format='json').status_code == 400
+    assert client.patch(f'/api/v1/users/{admin.id}/', {'email': employee.username}, format='json').status_code == 400
+    assert client.patch(f'/api/v1/users/{employee.id}/', {'email': employee.username}, format='json').status_code == 200
+
+
+@pytest.mark.django_db
 def test_report_messages_validate_members_and_scope_sender_receiver(
     report_users, report_statuses, report_data
 ):
