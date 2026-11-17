@@ -743,6 +743,83 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/tasks/{id}/attachments/:
+    get:
+      operationId: v1_tasks_attachments_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Task attachments
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskAttachmentListResponse'
+          description: ''
+    post:
+      operationId: v1_tasks_attachments_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Task attachments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskAttachmentUpload'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TaskAttachmentUpload'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TaskAttachmentUpload'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskAttachmentResponse'
+          description: ''
+  /api/v1/tasks/{id}/attachments/{attachment_id}/download/:
+    get:
+      operationId: v1_tasks_attachments_download_retrieve
+      parameters:
+      - in: path
+        name: attachment_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Task attachments
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: string
+                format: binary
+          description: ''
   /api/v1/tasks/{id}/checklist/:
     get:
       operationId: tasks_checklist_list
@@ -881,6 +958,57 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TaskChecklistListResponse'
+          description: ''
+  /api/v1/tasks/{id}/comments/:
+    get:
+      operationId: v1_tasks_comments_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Task comments
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskCommentListResponse'
+          description: ''
+    post:
+      operationId: v1_tasks_comments_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Task comments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskComment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TaskComment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TaskComment'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskCommentResponse'
           description: ''
   /api/v1/tasks/{id}/history/:
     get:
@@ -2503,6 +2631,75 @@ components:
       - id
       - permissions
       - role
+    TaskAttachment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        uploader:
+          allOf:
+          - $ref: '#/components/schemas/TaskUser'
+          readOnly: true
+        original_name:
+          type: string
+          readOnly: true
+        size:
+          type: integer
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - original_name
+      - size
+      - uploader
+    TaskAttachmentListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          readOnly: true
+        message:
+          type: string
+          readOnly: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskAttachment'
+          readOnly: true
+      required:
+      - data
+      - message
+      - success
+    TaskAttachmentResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          readOnly: true
+        message:
+          type: string
+          readOnly: true
+        data:
+          allOf:
+          - $ref: '#/components/schemas/TaskAttachment'
+          readOnly: true
+      required:
+      - data
+      - message
+      - success
+    TaskAttachmentUpload:
+      type: object
+      properties:
+        file:
+          type: string
+          format: uri
+      required:
+      - file
     TaskAuditLog:
       type: object
       properties:
@@ -2635,6 +2832,63 @@ components:
           maxItems: 100
       required:
       - item_ids
+    TaskComment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        author:
+          allOf:
+          - $ref: '#/components/schemas/TaskUser'
+          readOnly: true
+        body:
+          type: string
+          maxLength: 5000
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - author
+      - body
+      - created_at
+      - id
+    TaskCommentListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          readOnly: true
+        message:
+          type: string
+          readOnly: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskComment'
+          readOnly: true
+      required:
+      - data
+      - message
+      - success
+    TaskCommentResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          readOnly: true
+        message:
+          type: string
+          readOnly: true
+        data:
+          allOf:
+          - $ref: '#/components/schemas/TaskComment'
+          readOnly: true
+      required:
+      - data
+      - message
+      - success
     TaskCreate:
       type: object
       properties:

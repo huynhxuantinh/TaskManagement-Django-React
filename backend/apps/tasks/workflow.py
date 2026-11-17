@@ -1,4 +1,3 @@
-from apps.accounts.models import Role
 from apps.projects.permissions import can_manage_project
 from apps.projects.models import ProjectMember
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -51,8 +50,8 @@ def transition_options(task, actor):
             codes.remove(code)
             restrictions.append({'code': code, 'reason': reason})
 
-    if task.status.code == TaskStatus.Code.COMPLETED and actor.role.code not in {Role.Code.ADMIN, Role.Code.MANAGER}:
-        block(TaskStatus.Code.IN_PROGRESS, 'Chỉ quản trị viên hoặc quản lý được phép mở lại công việc đã hoàn thành.')
+    if task.status.code == TaskStatus.Code.COMPLETED and not can_manage_project(actor, task.project):
+        block(TaskStatus.Code.IN_PROGRESS, 'Chỉ quản trị viên hoặc quản lý dự án được phép mở lại công việc đã hoàn thành.')
     if task.status.code == TaskStatus.Code.COMPLETED and task.assignee_id and not assignee_is_project_member(task):
         block(TaskStatus.Code.IN_PROGRESS, 'Người phụ trách không còn là thành viên dự án. Hãy chuyển công việc hoặc thêm lại thành viên trước khi mở lại.')
     count = unfinished_subtasks_count(task)
@@ -96,9 +95,9 @@ def validate_transition(task, new_status, actor, note):
         if (
             task.status.code == TaskStatus.Code.COMPLETED
             and new_status.code == TaskStatus.Code.IN_PROGRESS
-            and actor.role.code not in {Role.Code.ADMIN, Role.Code.MANAGER}
+            and not can_manage_project(actor, task.project)
         ):
-            raise PermissionDenied("Chỉ quản trị viên hoặc quản lý được phép mở lại công việc đã hoàn thành.")
+            raise PermissionDenied("Chỉ quản trị viên hoặc quản lý dự án được phép mở lại công việc đã hoàn thành.")
         raise ValidationError({"status": "Trạng thái mới không hợp lệ với tiến trình hiện tại."})
     note = note.strip()
     if allowed[new_status.code]["note_required"] and not note:

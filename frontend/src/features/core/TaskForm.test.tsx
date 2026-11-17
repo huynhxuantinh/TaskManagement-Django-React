@@ -26,6 +26,20 @@ describe('TaskForm assignee', () => {
     expect(description).toHaveAccessibleDescription('8/500 ký tự')
   })
 
+  it('accepts and sends estimates with two decimal places', async () => {
+    mocks.apiRequest.mockResolvedValue(task)
+    render(<TaskForm task={{ ...task, estimated_hours: '0.01' }} projects={[project]} statuses={[]} onSaved={vi.fn()} onCancel={vi.fn()} />)
+    const hours = screen.getByLabelText('Giờ ước lượng') as HTMLInputElement
+    expect(hours).toHaveAttribute('min', '0.01')
+    expect(hours).toHaveAttribute('step', '0.01')
+    expect(hours.checkValidity()).toBe(true)
+    fireEvent.change(hours, { target: { value: '0.12' } })
+    expect(hours.checkValidity()).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu thay đổi' }))
+    await waitFor(() => expect(mocks.apiRequest).toHaveBeenCalled())
+    expect(JSON.parse(mocks.apiRequest.mock.calls[0][1].body)).toMatchObject({ estimated_hours: '0.12' })
+  })
+
   it('explains that 100% does not automatically complete the task', () => {
     render(<TaskForm projects={[project]} statuses={[]} onSaved={vi.fn()} onCancel={vi.fn()} />)
     expect(screen.getByText(/đạt 100% không tự chuyển sang hoàn thành/i)).toBeInTheDocument()

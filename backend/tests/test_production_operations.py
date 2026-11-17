@@ -10,6 +10,19 @@ from django.core.management.base import CommandError
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
+
+
+def test_development_does_not_keep_threaded_server_connections_open():
+    environment = os.environ.copy()
+    environment['DJANGO_SETTINGS_MODULE'] = 'config.settings.development'
+    result = subprocess.run(
+        [sys.executable, '-c', "from django.conf import settings; print(settings.DATABASES['default']['CONN_MAX_AGE'])"],
+        cwd=BACKEND_DIR, env=environment, capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0
+    assert result.stdout.strip() == '0'
+
+
 PRODUCTION_ENV_KEYS = (
     "DJANGO_SECRET_KEY",
     "DJANGO_ALLOWED_HOSTS",

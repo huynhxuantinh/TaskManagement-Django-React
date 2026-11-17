@@ -101,6 +101,28 @@ class TaskChecklistItem(models.Model):
         ordering = ["position", "id"]
 
 
+class TaskComment(models.Model):
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='comments')
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL)
+    body = models.TextField(max_length=5000)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ['created_at', 'id']
+
+
+class TaskAttachment(models.Model):
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='attachments')
+    uploader = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL)
+    original_name = models.CharField(max_length=255)
+    storage_name = models.CharField(max_length=64, unique=True)
+    size = models.PositiveBigIntegerField()
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ['created_at', 'id']
+
+
 class TaskAuditLog(models.Model):
     class Action(models.TextChoices):
         CREATED = "CREATED", "Tạo công việc"

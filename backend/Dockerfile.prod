@@ -21,7 +21,7 @@ RUN pip install --no-cache-dir --no-index --find-links=/wheels /wheels/* \
     && rm -rf /wheels
 
 COPY --chown=app:app . .
-RUN mkdir -p /app/media /app/staticfiles && chown -R app:app /app
+RUN mkdir -p /app/media /app/private_media /app/staticfiles && chown -R app:app /app
 
 USER app
 

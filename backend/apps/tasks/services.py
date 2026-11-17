@@ -7,7 +7,7 @@ from rest_framework.exceptions import APIException, NotFound, PermissionDenied, 
 from apps.accounts.models import Role
 from apps.notifications.models import NotificationType
 from apps.notifications.services import create_notification
-from apps.projects.models import ProjectMember
+from apps.projects.models import Project, ProjectMember
 
 from .models import Task, TaskAuditLog, TaskChecklistItem, TaskStatus
 from .workflow import can_change_task_status, validate_transition
@@ -184,6 +184,22 @@ def send_deadline_notifications(reference_date=None):
 
 class TaskService:
     @staticmethod
+    def lock_project(project_id):
+        project = Project.objects.select_for_update(of=('self',), no_key=True).filter(pk=project_id, is_deleted=False).first()
+        if project is None:
+            raise NotFound('Không tìm thấy dự án.')
+        return project
+
+    @staticmethod
+    def validate_project_deadline(project, deadline):
+        if deadline and project.end_date and deadline > project.end_date:
+            raise ValidationError({'deadline': ['Hạn hoàn thành không được sau ngày kết thúc dự án.']})
+
+    @staticmethod
+    def lock_parent(parent_id):
+        return Task.objects.select_for_update(of=('self',)).select_related('status').filter(pk=parent_id).first()
+
+    @staticmethod
     @transaction.atomic
     def update_assignee_progress(task_id, progress, expected_updated_at, actor):
         task = Task.objects.select_for_update(of=('self',)).select_related('status', 'project').filter(pk=task_id).first()
@@ -213,6 +229,9 @@ class TaskService:
     def create_task(validated_data, actor=None):
         data = dict(validated_data)
         note = data.pop('note', '').strip()
+        project = TaskService.lock_project(data['project'].pk)
+        TaskService.validate_project_deadline(project, data.get('deadline'))
+        data['project'] = project
         if data.get('parent'):
             parent = Task.objects.select_for_update(of=('self',)).select_related('status').filter(pk=data['parent'].pk).first()
             if not parent or parent.is_deleted or parent.project_id != data['project'].id or parent.parent_id:
@@ -252,6 +271,14 @@ class TaskService:
     def update_task(task, validated_data, actor=None):
         validated_data = dict(validated_data)
         expected = validated_data.pop('expected_updated_at', None)
+        parent = validated_data.get('parent')
+        if 'parent' in validated_data or 'deadline' in validated_data:
+            project = TaskService.lock_project(task.project_id)
+            if 'deadline' in validated_data:
+                TaskService.validate_project_deadline(project, validated_data['deadline'])
+        if 'parent' in validated_data:
+            if parent is not None:
+                parent = TaskService.lock_parent(parent.pk)
         task = (
             Task.objects.select_for_update(of=("self",))
             .select_related("project", "project__creator", "assignee", "status")
@@ -261,6 +288,18 @@ class TaskService:
             raise NotFound('Không tìm thấy công việc.')
         if expected is None or expected != task.updated_at:
             raise TaskUpdateConflict()
+        if 'progress' in validated_data and (
+            task.checklist_items.exists() or task.subtasks.filter(is_deleted=False).exists()
+        ):
+            raise ValidationError({'progress': ['Tiến độ được tính tự động từ checklist hoặc công việc con.']})
+        if 'parent' in validated_data and validated_data['parent'] is not None:
+            if not parent or parent.is_deleted or parent.project_id != task.project_id or parent.parent_id or parent.pk == task.pk:
+                raise ValidationError({'parent': ['Công việc cha phải thuộc cùng dự án, chưa bị xóa và không phải công việc con.']})
+            if parent.status.code == TaskStatus.Code.COMPLETED:
+                raise ValidationError({'parent': ['Hãy mở lại công việc cha trước.']})
+            if task.subtasks.filter(is_deleted=False).exists():
+                raise ValidationError({'parent': ['Công việc đang có công việc con không thể trở thành công việc con.']})
+            validated_data['parent'] = parent
         if 'assignee' in validated_data:
             TaskService.lock_assignee_membership(task.project_id, validated_data['assignee'])
         old_assignee_id = task.assignee_id

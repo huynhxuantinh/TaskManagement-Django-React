@@ -97,6 +97,12 @@ Trước khi chạy lệnh thứ hai, đặt các biến sau trong file môi tr�
 
 Lệnh có tính idempotent: nếu đúng tài khoản quản trị đã tồn tại thì không đổi mật khẩu. Sau khi bootstrap thành công, xóa `BOOTSTRAP_ADMIN_PASSWORD` khỏi môi trường triển khai. Lệnh chuẩn `python manage.py createsuperuser` cũng hoạt động và tự gắn vai trò Admin.
 
+### Bình luận, tệp đính kèm và sao lưu
+
+Người có quyền xem công việc có thể đọc, gửi bình luận và tải tệp lên hoặc xuống trong chi tiết công việc. Mỗi tệp tối đa 10 MB. Tệp dùng tên lưu ngẫu nhiên trong volume `private_media_data`, nằm ngoài đường dẫn `/media/`; API kiểm tra quyền trước khi Nginx gửi tệp.
+
+Lệnh `docker compose -f infra/compose.prod.yaml --profile ops run --rm backup` tạo bản sao database và một tệp `*_media.tar.gz` chứa cả avatar lẫn tệp đính kèm, cùng các checksum SHA-256 trong `BACKUP_DIR`. Khi khôi phục, phải dùng bản database và tệp media cùng thời điểm; khôi phục riêng database bằng script hiện có không khôi phục các volume tệp. Giải nén hai thư mục `media` và `private` trong bản sao tương ứng vào hai volume `media_data` và `private_media_data` trước khi đưa hệ thống hoạt động lại.
+
 ## Phạm vi và giới hạn
 
 - Hệ thống không triển khai chức năng “Quên mật khẩu” tự phục vụ hoặc gửi liên kết đặt lại mật khẩu qua email.

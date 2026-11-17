@@ -123,6 +123,7 @@ services:
     environment: *backend-environment
     volumes:
       - media_data:/app/media
+      - private_media_data:/app/private_media
     expose:
       - "8000"
     networks:
@@ -230,6 +231,7 @@ services:
       - "${TLS_CERT_DIR:?TLS_CERT_DIR is required}:/run/secrets/tls:ro"
       - static_data:/srv/static:ro
       - media_data:/srv/media:ro
+      - private_media_data:/srv/private:ro
     networks:
       - edge
       - private
@@ -267,6 +269,8 @@ services:
     volumes:
       - ./scripts:/opt/task-management:ro
       - "${BACKUP_DIR:-../backups}:/backups"
+      - media_data:/srv/backup-media/media:ro
+      - private_media_data:/srv/backup-media/private:ro
     networks:
       - private
     depends_on:
@@ -309,3 +313,4 @@ volumes:
   postgres_data:
   static_data:
   media_data:
+  private_media_data:

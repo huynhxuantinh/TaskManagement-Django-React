@@ -1,0 +1,80 @@
+LUỒNG DEMO TRỰC TIẾP – TASK MANAGEMENT
+Thời lượng mục tiêu: 4–5 phút
+
+1. CHUẨN BỊ TRƯỚC BUỔI BÁO CÁO
+
+- Mở sẵn ứng dụng: http://localhost:5174
+- Backend kiểm tra tại: http://localhost:8010/ready/
+- Tài khoản demo Quản lý: qltask
+- Mật khẩu demo: 123
+- Chỉ dùng tài khoản và dữ liệu này trong môi trường phát triển.
+- Nếu ứng dụng chưa chạy, mở PowerShell tại thư mục TaskManagement_09 và chạy:
+  docker compose -f infra/compose.dev.yaml up -d --build --wait
+- Nếu không đăng nhập được do chưa có dữ liệu mẫu, chạy:
+  docker compose -f infra/compose.dev.yaml exec backend python manage.py seed_demo
+
+2. KỊCH BẢN TRÌNH DIỄN
+
+Bước 1 – Đăng nhập và xem tổng quan (30 giây)
+- Đăng nhập bằng qltask / 123.
+- Mở “Tổng quan”, chỉ vào các thẻ thống kê và phần tiến độ dự án.
+- Lời dẫn: “Đây là màn hình tổng hợp. Dữ liệu hiển thị theo phạm vi dự án mà tài khoản được phép xem.”
+
+Bước 2 – Mở dự án (30 giây)
+- Chọn “Dự án”.
+- Mở dự án mẫu “Nền tảng quản lý nội bộ”.
+- Chỉ nhanh tên dự án, chủ dự án, thành viên và tiến độ.
+- Lời dẫn: “Mỗi dự án có chủ dự án, thành viên và danh sách công việc riêng.”
+
+Bước 3 – Tạo một công việc mẫu (60 giây)
+- Mở “Công việc” rồi chọn tạo công việc mới.
+- Điền:
+  Tiêu đề: DEMO – Theo dõi tiến độ API
+  Dự án: Nền tảng quản lý nội bộ
+  Người phụ trách: Trần Nhân viên
+  Trạng thái: Chưa thực hiện
+  Ưu tiên: Trung bình
+  Hạn hoàn thành: 30/11/2026
+  Giờ ước lượng: 4
+  Tiến độ: 0
+- Không chọn công việc cha. Mô tả có thể để trống.
+- Lưu công việc rồi mở “Chi tiết”.
+- Lời dẫn: “Khi giao việc, quản lý đặt người phụ trách, thời hạn và giờ ước lượng để hệ thống tổng hợp tiến độ.”
+
+Bước 4 – Minh họa checklist và tiến độ task (60–90 giây)
+- Trong chi tiết công việc, thêm 4 mục checklist, ví dụ:
+  1. Hoàn thiện endpoint
+  2. Kiểm tra phân quyền
+  3. Viết kiểm thử
+  4. Cập nhật tài liệu
+- Đánh dấu hoàn thành 2 mục.
+- Chỉ vào tiến độ 50%.
+- Lời dẫn: “Task có checklist thì tiến độ tự tính bằng số mục hoàn thành chia tổng số mục. Hai trên bốn mục tương ứng 50%. Nếu task được đánh dấu hoàn thành thì tiến độ hiệu lực luôn là 100%.”
+
+Bước 5 – Cập nhật trạng thái và lịch sử (45 giây)
+- Chuyển trạng thái từ “Chưa thực hiện” sang “Đang thực hiện”.
+- Mở lịch sử để chỉ người thực hiện và thay đổi vừa ghi nhận.
+- Lời dẫn: “Các bước chuyển trạng thái được kiểm tra theo quyền. Lịch sử lưu ai thay đổi và thay đổi lúc nào.”
+
+Bước 6 – Quay lại tiến độ dự án (30 giây)
+- Trở lại dự án hoặc Dashboard và chỉ vào tiến độ được cập nhật.
+- Lời dẫn: “Tiến độ dự án tính theo trọng số giờ ước lượng. Task cha có task con thì các task con được tính thay để không cộng trùng.”
+- Nếu được hỏi, dùng ví dụ trên slide: 6 giờ × 50%, 4 giờ × 100%, task thiếu giờ nhận trọng số trung bình 5 giờ; kết quả 46,67%, làm tròn HALF_UP thành 47%.
+
+3. PHẦN TÙY CHỌN NẾU CÒN THỜI GIAN
+
+- Thêm một bình luận trong chi tiết công việc để minh họa trao đổi.
+- Tải lên tệp văn bản nhỏ, sau đó tải tệp xuống để minh họa tệp riêng tư được kiểm quyền.
+- Mở màn hình Báo cáo để xem khối lượng công việc.
+- Đăng xuất rồi đăng nhập bằng vai trò khác nếu cần minh họa phạm vi phân quyền. Không cần làm nếu thời gian báo cáo ngắn.
+
+4. KẾT THÚC VÀ DỌN DỮ LIỆU DEMO
+
+- Kết luận: “Luồng vừa rồi minh họa từ giao việc, cập nhật checklist đến theo dõi tiến độ và lịch sử.”
+- Nếu muốn dọn dữ liệu sau buổi báo cáo, xóa riêng task “DEMO – Theo dõi tiến độ API”. Không xóa các task dữ liệu mẫu khác.
+
+5. PHƯƠNG ÁN DỰ PHÒNG
+
+- Nếu màn hình tải lâu, kiểm tra trước đó cả http://localhost:5174 và http://localhost:8010/ready/ đều mở được.
+- Nếu không kịp tạo task khi báo cáo, mở task mẫu “Xây dựng giao diện công việc” trong dự án “Nền tảng quản lý nội bộ” để trình bày chi tiết và lịch sử; giải thích phép tính tiến độ bằng ví dụ trên slide.
+- Không chạy lại lệnh seed_demo trong lúc đang trình diễn vì lệnh sẽ cập nhật lại dữ liệu mẫu và đặt lại mật khẩu các tài khoản demo.

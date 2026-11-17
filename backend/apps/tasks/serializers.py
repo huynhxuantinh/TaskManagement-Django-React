@@ -8,7 +8,7 @@ from apps.accounts.models import Role, User
 from apps.accounts.serializers import UserSerializer
 from apps.projects.models import Project, ProjectMember
 
-from .models import Task, TaskAuditLog, TaskChecklistItem, TaskStatus
+from .models import Task, TaskAttachment, TaskAuditLog, TaskChecklistItem, TaskComment, TaskStatus
 from .workflow import can_change_task_status, transition_options
 
 
@@ -192,8 +192,11 @@ class AssigneeMembershipMixin:
                 raise serializers.ValidationError({"parent": ["Không thể chọn chính công việc này làm cha."]})
         if self.instance and self.instance.subtasks.filter(is_deleted=False).exists() and "parent" in attrs:
             raise serializers.ValidationError({"parent": ["Công việc đang có công việc con không thể trở thành công việc con."]})
-        if self.instance and self.instance.checklist_items.exists() and "progress" in attrs:
-            raise serializers.ValidationError({"progress": ["Tiến độ được tính tự động từ checklist."]})
+        if self.instance and "progress" in attrs and (
+            self.instance.checklist_items.exists()
+            or self.instance.subtasks.filter(is_deleted=False).exists()
+        ):
+            raise serializers.ValidationError({"progress": ["Tiến độ được tính tự động từ checklist hoặc công việc con."]})
         return attrs
 
 
@@ -290,6 +293,53 @@ class TaskChecklistItemSerializer(serializers.ModelSerializer):
         model = TaskChecklistItem
         fields = ("id", "title", "is_completed", "position", "created_at")
         read_only_fields = ("id", "position", "created_at")
+
+
+class TaskCommentSerializer(serializers.ModelSerializer):
+    author = TaskUserSerializer(read_only=True)
+
+    class Meta:
+        model = TaskComment
+        fields = ('id', 'author', 'body', 'created_at')
+        read_only_fields = ('id', 'author', 'created_at')
+
+
+class TaskAttachmentSerializer(serializers.ModelSerializer):
+    uploader = TaskUserSerializer(read_only=True)
+
+    class Meta:
+        model = TaskAttachment
+        fields = ('id', 'uploader', 'original_name', 'size', 'created_at')
+        read_only_fields = fields
+
+
+class TaskAttachmentUploadSerializer(serializers.Serializer):
+    file = serializers.FileField()
+
+    def validate_file(self, value):
+        if value.size > 10 * 1024 * 1024:
+            raise serializers.ValidationError('Tệp đính kèm tối đa 10 MB.')
+        return value
+
+
+class TaskCommentResponseSerializer(serializers.Serializer):
+    success = serializers.BooleanField(read_only=True)
+    message = serializers.CharField(read_only=True)
+    data = TaskCommentSerializer(read_only=True)
+
+
+class TaskCommentListResponseSerializer(TaskCommentResponseSerializer):
+    data = TaskCommentSerializer(many=True, read_only=True)
+
+
+class TaskAttachmentResponseSerializer(serializers.Serializer):
+    success = serializers.BooleanField(read_only=True)
+    message = serializers.CharField(read_only=True)
+    data = TaskAttachmentSerializer(read_only=True)
+
+
+class TaskAttachmentListResponseSerializer(TaskAttachmentResponseSerializer):
+    data = TaskAttachmentSerializer(many=True, read_only=True)
 
 
 class TaskDetailSerializer(TaskSerializer):

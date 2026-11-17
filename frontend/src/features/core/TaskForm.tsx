@@ -93,7 +93,7 @@ export function TaskForm({ task, projects, statuses, onSaved, onCancel }: { task
         {!task?.has_subtasks && <label><span className="mb-2 block text-sm font-bold text-slate-800">Công việc cha</span><select className={selectClass} value={parentId} onChange={(event) => setParentId(event.target.value)}><option value="">Không có</option>{parentOptions.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label>}
         <Field label="Ngày bắt đầu" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
         <Field label="Hạn hoàn thành" type="date" value={deadline} onChange={(event) => setDeadline(event.target.value)} />
-        <Field label="Giờ ước lượng" type="number" min="0.25" step="0.25" value={estimatedHours} onChange={(event) => setEstimatedHours(event.target.value)} placeholder="Ví dụ: 8" />
+        <Field label="Giờ ước lượng" type="number" min="0.01" step="0.01" value={estimatedHours} onChange={(event) => setEstimatedHours(event.target.value)} placeholder="Ví dụ: 8" />
         <Field label="Tiến độ (%)" type="number" min="0" max="100" value={progress} disabled={progressIsAutomatic} onChange={(event) => setProgress(event.target.value)} />
       </div>
       {parentId && <p role="note" className="text-sm text-amber-700">Khi có công việc con, tiến độ của công việc cha được tính từ các công việc con thay vì checklist hoặc tiến độ nhập tay của cha. Số hiển thị có thể thay đổi.</p>}

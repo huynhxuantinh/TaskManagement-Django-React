@@ -18,6 +18,7 @@ htmlcov/
 .venv/
 venv/
 backend/media/
+backend/private_media/
 backend/staticfiles/
 
 # Node / React

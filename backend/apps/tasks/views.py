@@ -1,7 +1,12 @@
 import csv
+import uuid
 from datetime import timedelta
 
-from django.http import HttpResponse
+from django.conf import settings
+from django.core.files.storage import FileSystemStorage
+from django.db import transaction
+from django.http import FileResponse, HttpResponse, Http404
+from django.utils.http import content_disposition_header
 from django.db.models import Count, Exists, F, OuterRef, Prefetch, Q, Subquery
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -20,9 +25,16 @@ from apps.core.pagination import StandardPagination
 from apps.projects.permissions import can_manage_project
 from apps.projects.models import ProjectMember
 
-from .models import Task, TaskAuditLog, TaskChecklistItem, TaskStatus
+from .models import Task, TaskAttachment, TaskAuditLog, TaskChecklistItem, TaskComment, TaskStatus
 from .serializers import (
     TaskAuditLogListResponseSerializer,
+    TaskAttachmentListResponseSerializer,
+    TaskAttachmentResponseSerializer,
+    TaskAttachmentSerializer,
+    TaskAttachmentUploadSerializer,
+    TaskCommentListResponseSerializer,
+    TaskCommentResponseSerializer,
+    TaskCommentSerializer,
     DeletedTaskListResponseSerializer,
     DeletedTaskSerializer,
     TaskAuditLogSerializer,
@@ -408,4 +420,82 @@ class TaskChecklistOrderView(TaskChecklistAccessMixin, APIView):
         serializer.is_valid(raise_exception=True)
         items = ChecklistService.reorder(task.id, serializer.validated_data["item_ids"], request.user)
         return success(TaskChecklistItemSerializer(items, many=True).data, "Sắp xếp checklist thành công.")
+
+
+class TaskCollaborationMixin(TaskChecklistAccessMixin):
+    def locked_visible_task(self, request, pk):
+        visible = self.get_task(request, pk)
+        TaskService.lock_project(visible.project_id)
+        if not Task.objects.select_for_update(of=('self',)).filter(pk=pk).exists():
+            raise Http404
+        if not has_role(request.user, Role.Code.ADMIN):
+            if not ProjectMember.objects.select_for_update(of=('self',)).filter(project_id=visible.project_id, user=request.user).exists():
+                raise Http404
+        return self.get_task(request, pk)
+
+
+class TaskCommentView(TaskCollaborationMixin, APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(tags=['Task comments'], responses={200: TaskCommentListResponseSerializer})
+    def get(self, request, pk):
+        task = self.get_task(request, pk)
+        return success(TaskCommentSerializer(task.comments.select_related('author', 'author__role'), many=True).data)
+
+    @extend_schema(tags=['Task comments'], request=TaskCommentSerializer, responses={201: TaskCommentResponseSerializer})
+    @transaction.atomic
+    def post(self, request, pk):
+        serializer = TaskCommentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        task = self.locked_visible_task(request, pk)
+        comment = TaskComment.objects.create(task=task, author=request.user, **serializer.validated_data)
+        return success(TaskCommentSerializer(comment).data, 'Đã thêm bình luận.', 201)
+
+
+class TaskAttachmentView(TaskCollaborationMixin, APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(tags=['Task attachments'], responses={200: TaskAttachmentListResponseSerializer})
+    def get(self, request, pk):
+        task = self.get_task(request, pk)
+        return success(TaskAttachmentSerializer(task.attachments.select_related('uploader', 'uploader__role'), many=True).data)
+
+    @extend_schema(tags=['Task attachments'], request=TaskAttachmentUploadSerializer, responses={201: TaskAttachmentResponseSerializer})
+    def post(self, request, pk):
+        serializer = TaskAttachmentUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        uploaded = serializer.validated_data['file']
+        storage = FileSystemStorage(location=settings.PRIVATE_MEDIA_ROOT)
+        stored_name = None
+        try:
+            with transaction.atomic():
+                task = self.locked_visible_task(request, pk)
+                stored_name = storage.save(uuid.uuid4().hex, uploaded)
+                attachment = TaskAttachment.objects.create(task=task, uploader=request.user, original_name=uploaded.name[:255], storage_name=stored_name, size=uploaded.size)
+        except Exception:
+            if stored_name:
+                storage.delete(stored_name)
+            raise
+        return success(TaskAttachmentSerializer(attachment).data, 'Đã tải tệp lên.', 201)
+
+
+class TaskAttachmentDownloadView(TaskCollaborationMixin, APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(tags=['Task attachments'], responses={200: {'type': 'string', 'format': 'binary'}})
+    def get(self, request, pk, attachment_id):
+        task = self.get_task(request, pk)
+        attachment = get_object_or_404(task.attachments, pk=attachment_id)
+        storage = FileSystemStorage(location=settings.PRIVATE_MEDIA_ROOT)
+        if not storage.exists(attachment.storage_name):
+            raise Http404
+        if settings.PRIVATE_MEDIA_ACCEL:
+            response = HttpResponse(content_type='application/octet-stream')
+            response['X-Accel-Redirect'] = f'/protected/{attachment.storage_name}'
+            response['Content-Disposition'] = content_disposition_header(True, attachment.original_name)
+        else:
+            response = FileResponse(storage.open(attachment.storage_name, 'rb'), as_attachment=True, filename=attachment.original_name, content_type='application/octet-stream')
+        response['X-Content-Type-Options'] = 'nosniff'
+        response['Cache-Control'] = 'private, no-store'
+        return response
 

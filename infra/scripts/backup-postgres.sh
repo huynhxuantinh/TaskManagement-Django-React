@@ -16,7 +16,9 @@ mkdir -p "$OUTPUT_DIR"
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 dump_file="$OUTPUT_DIR/${POSTGRES_DB}_${timestamp}.dump"
 partial_file="${dump_file}.partial"
-trap 'rm -f "$partial_file"' EXIT
+media_file="$OUTPUT_DIR/${POSTGRES_DB}_${timestamp}_media.tar.gz"
+media_partial="${media_file}.partial"
+trap 'rm -f "$partial_file" "$media_partial"' EXIT
 
 pg_dump \
     --dbname="$POSTGRES_DB" \
@@ -27,6 +29,11 @@ pg_dump \
     --file="$partial_file"
 
 pg_restore --list "$partial_file" > "${dump_file}.list"
+if [ -d /srv/backup-media/media ] && [ -d /srv/backup-media/private ]; then
+    tar -czf "$media_partial" -C /srv/backup-media media private
+    mv "$media_partial" "$media_file"
+    (cd "$OUTPUT_DIR" && sha256sum "$(basename "$media_file")" > "$(basename "$media_file").sha256")
+fi
 mv "$partial_file" "$dump_file"
 (
     cd "$OUTPUT_DIR"

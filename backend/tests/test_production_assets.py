@@ -101,6 +101,9 @@ def test_reverse_proxy_terminates_tls_and_serves_all_runtime_assets():
     assert "proxy_pass http://backend" in nginx
     assert "location /static/" in nginx
     assert "location /media/" in nginx
+    assert "location /protected/" in nginx
+    assert "internal;" in nginx
+    assert "alias /srv/private/" in nginx
     assert "Strict-Transport-Security" in nginx
     assert "X-Forwarded-Proto https" in nginx
     assert "client_body_temp_path /tmp/client_temp" in nginx
@@ -112,6 +115,8 @@ def test_backup_and_restore_scripts_verify_checksums_and_protect_source_database
     restore = (scripts / "restore-postgres.sh").read_text(encoding="utf-8")
 
     assert "pg_dump" in backup
+    assert '/srv/backup-media' in backup
+    assert 'media private' in backup
     assert "--format=custom" in backup
     assert "sha256sum" in backup
     assert "sha256sum -c" in restore

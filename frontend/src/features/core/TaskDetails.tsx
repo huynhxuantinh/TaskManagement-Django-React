@@ -6,6 +6,7 @@ import type { Task } from '../../types/api'
 import { TaskChecklist } from './TaskChecklist'
 import { TaskHistory } from './TaskHistory'
 import { TaskProgressEditor } from './TaskProgressEditor'
+import { TaskCollaboration } from './TaskCollaboration'
 
 function formatDate(value: string | null) {
   if (!value) return 'Chưa đặt'
@@ -16,6 +17,7 @@ function formatDate(value: string | null) {
 export function TaskDetails({ taskId, onChanged }: { taskId: number; onChanged: () => void }) {
   const [checklistDraft, setChecklistDraft] = useState('')
   const [showHistory, setShowHistory] = useState(false)
+  const [showCollaboration, setShowCollaboration] = useState(false)
   const { data: task, setData: setTask, loading, error, reload } = useApiResource<Task>(`/api/v1/tasks/${taskId}/`)
 
   if (loading) return <div className="h-72 animate-pulse rounded-2xl bg-slate-100" />
@@ -45,6 +47,10 @@ export function TaskDetails({ taskId, onChanged }: { taskId: number; onChanged: 
         draft={checklistDraft}
         onDraftChange={setChecklistDraft}
       />
+      <section>
+        <Button type="button" variant="secondary" aria-expanded={showCollaboration} onClick={() => setShowCollaboration((current) => !current)}>{showCollaboration ? 'Ẩn bình luận và tệp' : 'Bình luận và tệp đính kèm'}</Button>
+        {showCollaboration && <div className="mt-4"><TaskCollaboration taskId={task.id} /></div>}
+      </section>
       <section aria-label="Lịch sử công việc">
         <Button type="button" variant="secondary" aria-expanded={showHistory} onClick={() => setShowHistory((current) => !current)}>{showHistory ? 'Ẩn lịch sử' : 'Xem lịch sử'}</Button>
         {showHistory && <div className="mt-4"><TaskHistory task={task} /></div>}

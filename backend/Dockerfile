@@ -11,7 +11,7 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir --disable-pip-version-check -r requirements.txt
 
 COPY --chown=app:app . .
-RUN mkdir -p /app/media /app/staticfiles && chown -R app:app /app/media /app/staticfiles
+RUN mkdir -p /app/media /app/private_media /app/staticfiles && chown -R app:app /app/media /app/private_media /app/staticfiles
 
 USER app
 

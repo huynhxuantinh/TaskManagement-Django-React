@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { readFile } from 'node:fs/promises'
 
 const accounts = {
   Admin: { email: 'admin', password: '123' },
@@ -45,6 +46,25 @@ test('Manager giao và chỉnh sửa công việc trong dự án mình quản l�
   await createDialog.getByRole('button', { name: 'Tạo công việc' }).click()
   const taskCard = page.getByRole('article').filter({ hasText: taskName })
   await expect(taskCard).toBeVisible()
+  await taskCard.getByRole('button', { name: 'Chi tiết' }).click()
+  const details = page.getByRole('dialog')
+  await details.getByRole('button', { name: 'Bình luận và tệp đính kèm' }).click()
+  await details.getByLabel('Bình luận mới').fill('Đã kiểm tra công việc')
+  await details.getByRole('button', { name: 'Gửi bình luận' }).click()
+  await expect(details.getByText('Đã kiểm tra công việc')).toBeVisible()
+  await details.getByLabel('Chọn tệp (tối đa 10 MB)').setInputFiles({ name: 'test.txt', mimeType: 'text/plain', buffer: Buffer.from('Tệp nội bộ') })
+  await details.getByRole('button', { name: 'Tải tệp lên' }).click()
+  await expect(details.getByText(/test.txt/)).toBeVisible()
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    details.getByRole('button', { name: 'Tải xuống' }).click(),
+  ])
+  expect(download.suggestedFilename()).toBe('test.txt')
+  const downloadedPath = await download.path()
+  expect(downloadedPath).not.toBeNull()
+  expect(await readFile(downloadedPath!, 'utf8')).toBe('Tệp nội bộ')
+  await details.focus()
+  await page.keyboard.press('Escape')
   await taskCard.getByRole('button', { name: 'Sửa' }).click()
   await page.getByRole('dialog').getByLabel('Tên công việc').fill(`${taskName} updated`)
   await page.getByRole('dialog').getByRole('button', { name: 'Lưu thay đổi' }).click()

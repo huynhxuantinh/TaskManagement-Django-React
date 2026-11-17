@@ -5,6 +5,7 @@ from io import StringIO
 from threading import Event
 
 import pytest
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import close_old_connections, connections
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -84,6 +85,62 @@ def make_task(project, statuses, assignee, **overrides):
     }
     values.update(overrides)
     return Task.objects.create(**values)
+
+
+@pytest.mark.django_db
+def test_task_comments_and_private_attachments_follow_task_access(task_users, task_statuses, task_project, settings, tmp_path):
+    settings.PRIVATE_MEDIA_ROOT = tmp_path
+    task = make_task(task_project, task_statuses, task_users['employee'])
+    employee = api_as(task_users['employee'])
+    manager = api_as(task_users['manager2'])
+    outsider = api_as(task_users['employee2'])
+    base = f'/api/v1/tasks/{task.id}/'
+
+    comment = employee.post(base + 'comments/', {'body': 'Đã kiểm tra'}, format='json')
+    assert comment.status_code == 201
+    assert manager.get(base + 'comments/').data['data'][0]['body'] == 'Đã kiểm tra'
+    assert outsider.get(base + 'comments/').status_code == 404
+    upload = employee.post(base + 'attachments/', {'file': SimpleUploadedFile('report.txt', b'private data')}, format='multipart')
+    assert upload.status_code == 201
+    item = upload.data['data']
+    assert item['original_name'] == 'report.txt'
+    assert 'file' not in item and 'storage_name' not in item
+    stored = list(tmp_path.iterdir())
+    assert len(stored) == 1
+    assert stored[0].name != item['original_name']
+    assert outsider.get(base + 'attachments/').status_code == 404
+    assert outsider.post(base + 'comments/', {'body': 'Không được phép'}, format='json').status_code == 404
+    assert outsider.post(base + 'attachments/', {'file': SimpleUploadedFile('bad.txt', b'x')}, format='multipart').status_code == 404
+    assert outsider.get(base + f"attachments/{item['id']}/download/").status_code == 404
+    download = manager.get(base + f"attachments/{item['id']}/download/")
+    assert download.status_code == 200
+    assert b''.join(download.streaming_content) == b'private data'
+    assert download['Content-Disposition'].startswith('attachment;')
+    settings.PRIVATE_MEDIA_ACCEL = True
+    accelerated = manager.get(base + f"attachments/{item['id']}/download/")
+    assert accelerated.status_code == 200
+    assert accelerated['X-Accel-Redirect'].startswith('/protected/')
+    assert accelerated['Content-Disposition'].startswith('attachment;')
+
+
+@pytest.mark.django_db
+def test_task_attachment_rejects_large_file(task_users, task_statuses, task_project, settings, tmp_path):
+    settings.PRIVATE_MEDIA_ROOT = tmp_path
+    task = make_task(task_project, task_statuses, task_users['employee'])
+    upload = SimpleUploadedFile('large.txt', b'x' * (10 * 1024 * 1024 + 1))
+    response = api_as(task_users['employee']).post(f'/api/v1/tasks/{task.id}/attachments/', {'file': upload}, format='multipart')
+    assert response.status_code == 400
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.django_db
+def test_task_comment_rejects_blank_or_excessively_long_body(task_users, task_statuses, task_project):
+    task = make_task(task_project, task_statuses, task_users['employee'])
+    client = api_as(task_users['employee'])
+    url = f'/api/v1/tasks/{task.id}/comments/'
+    assert client.post(url, {'body': '   '}, format='json').status_code == 400
+    assert client.post(url, {'body': 'x' * 5001}, format='json').status_code == 400
+    assert not task.comments.exists()
 
 
 @pytest.mark.django_db
@@ -184,6 +241,263 @@ def test_checklist_write_rechecks_permission_after_concurrent_reassignment(task_
         assert future.result(timeout=10) == 403
     assert list(task.checklist_items.order_by('position').values_list('title', flat=True)) == ['First', 'Second']
     assert not TaskAuditLog.objects.filter(task=task, action__startswith='CHECKLIST_').exists()
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize('parent_action', ['complete', 'delete'])
+def test_parent_assignment_rechecks_after_parent_changes(task_users, task_statuses, task_project, monkeypatch, parent_action):
+    parent = make_task(task_project, task_statuses, task_users['employee'])
+    child = make_task(task_project, task_statuses, task_users['employee'])
+    validated = Event()
+    proceed = Event()
+    original = TaskService.update_task
+
+    def delayed_update(*args, **kwargs):
+        validated.set()
+        assert proceed.wait(10)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(TaskService, 'update_task', delayed_update)
+
+    def assign_parent():
+        close_old_connections()
+        try:
+            return api_as(task_users['manager']).patch(f'/api/v1/tasks/{child.id}/', {
+                'parent': parent.id, 'expected_updated_at': child.updated_at.isoformat(),
+            }, format='json').status_code
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(assign_parent)
+        try:
+            assert validated.wait(10)
+            client = api_as(task_users['manager'])
+            if parent_action == 'complete':
+                response = client.patch(f'/api/v1/tasks/{parent.id}/status/', {
+                    'status': 'COMPLETED', 'expected_status': 'TODO',
+                }, format='json')
+                assert response.status_code == 200
+            else:
+                assert client.delete(f'/api/v1/tasks/{parent.id}/').status_code == 204
+        finally:
+            proceed.set()
+        assert future.result(timeout=10) == 400
+    child.refresh_from_db()
+    assert child.parent_id is None
+
+
+@pytest.mark.django_db(transaction=True)
+def test_parent_assignment_serializes_with_parent_completion(task_users, task_statuses, task_project, monkeypatch):
+    parent = make_task(task_project, task_statuses, task_users['employee'])
+    child = make_task(task_project, task_statuses, task_users['employee'])
+    parent_locked = Event()
+    completion_started = Event()
+    proceed = Event()
+    original_lock = TaskService.lock_parent
+    original_change = TaskService.change_status
+
+    def delayed_lock(parent_id):
+        locked = original_lock(parent_id)
+        parent_locked.set()
+        assert proceed.wait(10)
+        return locked
+
+    def observe_completion(*args, **kwargs):
+        completion_started.set()
+        return original_change(*args, **kwargs)
+
+    monkeypatch.setattr(TaskService, 'lock_parent', delayed_lock)
+    monkeypatch.setattr(TaskService, 'change_status', observe_completion)
+
+    def request(complete):
+        close_old_connections()
+        try:
+            client = api_as(task_users['manager'])
+            if complete:
+                return client.patch(f'/api/v1/tasks/{parent.id}/status/', {
+                    'status': 'COMPLETED', 'expected_status': 'TODO',
+                }, format='json').status_code
+            return client.patch(f'/api/v1/tasks/{child.id}/', {
+                'parent': parent.id, 'expected_updated_at': child.updated_at.isoformat(),
+            }, format='json').status_code
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        assigning = executor.submit(request, False)
+        try:
+            assert parent_locked.wait(10)
+            completing = executor.submit(request, True)
+            assert completion_started.wait(10)
+        finally:
+            proceed.set()
+        assert assigning.result(timeout=10) == 200
+        assert completing.result(timeout=10) == 400
+    parent.refresh_from_db()
+    child.refresh_from_db()
+    assert parent.status.code == 'TODO'
+    assert child.parent_id == parent.id
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize('mode', ['create', 'update'])
+def test_task_deadline_rechecked_after_concurrent_project_shortening(task_users, task_statuses, task_project, monkeypatch, mode):
+    today = timezone.localdate()
+    task_project.end_date = today + timedelta(days=30)
+    task_project.save(update_fields=['end_date', 'updated_at'])
+    task = make_task(task_project, task_statuses, task_users['employee'], deadline=today + timedelta(days=1))
+    validated = Event()
+    proceed = Event()
+    original = TaskService.lock_project
+
+    def delayed_lock(project_id):
+        validated.set()
+        assert proceed.wait(10)
+        return original(project_id)
+
+    monkeypatch.setattr(TaskService, 'lock_project', delayed_lock)
+
+    def write_task():
+        close_old_connections()
+        try:
+            client = api_as(task_users['manager'])
+            deadline = (today + timedelta(days=10)).isoformat()
+            if mode == 'create':
+                return client.post('/api/v1/tasks/', {'title': 'New', 'project_id': task_project.id, 'deadline': deadline}, format='json').status_code
+            return client.patch(f'/api/v1/tasks/{task.id}/', {'deadline': deadline, 'expected_updated_at': task.updated_at.isoformat()}, format='json').status_code
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(write_task)
+        try:
+            assert validated.wait(10)
+            response = api_as(task_users['manager']).patch(f'/api/v1/projects/{task_project.id}/', {
+                'end_date': (today + timedelta(days=5)).isoformat(),
+                'expected_updated_at': task_project.updated_at.isoformat(),
+            }, format='json')
+            assert response.status_code == 200
+        finally:
+            proceed.set()
+        assert future.result(timeout=10) == 400
+    task_project.refresh_from_db()
+    assert not task_project.tasks.filter(is_deleted=False, deadline__gt=task_project.end_date).exists()
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize('mode', ['create', 'update'])
+def test_project_shortening_waits_for_concurrent_task_deadline(task_users, task_statuses, task_project, monkeypatch, mode):
+    today = timezone.localdate()
+    task_project.end_date = today + timedelta(days=30)
+    task_project.save(update_fields=['end_date', 'updated_at'])
+    task = make_task(task_project, task_statuses, task_users['employee'], deadline=today + timedelta(days=1))
+    locked = Event()
+    project_started = Event()
+    proceed = Event()
+    original = TaskService.lock_project
+
+    def delayed_lock(project_id):
+        project = original(project_id)
+        locked.set()
+        assert proceed.wait(10)
+        return project
+
+    monkeypatch.setattr(TaskService, 'lock_project', delayed_lock)
+
+    def write_task():
+        close_old_connections()
+        try:
+            client = api_as(task_users['manager'])
+            deadline = (today + timedelta(days=10)).isoformat()
+            if mode == 'create':
+                return client.post('/api/v1/tasks/', {'title': 'New', 'project_id': task_project.id, 'deadline': deadline}, format='json').status_code
+            return client.patch(f'/api/v1/tasks/{task.id}/', {'deadline': deadline, 'expected_updated_at': task.updated_at.isoformat()}, format='json').status_code
+        finally:
+            close_old_connections()
+
+    def shorten_project():
+        close_old_connections()
+        try:
+            project_started.set()
+            return api_as(task_users['manager']).patch(f'/api/v1/projects/{task_project.id}/', {
+                'end_date': (today + timedelta(days=5)).isoformat(),
+                'expected_updated_at': task_project.updated_at.isoformat(),
+            }, format='json').status_code
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        writing = executor.submit(write_task)
+        try:
+            assert locked.wait(10)
+            shortening = executor.submit(shorten_project)
+            assert project_started.wait(10)
+        finally:
+            proceed.set()
+        assert writing.result(timeout=10) == (201 if mode == 'create' else 200)
+        assert shortening.result(timeout=10) == 400
+    task_project.refresh_from_db()
+    assert not task_project.tasks.filter(is_deleted=False, deadline__gt=task_project.end_date).exists()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_manual_progress_rechecks_concurrent_child_creation(task_users, task_statuses, task_project, monkeypatch):
+    parent = make_task(task_project, task_statuses, task_users['employee'], progress=10)
+    validated = Event()
+    proceed = Event()
+    original = TaskService.update_task
+
+    def delayed_update(*args, **kwargs):
+        validated.set()
+        assert proceed.wait(10)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(TaskService, 'update_task', delayed_update)
+
+    def update_progress():
+        close_old_connections()
+        try:
+            return api_as(task_users['manager']).patch(f'/api/v1/tasks/{parent.id}/', {
+                'progress': 70, 'expected_updated_at': parent.updated_at.isoformat(),
+            }, format='json').status_code
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(update_progress)
+        try:
+            assert validated.wait(10)
+            created = api_as(task_users['manager']).post('/api/v1/tasks/', {
+                'title': 'Công việc con', 'project_id': task_project.id, 'parent': parent.id,
+            }, format='json')
+            assert created.status_code == 201
+        finally:
+            proceed.set()
+        assert future.result(timeout=10) == 400
+    parent.refresh_from_db()
+    assert parent.progress == 10
+
+
+@pytest.mark.django_db
+def test_manual_progress_rejected_for_parent_with_active_children(task_users, task_statuses, task_project):
+    parent = make_task(task_project, task_statuses, task_users['employee'], progress=10)
+    child = make_task(task_project, task_statuses, task_users['employee'], parent=parent)
+    client = api_as(task_users['manager'])
+    url = f'/api/v1/tasks/{parent.id}/'
+    payload = {'progress': 70, 'expected_updated_at': parent.updated_at.isoformat()}
+
+    blocked = client.patch(url, payload, format='json')
+    assert blocked.status_code == 400
+    assert 'progress' in blocked.data['errors']
+    parent.refresh_from_db()
+    assert parent.progress == 10
+    assert client.patch(url, {'title': 'Tên mới', 'expected_updated_at': parent.updated_at.isoformat()}, format='json').status_code == 200
+
+    child.is_deleted = True
+    child.save(update_fields=['is_deleted'])
+    parent.refresh_from_db()
+    assert client.patch(url, {'progress': 70, 'expected_updated_at': parent.updated_at.isoformat()}, format='json').status_code == 200
 
 
 @pytest.mark.django_db(transaction=True)
@@ -1210,6 +1524,26 @@ def test_deleting_same_checklist_item_twice_returns_not_found(
 
     assert api_as(task_users["employee"]).delete(url).status_code == 204
     assert api_as(task_users["employee"]).delete(url).status_code == 404
+
+
+@pytest.mark.django_db
+def test_only_admin_or_project_owner_can_reopen_assigned_manager_task(task_users, task_statuses, task_project):
+    task = make_task(task_project, task_statuses, task_users['manager2'], status=task_statuses['COMPLETED'])
+    url = f'/api/v1/tasks/{task.id}/'
+    manager = api_as(task_users['manager2'])
+
+    detail = manager.get(url).data['data']
+    assert not any(item['code'] == 'IN_PROGRESS' for item in detail['allowed_transitions'])
+    assert any('quản lý dự án' in item['reason'] for item in detail['status_restrictions'])
+    payload = {'status': 'IN_PROGRESS', 'expected_status': 'COMPLETED', 'note': 'Mở lại'}
+    assert manager.patch(f'{url}status/', payload, format='json').status_code == 403
+    assert manager.patch(f'{url}status/', {**payload, 'status': 'TODO'}, format='json').status_code == 400
+    task.refresh_from_db()
+    assert task.status.code == 'COMPLETED'
+    assert api_as(task_users['manager']).patch(f'{url}status/', payload, format='json').status_code == 200
+
+    other = make_task(task_project, task_statuses, task_users['manager2'], status=task_statuses['COMPLETED'])
+    assert api_as(task_users['admin']).patch(f'/api/v1/tasks/{other.id}/status/', payload, format='json').status_code == 200
 
 
 @pytest.mark.django_db

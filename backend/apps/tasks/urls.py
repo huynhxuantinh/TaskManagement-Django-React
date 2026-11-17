@@ -1,6 +1,6 @@
 from django.urls import path
 
-from .views import DeletedTaskHistoryView, DeletedTaskListView, TaskAssigneeListView, TaskChecklistItemView, TaskChecklistOrderView, TaskChecklistView, TaskStatusListView, TaskViewSet
+from .views import DeletedTaskHistoryView, DeletedTaskListView, TaskAssigneeListView, TaskAttachmentDownloadView, TaskAttachmentView, TaskChecklistItemView, TaskChecklistOrderView, TaskChecklistView, TaskCommentView, TaskStatusListView, TaskViewSet
 
 task_list = TaskViewSet.as_view({"get": "list", "post": "create"})
 task_detail = TaskViewSet.as_view(
@@ -22,6 +22,9 @@ urlpatterns = [
     path("tasks/<int:pk>/status/", task_status, name="task-change-status"),
     path("tasks/<int:pk>/progress/", task_progress, name="task-update-progress"),
     path("tasks/<int:pk>/history/", task_history, name="task-history"),
+    path("tasks/<int:pk>/comments/", TaskCommentView.as_view(), name="task-comments"),
+    path("tasks/<int:pk>/attachments/", TaskAttachmentView.as_view(), name="task-attachments"),
+    path("tasks/<int:pk>/attachments/<int:attachment_id>/download/", TaskAttachmentDownloadView.as_view(), name="task-attachment-download"),
     path("tasks/<int:pk>/checklist/", TaskChecklistView.as_view(), name="task-checklist"),
     path("tasks/<int:pk>/checklist/order/", TaskChecklistOrderView.as_view(), name="task-checklist-order"),
     path("tasks/<int:pk>/checklist/<int:item_id>/", TaskChecklistItemView.as_view(), name="task-checklist-item"),
