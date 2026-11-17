@@ -3,13 +3,14 @@ from datetime import timedelta
 from django.db import transaction
 from django.db.models import Count, Max
 from django.utils import timezone
-from rest_framework.exceptions import APIException, NotFound, ValidationError
+from rest_framework.exceptions import APIException, NotFound, PermissionDenied, ValidationError
+from apps.accounts.models import Role
 from apps.notifications.models import NotificationType
 from apps.notifications.services import create_notification
 from apps.projects.models import ProjectMember
 
 from .models import Task, TaskAuditLog, TaskChecklistItem, TaskStatus
-from .workflow import validate_transition
+from .workflow import can_change_task_status, validate_transition
 
 
 AUDITED_TASK_FIELDS = ("title", "description", "assignee", "priority", "deadline", "start_date", "estimated_hours", "progress", "parent")
@@ -35,7 +36,7 @@ def audit_value(field, value):
 
 class ChecklistService:
     @staticmethod
-    def locked_task(task_id):
+    def locked_task(task_id, actor):
         from rest_framework.exceptions import NotFound, ValidationError
 
         try:
@@ -44,6 +45,10 @@ class ChecklistService:
             raise NotFound("Không tìm thấy công việc.") from error
         if task.is_deleted or task.project.is_deleted:
             raise NotFound("Không tìm thấy công việc.")
+        if not can_change_task_status(task, actor):
+            raise PermissionDenied('Bạn không có quyền cập nhật checklist công việc này.')
+        if actor.role.code != Role.Code.ADMIN and not ProjectMember.objects.filter(project_id=task.project_id, user_id=actor.id).exists():
+            raise PermissionDenied('Bạn không còn là thành viên dự án này.')
         if task.status.code == TaskStatus.Code.COMPLETED:
             raise ValidationError({"checklist": "Hãy mở lại công việc trước khi sửa checklist."})
         return task
@@ -51,7 +56,7 @@ class ChecklistService:
     @staticmethod
     @transaction.atomic
     def create(task_id, values, actor):
-        task = ChecklistService.locked_task(task_id)
+        task = ChecklistService.locked_task(task_id, actor)
         totals = task.checklist_items.aggregate(count=Count("id"), max_position=Max("position"))
         if totals["count"] >= 100:
             from rest_framework.exceptions import ValidationError
@@ -69,7 +74,7 @@ class ChecklistService:
     @staticmethod
     @transaction.atomic
     def update(task_id, item_id, values, actor):
-        task = ChecklistService.locked_task(task_id)
+        task = ChecklistService.locked_task(task_id, actor)
         try:
             item = TaskChecklistItem.objects.get(task=task, pk=item_id)
         except TaskChecklistItem.DoesNotExist as error:
@@ -89,7 +94,7 @@ class ChecklistService:
     @staticmethod
     @transaction.atomic
     def delete(task_id, item_id, actor):
-        task = ChecklistService.locked_task(task_id)
+        task = ChecklistService.locked_task(task_id, actor)
         try:
             item = TaskChecklistItem.objects.get(task=task, pk=item_id)
         except TaskChecklistItem.DoesNotExist as error:
@@ -104,7 +109,7 @@ class ChecklistService:
     def reorder(task_id, item_ids, actor):
         from rest_framework.exceptions import ValidationError
 
-        task = ChecklistService.locked_task(task_id)
+        task = ChecklistService.locked_task(task_id, actor)
         items = list(task.checklist_items.select_for_update(of=("self",)).order_by("position", "id"))
         old_ids = [item.id for item in items]
         if len(item_ids) != len(set(item_ids)) or set(item_ids) != set(old_ids):
@@ -296,12 +301,27 @@ class TaskService:
 
     @staticmethod
     @transaction.atomic
-    def change_status(task, new_status, actor, note=""):
+    def change_status(task, new_status, actor, note="", confirm_incomplete_checklist=False, expected_status=None):
+        expected_parent_id = task.parent_id
+        if expected_parent_id is not None:
+            Task.objects.select_for_update(of=('self',)).filter(pk=expected_parent_id).first()
         task = (
             Task.objects.select_for_update(of=("self",))
             .select_related("project", "project__creator", "assignee", "status", "parent__status")
             .get(pk=task.pk)
         )
+        if task.is_deleted or task.project.is_deleted:
+            raise NotFound('Không tìm thấy công việc.')
+        if task.parent_id != expected_parent_id:
+            raise TaskUpdateConflict('Công việc cha đã thay đổi. Vui lòng tải lại trước khi xác nhận.')
+        if not can_change_task_status(task, actor):
+            raise PermissionDenied('Bạn không có quyền đổi trạng thái công việc này.')
+        if actor.role.code != Role.Code.ADMIN and not ProjectMember.objects.filter(
+            project_id=task.project_id, user_id=actor.id,
+        ).exists():
+            raise PermissionDenied('Bạn không còn là thành viên dự án này.')
+        if expected_status != task.status.code:
+            raise TaskUpdateConflict('Trạng thái công việc đã thay đổi. Vui lòng tải lại trước khi xác nhận.')
         unfinished_subtasks = list(
             task.subtasks.filter(is_deleted=False)
             .exclude(status__code=TaskStatus.Code.COMPLETED)
@@ -317,6 +337,8 @@ class TaskService:
             ).exists()
         if task.status_id == new_status.id:
             return task
+        if is_completed and task.checklist_items.filter(is_completed=False).exists() and not confirm_incomplete_checklist:
+            raise ValidationError({'confirm_incomplete_checklist': ['Checklist còn mục chưa hoàn thành. Vui lòng xác nhận trước khi hoàn thành công việc.']})
         old_status = task.status.code
         note = validate_transition(task, new_status, actor, note)
         if is_completed and not was_completed:

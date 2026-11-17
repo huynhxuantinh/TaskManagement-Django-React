@@ -1,4 +1,4 @@
-import { useState, type DragEvent, type FormEvent } from 'react'
+import { useRef, useState, type DragEvent, type FormEvent } from 'react'
 
 import { Button } from '../../components/ui/Button'
 import { Field } from '../../components/ui/Field'
@@ -6,19 +6,35 @@ import { useToast } from '../../components/ui/ToastContext'
 import { apiRequest } from '../../lib/api'
 import type { Task, TaskChecklistItem } from '../../types/api'
 
-export function TaskChecklist({ task, onChanged }: { task: Task; onChanged: () => void }) {
+export function TaskChecklist({ task, onChanged, draft, onDraftChange }: { task: Task; onChanged: () => void; draft?: string; onDraftChange?: (value: string) => void }) {
   const notify = useToast()
   const [items, setItems] = useState(task.checklist ?? [])
-  const [title, setTitle] = useState('')
+  const [localTitle, setLocalTitle] = useState('')
+  const title = draft ?? localTitle
+  const setTitle = onDraftChange ?? setLocalTitle
   const [saving, setSaving] = useState(false)
+  const savingRef = useRef(false)
   const [draggedId, setDraggedId] = useState<number | null>(null)
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editTitle, setEditTitle] = useState('')
   const canEdit = task.can_edit_checklist
+
+  function beginSave() {
+    if (!canEdit || savingRef.current) return false
+    savingRef.current = true
+    setSaving(true)
+    return true
+  }
+
+  function endSave() {
+    savingRef.current = false
+    setSaving(false)
+  }
 
   async function addItem(event: FormEvent) {
     event.preventDefault()
     const value = title.trim()
-    if (!value) return
-    setSaving(true)
+    if (!value || !beginSave()) return
     try {
       const item = await apiRequest<TaskChecklistItem>(`/api/v1/tasks/${task.id}/checklist/`, {
         method: 'POST',
@@ -30,11 +46,12 @@ export function TaskChecklist({ task, onChanged }: { task: Task; onChanged: () =
     } catch (caught) {
       notify((caught as Error).message, 'error')
     } finally {
-      setSaving(false)
+      endSave()
     }
   }
 
   async function toggle(item: TaskChecklistItem) {
+    if (!beginSave()) return
     try {
       const saved = await apiRequest<TaskChecklistItem>(
         `/api/v1/tasks/${task.id}/checklist/${item.id}/`,
@@ -44,11 +61,35 @@ export function TaskChecklist({ task, onChanged }: { task: Task; onChanged: () =
       onChanged()
     } catch (caught) {
       notify((caught as Error).message, 'error')
+    } finally {
+      endSave()
+    }
+  }
+
+  async function saveTitle(item: TaskChecklistItem) {
+    const value = editTitle.trim()
+    if (!value || savingRef.current) return
+    if (value === item.title) { setEditingId(null); return }
+    if (!beginSave()) return
+    try {
+      const saved = await apiRequest<TaskChecklistItem>(`/api/v1/tasks/${task.id}/checklist/${item.id}/`, {
+        method: 'PATCH', body: JSON.stringify({ title: value }),
+      })
+      setItems((current) => current.map((row) => row.id === saved.id ? saved : row))
+      setEditingId(null)
+      setEditTitle('')
+      onChanged()
+    } catch (caught) {
+      notify((caught as Error).message, 'error')
+    } finally {
+      endSave()
     }
   }
 
   async function remove(item: TaskChecklistItem) {
+    if (savingRef.current) return
     if (!window.confirm(`Xóa mục “${item.title}”?`)) return
+    if (!beginSave()) return
     try {
       await apiRequest<void>(`/api/v1/tasks/${task.id}/checklist/${item.id}/`, {
         method: 'DELETE',
@@ -57,10 +98,13 @@ export function TaskChecklist({ task, onChanged }: { task: Task; onChanged: () =
       onChanged()
     } catch (caught) {
       notify((caught as Error).message, 'error')
+    } finally {
+      endSave()
     }
   }
 
   async function saveOrder(reordered: TaskChecklistItem[], previous: TaskChecklistItem[]) {
+    if (!beginSave()) return
     setItems(reordered)
     try {
       const saved = await apiRequest<TaskChecklistItem[]>(
@@ -72,6 +116,8 @@ export function TaskChecklist({ task, onChanged }: { task: Task; onChanged: () =
     } catch (caught) {
       setItems(previous)
       notify((caught as Error).message, 'error')
+    } finally {
+      endSave()
     }
   }
 
@@ -87,7 +133,7 @@ export function TaskChecklist({ task, onChanged }: { task: Task; onChanged: () =
 
   async function dropOn(targetId: number, event: DragEvent<HTMLLIElement>) {
     event.preventDefault()
-    if (draggedId === null || draggedId === targetId) return
+    if (savingRef.current || draggedId === null || draggedId === targetId) return
     const from = items.findIndex((item) => item.id === draggedId)
     const to = items.findIndex((item) => item.id === targetId)
     if (from < 0 || to < 0) return
@@ -99,13 +145,13 @@ export function TaskChecklist({ task, onChanged }: { task: Task; onChanged: () =
   }
 
   return (
-    <section className="space-y-3">
+    <section className="space-y-3" aria-busy={saving}>
       <div className="flex items-end justify-between gap-3">
         <div>
           <p className="section-kicker">Checklist</p>
           <h3 className="text-lg font-extrabold">{task.checklist_done}/{task.checklist_total} mục hoàn thành</h3>
         </div>
-        <span className="font-mono text-sm font-black text-slate-600">{task.effective_progress}%</span>
+        <span className="text-right text-xs font-semibold text-slate-600">Tiến độ công việc <strong className="font-mono text-sm font-black">{task.effective_progress}%</strong></span>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-slate-100">
         <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${task.effective_progress}%` }} />
@@ -115,19 +161,21 @@ export function TaskChecklist({ task, onChanged }: { task: Task; onChanged: () =
         {items.map((item, index) => (
           <li
             key={item.id}
-            draggable={canEdit}
+            draggable={canEdit && !saving && editingId === null}
             onDragStart={() => setDraggedId(item.id)}
             onDragOver={(event) => canEdit && event.preventDefault()}
             onDrop={(event) => void dropOn(item.id, event)}
             className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3"
           >
             <span aria-hidden="true" className={`select-none text-slate-400 ${canEdit ? 'cursor-grab' : ''}`}>⋮⋮</span>
-            <input aria-label={`Hoàn thành ${item.title}`} type="checkbox" checked={item.is_completed} disabled={!canEdit} onChange={() => void toggle(item)} className="size-4 accent-slate-900" />
-            <span className={`min-w-0 flex-1 text-sm ${item.is_completed ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{item.title}</span>
-            {canEdit && <div className="flex items-center gap-1">
-              <Button type="button" variant="ghost" className="!min-h-9 !px-2" disabled={index === 0} aria-label={`Di chuyển ${item.title} lên`} onClick={() => void move(item.id, -1)}>↑</Button>
-              <Button type="button" variant="ghost" className="!min-h-9 !px-2" disabled={index === items.length - 1} aria-label={`Di chuyển ${item.title} xuống`} onClick={() => void move(item.id, 1)}>↓</Button>
-              <Button type="button" variant="ghost" className="!text-red-700" onClick={() => void remove(item)}>Xóa</Button>
+            <input aria-label={`Hoàn thành ${item.title}`} type="checkbox" checked={item.is_completed} disabled={!canEdit || saving || editingId !== null} onChange={() => void toggle(item)} className="size-4 accent-slate-900" />
+            {editingId === item.id ? <input aria-label="Nội dung mục checklist" value={editTitle} onChange={(event) => setEditTitle(event.target.value)} maxLength={300} autoFocus className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-2 text-sm" /> : <span className={`min-w-0 flex-1 text-sm ${item.is_completed ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{item.title}</span>}
+            {canEdit && editingId === item.id && <div className="flex items-center gap-1"><Button type="button" variant="secondary" disabled={saving} onClick={() => { setEditingId(null); setEditTitle('') }}>Hủy</Button><Button type="button" disabled={saving || !editTitle.trim()} onClick={() => void saveTitle(item)}>{saving ? 'Đang lưu…' : 'Lưu'}</Button></div>}
+            {canEdit && editingId === null && <div className="flex items-center gap-1">
+              <Button type="button" variant="ghost" className="!min-h-9 !px-2" disabled={saving} aria-label={`Sửa ${item.title}`} onClick={() => { setEditingId(item.id); setEditTitle(item.title) }}>Sửa</Button>
+              <Button type="button" variant="ghost" className="!min-h-9 !px-2" disabled={saving || index === 0} aria-label={`Di chuyển ${item.title} lên`} onClick={() => void move(item.id, -1)}>↑</Button>
+              <Button type="button" variant="ghost" className="!min-h-9 !px-2" disabled={saving || index === items.length - 1} aria-label={`Di chuyển ${item.title} xuống`} onClick={() => void move(item.id, 1)}>↓</Button>
+              <Button type="button" variant="ghost" disabled={saving} className="!text-red-700" onClick={() => void remove(item)}>Xóa</Button>
             </div>}
           </li>
         ))}
@@ -135,7 +183,7 @@ export function TaskChecklist({ task, onChanged }: { task: Task; onChanged: () =
       {canEdit ? (
         <form onSubmit={addItem} className="flex items-end gap-2">
           <Field label="Mục mới" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={300} className="min-w-0" />
-          <Button type="submit" disabled={saving || !title.trim() || items.length >= 100}>{saving ? 'Đang thêm…' : 'Thêm'}</Button>
+          <Button type="submit" disabled={saving || !title.trim() || items.length >= 100}>{saving ? 'Đang lưu…' : 'Thêm'}</Button>
         </form>
       ) : (
         <p className="text-xs text-slate-500">Checklist chỉ đọc do trạng thái hoặc quyền hiện tại.</p>

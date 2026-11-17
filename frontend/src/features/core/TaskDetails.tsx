@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { StatePanel } from '../../components/ui/StatePanel'
 import { useApiResource } from '../../hooks/useApiResource'
 import type { Task } from '../../types/api'
@@ -10,6 +11,7 @@ function formatDate(value: string | null) {
 }
 
 export function TaskDetails({ taskId, onChanged }: { taskId: number; onChanged: () => void }) {
+  const [checklistDraft, setChecklistDraft] = useState('')
   const { data: task, loading, error, reload } = useApiResource<Task>(`/api/v1/tasks/${taskId}/`)
 
   if (loading) return <div className="h-72 animate-pulse rounded-2xl bg-slate-100" />
@@ -35,6 +37,8 @@ export function TaskDetails({ taskId, onChanged }: { taskId: number; onChanged: 
         key={task.checklist?.map((item) => `${item.id}:${item.is_completed}:${item.position}`).join('|')}
         task={task}
         onChanged={refresh}
+        draft={checklistDraft}
+        onDraftChange={setChecklistDraft}
       />
     </div>
   )

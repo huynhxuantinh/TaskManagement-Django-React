@@ -40,26 +40,35 @@ def unfinished_subtasks_count(task):
     ).count()
 
 
-def allowed_transitions(task, actor):
+def transition_options(task, actor):
     if not can_change_task_status(task, actor):
-        return []
+        return [], [{'code': None, 'reason': 'Bạn không có quyền đổi trạng thái công việc này.'}]
     codes = set(TRANSITIONS.get(task.status.code, set()))
+    restrictions = []
+
+    def block(code, reason):
+        if code in codes:
+            codes.remove(code)
+            restrictions.append({'code': code, 'reason': reason})
+
+    if task.status.code == TaskStatus.Code.COMPLETED and actor.role.code not in {Role.Code.ADMIN, Role.Code.MANAGER}:
+        block(TaskStatus.Code.IN_PROGRESS, 'Chỉ quản trị viên hoặc quản lý được phép mở lại công việc đã hoàn thành.')
     if task.status.code == TaskStatus.Code.COMPLETED and task.assignee_id and not assignee_is_project_member(task):
-        codes.discard(TaskStatus.Code.IN_PROGRESS)
-    if unfinished_subtasks_count(task):
-        codes.discard(TaskStatus.Code.COMPLETED)
+        block(TaskStatus.Code.IN_PROGRESS, 'Người phụ trách không còn là thành viên dự án. Hãy chuyển công việc hoặc thêm lại thành viên trước khi mở lại.')
+    count = unfinished_subtasks_count(task)
+    if count:
+        block(TaskStatus.Code.COMPLETED, f'Còn {count} công việc con chưa hoàn thành.')
     if task.parent_id and task.parent.status.code == TaskStatus.Code.COMPLETED:
-        codes.discard(TaskStatus.Code.IN_PROGRESS)
-    if task.status.code == TaskStatus.Code.COMPLETED and actor.role.code not in {
-        Role.Code.ADMIN,
-        Role.Code.MANAGER,
-    }:
-        codes = set()
+        block(TaskStatus.Code.IN_PROGRESS, 'Hãy mở lại công việc cha trước.')
     return [
         {"code": code, "note_required": note_required(task.status.code, code)}
         for code in TaskStatus.Code.values
         if code in codes
-    ]
+    ], restrictions
+
+
+def allowed_transitions(task, actor):
+    return transition_options(task, actor)[0]
 
 
 def assignee_is_project_member(task):

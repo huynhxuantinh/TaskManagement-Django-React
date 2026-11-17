@@ -43,6 +43,7 @@ export function TasksPage() {
   const [detailTask, setDetailTask] = useState<Task | undefined>()
   const [statusChange, setStatusChange] = useState<{ task: Task; transition: TaskTransition } | undefined>()
   const [statusNote, setStatusNote] = useState('')
+  const [confirmIncompleteChecklist, setConfirmIncompleteChecklist] = useState(false)
   const params = buildTaskListParams({
     search,
     project: projectFilter,
@@ -70,15 +71,20 @@ export function TasksPage() {
     setSearch(query.trim())
   }
 
-  async function changeStatus(task: Task, status: string, note: string) {
+  async function changeStatus(task: Task, status: string, note: string, confirmIncomplete: boolean) {
     try {
-      const saved = await apiRequest<Task>(`/api/v1/tasks/${task.id}/status/`, { method: 'PATCH', body: JSON.stringify(buildStatusChangePayload(status, note)) })
+      const saved = await apiRequest<Task>(`/api/v1/tasks/${task.id}/status/`, { method: 'PATCH', body: JSON.stringify({ ...buildStatusChangePayload(status, note), expected_status: task.status.code, ...(confirmIncomplete ? { confirm_incomplete_checklist: true } : {}) }) })
       setData((current) => current ? { ...current, results: current.results.map((item) => item.id === saved.id ? saved : item) } : current)
       reload()
       notify('Đã cập nhật trạng thái.')
       return true
     } catch (caught) {
       notify((caught as Error).message, 'error')
+      if (caught && typeof caught === 'object' && (('status' in caught && caught.status === 409) || ('errors' in caught && caught.errors && typeof caught.errors === 'object' && 'confirm_incomplete_checklist' in caught.errors))) {
+        setStatusChange(undefined)
+        setConfirmIncompleteChecklist(false)
+        reload()
+      }
       return false
     }
   }
@@ -88,7 +94,9 @@ export function TasksPage() {
     if (!statusChange) return
     const note = statusNote.trim()
     if (statusChange.transition.note_required && !note) return
-    if (await changeStatus(statusChange.task, statusChange.transition.code, note)) {
+    const needsConfirmation = statusChange.transition.code === 'COMPLETED' && statusChange.task.checklist_done < statusChange.task.checklist_total
+    if (needsConfirmation && !confirmIncompleteChecklist) return
+    if (await changeStatus(statusChange.task, statusChange.transition.code, note, confirmIncompleteChecklist)) {
       setStatusChange(undefined)
       setStatusNote('')
     }
@@ -158,7 +166,7 @@ export function TasksPage() {
                 {task.parent && <p className="mt-1 text-xs text-sky-700">Công việc cha: {task.parent.title}</p>}
                 <div className="mt-3 flex items-center gap-3"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${task.effective_progress}%` }} /></div><span className="font-mono text-xs font-black text-slate-600">{task.effective_progress}%</span></div>
               </div>
-              {user && <TaskStatusSelect task={task} statuses={statuses ?? [task.status]} onChange={(transition) => { setStatusChange({ task, transition }); setStatusNote('') }} />}
+              {user && <TaskStatusSelect task={task} statuses={statuses ?? [task.status]} onChange={(transition) => { setStatusChange({ task, transition }); setStatusNote(''); setConfirmIncompleteChecklist(false) }} />}
               <div className="flex justify-end gap-1"><Button variant="ghost" onClick={() => setDetailTask(task)}>Chi tiết</Button><Button variant="ghost" onClick={() => setHistoryTask(task)}>Lịch sử</Button>{manageable && <><Button variant="ghost" onClick={() => setEditing(task)}>Sửa</Button><Button variant="ghost" className="!text-red-700" onClick={() => void remove(task)}>Xóa</Button></>}</div>
             </article>
           )
@@ -172,8 +180,9 @@ export function TasksPage() {
       <Modal open={Boolean(statusChange)} title="Ghi chú thay đổi trạng thái" onClose={() => { setStatusChange(undefined); setStatusNote('') }}>
         <form className="space-y-4" onSubmit={submitStatusChange}>
           <p className="text-sm text-slate-600">Ghi chú này được lưu vào lịch sử công việc.</p>
+          {statusChange?.transition.code === 'COMPLETED' && statusChange.task.checklist_done < statusChange.task.checklist_total && <label className="flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-900"><input type="checkbox" checked={confirmIncompleteChecklist} onChange={(event) => setConfirmIncompleteChecklist(event.target.checked)} /><span>Checklist còn {statusChange.task.checklist_total - statusChange.task.checklist_done} mục chưa xong. Tôi xác nhận vẫn hoàn thành công việc; checklist sẽ chỉ đọc cho đến khi công việc được mở lại.</span></label>}
           <label className="block text-sm font-bold">Ghi chú{statusChange?.transition.note_required ? ' *' : ''}<textarea required={statusChange?.transition.note_required} maxLength={500} value={statusNote} onChange={(event) => setStatusNote(event.target.value)} className="mt-2 min-h-28 w-full rounded-xl border border-slate-300 p-3 font-normal outline-none focus:border-slate-700 focus:ring-2 focus:ring-[var(--accent-soft)]" placeholder="Nêu lý do hoặc kết quả cập nhật..." /></label>
-          <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => { setStatusChange(undefined); setStatusNote('') }}>Hủy</Button><Button type="submit" disabled={Boolean(statusChange?.transition.note_required && !statusNote.trim())}>Cập nhật</Button></div>
+          <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => { setStatusChange(undefined); setStatusNote('') }}>Hủy</Button><Button type="submit" disabled={Boolean((statusChange?.transition.note_required && !statusNote.trim()) || (statusChange?.transition.code === 'COMPLETED' && statusChange.task.checklist_done < statusChange.task.checklist_total && !confirmIncompleteChecklist))}>Cập nhật</Button></div>
         </form>
       </Modal>
     </div>

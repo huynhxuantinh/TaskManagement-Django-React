@@ -7,7 +7,7 @@ from apps.accounts.serializers import UserSerializer
 from apps.projects.models import Project, ProjectMember
 
 from .models import Task, TaskAuditLog, TaskChecklistItem, TaskStatus
-from .workflow import allowed_transitions, can_change_task_status
+from .workflow import can_change_task_status, transition_options
 
 
 class TaskAssigneeSerializer(UserSerializer):
@@ -50,6 +50,7 @@ class TaskSerializer(serializers.ModelSerializer):
     status = TaskStatusSerializer(read_only=True)
     is_overdue = serializers.SerializerMethodField()
     allowed_transitions = serializers.SerializerMethodField()
+    status_restrictions = serializers.SerializerMethodField()
     effective_progress = serializers.IntegerField(read_only=True)
     effective_estimated_hours = serializers.DecimalField(
         max_digits=10, decimal_places=2, read_only=True
@@ -89,6 +90,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "updated_at",
             "completed_at",
             "allowed_transitions",
+            "status_restrictions",
             "can_edit_checklist",
         )
 
@@ -118,7 +120,12 @@ class TaskSerializer(serializers.ModelSerializer):
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_allowed_transitions(self, task):
         request = self.context.get("request")
-        return allowed_transitions(task, request.user) if request else []
+        return transition_options(task, request.user)[0] if request else []
+
+    @extend_schema_field(serializers.ListField(child=serializers.DictField()))
+    def get_status_restrictions(self, task):
+        request = self.context.get('request')
+        return transition_options(task, request.user)[1] if request else []
 
     def get_checklist_total(self, task) -> int:
         if hasattr(task, "checklist_total_count"):
@@ -248,9 +255,11 @@ class TaskStatusUpdateSerializer(serializers.Serializer):
     status = serializers.SlugRelatedField(
         slug_field="code", queryset=TaskStatus.objects.all()
     )
+    expected_status = serializers.ChoiceField(choices=TaskStatus.Code.choices)
     note = serializers.CharField(
         required=False, allow_blank=True, max_length=500, trim_whitespace=True
     )
+    confirm_incomplete_checklist = serializers.BooleanField(required=False, default=False)
 
 
 class TaskChecklistItemSerializer(serializers.ModelSerializer):

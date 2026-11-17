@@ -238,6 +238,8 @@ class TaskViewSet(ModelViewSet):
             serializer.validated_data["status"],
             request.user,
             serializer.validated_data.get("note", ""),
+            confirm_incomplete_checklist=serializer.validated_data.get("confirm_incomplete_checklist", False),
+            expected_status=serializer.validated_data['expected_status'],
         )
         task = task_queryset().get(pk=task.pk)
         return success(TaskSerializer(task, context={"request": request}).data, "Cập nhật trạng thái thành công.")

@@ -156,7 +156,7 @@ test('luồng lập kế hoạch, checklist, task con và tiến độ có trọ
 
     const blocked = await request.patch(`${apiBaseUrl}/api/v1/tasks/${parent.id}/status/`, {
       headers,
-      data: { status: 'COMPLETED' },
+      data: { status: 'COMPLETED', expected_status: parentDetail.status.code },
     })
     expect(blocked.status()).toBe(400)
 

@@ -118,7 +118,7 @@ vi.mock('../features/core/TaskDetails', () => ({ TaskDetails: () => null }))
 vi.mock('../features/core/TaskHistory', () => ({ TaskHistory: () => null }))
 
 describe('TasksPage status synchronization', () => {
-  afterEach(() => { cleanup(); mocks.filterErrors = false })
+  afterEach(() => { cleanup(); mocks.filterErrors = false; child.checklist_total = 0; child.checklist_done = 0 })
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.apiRequest.mockResolvedValue({
@@ -134,6 +134,19 @@ describe('TasksPage status synchronization', () => {
     expect(screen.getByText('Công việc cha: Parent')).toBeInTheDocument()
     expect(screen.getByText('Hạn hoàn thành: 16/11/2026')).toBeInTheDocument()
     expect(screen.getByText('Hạn hoàn thành: Chưa đặt hạn')).toBeInTheDocument()
+  })
+
+  it('requires confirmation before completing with unchecked checklist items', async () => {
+    child.checklist_total = 5
+    child.checklist_done = 2
+    render(<MemoryRouter><TasksPage /></MemoryRouter>)
+    fireEvent.click(screen.getByRole('button', { name: 'change-2' }))
+    expect(screen.getByText(/Checklist còn 3 mục chưa xong/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cập nhật' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('checkbox'))
+    fireEvent.click(screen.getByRole('button', { name: 'Cập nhật' }))
+    await waitFor(() => expect(mocks.apiRequest).toHaveBeenCalled())
+    expect(JSON.parse(mocks.apiRequest.mock.calls[0][1].body)).toEqual({ status: 'COMPLETED', expected_status: 'IN_PROGRESS', confirm_incomplete_checklist: true })
   })
 
   it('reports each filter failure and retries independently', () => {

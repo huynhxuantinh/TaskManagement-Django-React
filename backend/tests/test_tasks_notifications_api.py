@@ -13,7 +13,7 @@ from apps.accounts.models import Role, User
 from apps.notifications.models import Notification, NotificationType
 from apps.projects.models import Project, ProjectMember
 from apps.tasks.models import Task, TaskAuditLog, TaskChecklistItem, TaskStatus
-from apps.tasks.services import TaskService
+from apps.tasks.services import ChecklistService, TaskService
 
 
 @pytest.fixture
@@ -138,6 +138,143 @@ def test_task_create_enforces_role_membership_and_only_notifies_assignment(
 
 
 @pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize('action', ['create', 'update', 'delete', 'reorder'])
+def test_checklist_write_rechecks_permission_after_concurrent_reassignment(task_users, task_statuses, task_project, monkeypatch, action):
+    task = make_task(task_project, task_statuses, task_users['employee'])
+    first = TaskChecklistItem.objects.create(task=task, title='First', position=0)
+    second = TaskChecklistItem.objects.create(task=task, title='Second', position=1)
+    passed_view = Event()
+    proceed = Event()
+    original = ChecklistService.locked_task
+
+    def delayed_lock(*args, **kwargs):
+        passed_view.set()
+        assert proceed.wait(10)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(ChecklistService, 'locked_task', delayed_lock)
+
+    def write_checklist():
+        close_old_connections()
+        try:
+            client = api_as(task_users['employee'])
+            base = f'/api/v1/tasks/{task.id}/checklist/'
+            if action == 'create':
+                response = client.post(base, {'title': 'New'}, format='json')
+            elif action == 'update':
+                response = client.patch(f'{base}{first.id}/', {'title': 'Changed'}, format='json')
+            elif action == 'delete':
+                response = client.delete(f'{base}{first.id}/')
+            else:
+                response = client.put(f'{base}order/', {'item_ids': [second.id, first.id]}, format='json')
+            return response.status_code
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(write_checklist)
+        try:
+            assert passed_view.wait(10)
+            reassigned = api_as(task_users['manager']).patch(f'/api/v1/tasks/{task.id}/', {
+                'assignee_id': task_users['employee2'].id, 'expected_updated_at': task.updated_at.isoformat(),
+            }, format='json')
+            assert reassigned.status_code == 200
+        finally:
+            proceed.set()
+        assert future.result(timeout=10) == 403
+    assert list(task.checklist_items.order_by('position').values_list('title', flat=True)) == ['First', 'Second']
+    assert not TaskAuditLog.objects.filter(task=task, action__startswith='CHECKLIST_').exists()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_parent_completion_and_child_reopening_remain_consistent(task_users, task_statuses, task_project, monkeypatch):
+    parent = make_task(task_project, task_statuses, task_users['employee'], status=task_statuses['IN_PROGRESS'])
+    child = make_task(task_project, task_statuses, task_users['employee'], parent=parent, status=task_statuses['COMPLETED'])
+    child_at_validation = Event()
+    parent_at_validation = Event()
+    release_child = Event()
+    from apps.tasks import services
+    original = services.validate_transition
+
+    def coordinated_validation(task, new_status, actor, note):
+        if task.id == child.id:
+            child_at_validation.set()
+            assert release_child.wait(10)
+        elif task.id == parent.id:
+            parent_at_validation.set()
+        return original(task, new_status, actor, note)
+
+    monkeypatch.setattr(services, 'validate_transition', coordinated_validation)
+
+    def change(is_parent):
+        close_old_connections()
+        try:
+            target = parent if is_parent else child
+            return api_as(task_users['manager']).patch(f'/api/v1/tasks/{target.id}/status/', {
+                'status': 'COMPLETED' if is_parent else 'IN_PROGRESS',
+                'expected_status': 'IN_PROGRESS' if is_parent else 'COMPLETED',
+                'note': '' if is_parent else 'Mở lại',
+            }, format='json').status_code
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        reopening = executor.submit(change, False)
+        try:
+            assert child_at_validation.wait(10)
+            completing = executor.submit(change, True)
+            parent_at_validation.wait(1)
+        finally:
+            release_child.set()
+        reopened = reopening.result(timeout=10)
+        completed = completing.result(timeout=10)
+    parent.refresh_from_db()
+    child.refresh_from_db()
+    assert not (parent.status.code == 'COMPLETED' and child.status.code != 'COMPLETED')
+    assert (reopened, completed) in {(200, 400), (400, 200)}
+
+
+@pytest.mark.django_db(transaction=True)
+def test_status_change_rechecks_authorization_after_concurrent_reassignment(task_users, task_statuses, task_project, monkeypatch):
+    task = make_task(task_project, task_statuses, task_users['employee'])
+    authorized = Event()
+    proceed = Event()
+    original = TaskService.change_status
+
+    def delayed_change(*args, **kwargs):
+        authorized.set()
+        assert proceed.wait(10)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(TaskService, 'change_status', delayed_change)
+
+    def change():
+        close_old_connections()
+        try:
+            return api_as(task_users['employee']).patch(f'/api/v1/tasks/{task.id}/status/', {
+                'status': 'IN_PROGRESS', 'expected_status': 'TODO',
+            }, format='json').status_code
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(change)
+        try:
+            assert authorized.wait(10)
+            reassigned = api_as(task_users['manager']).patch(f'/api/v1/tasks/{task.id}/', {
+                'assignee_id': task_users['employee2'].id, 'expected_updated_at': task.updated_at.isoformat(),
+            }, format='json')
+            assert reassigned.status_code == 200
+        finally:
+            proceed.set()
+        assert future.result(timeout=10) == 403
+    task.refresh_from_db()
+    assert task.assignee_id == task_users['employee2'].id
+    assert task.status.code == 'TODO'
+    assert not TaskAuditLog.objects.filter(task=task, action=TaskAuditLog.Action.STATUS_CHANGED).exists()
+
+
+@pytest.mark.django_db(transaction=True)
 def test_edit_after_concurrent_soft_delete_returns_404_without_side_effects(task_users, task_statuses, task_project, monkeypatch):
     task = make_task(task_project, task_statuses, task_users['employee'])
     validated = Event()
@@ -204,7 +341,7 @@ def test_parent_changes_after_child_validation_block_child_creation(task_users, 
             assert validated.wait(10)
             client = api_as(task_users['manager'])
             if operation == 'complete':
-                changed = client.patch(f'/api/v1/tasks/{parent.id}/status/', {'status': 'COMPLETED'}, format='json')
+                changed = client.patch(f'/api/v1/tasks/{parent.id}/status/', {'status': 'COMPLETED', 'expected_status': 'TODO'}, format='json')
                 assert changed.status_code == 200
             else:
                 assert client.delete(f'/api/v1/tasks/{parent.id}/').status_code == 204
@@ -237,7 +374,7 @@ def test_parent_change_after_inflight_child_creation_is_consistent(task_users, t
             if action == 'create':
                 return client.post('/api/v1/tasks/', {'title': 'Child', 'project_id': task_project.id, 'parent': parent.id, 'assignee_id': task_users['employee'].id}, format='json').status_code
             if operation == 'complete':
-                return client.patch(f'/api/v1/tasks/{parent.id}/status/', {'status': 'COMPLETED'}, format='json').status_code
+                return client.patch(f'/api/v1/tasks/{parent.id}/status/', {'status': 'COMPLETED', 'expected_status': 'TODO'}, format='json').status_code
             return client.delete(f'/api/v1/tasks/{parent.id}/').status_code
         finally:
             close_old_connections()
@@ -968,22 +1105,22 @@ def test_status_workflow_requires_note_and_limits_reopening(
         url, {"status": "UNKNOWN"}, format="json"
     )
     missing_note = api_as(task_users["employee"]).patch(
-        url, {"status": TaskStatus.Code.IN_PROGRESS}, format="json"
+        url, {"status": TaskStatus.Code.IN_PROGRESS, "expected_status": "TODO"}, format="json"
     )
     skipped = api_as(task_users["employee"]).patch(
-        url, {"status": TaskStatus.Code.ON_HOLD}, format="json"
+        url, {"status": TaskStatus.Code.ON_HOLD, "expected_status": "IN_PROGRESS"}, format="json"
     )
     changed = api_as(task_users["employee"]).patch(
-        url, {"status": TaskStatus.Code.IN_PROGRESS, "note": "Đã bắt đầu xử lý."}, format="json"
+        url, {"status": TaskStatus.Code.IN_PROGRESS, "expected_status": "IN_PROGRESS", "note": "Đã bắt đầu xử lý."}, format="json"
     )
     completed = api_as(task_users["employee"]).patch(
-        url, {"status": TaskStatus.Code.COMPLETED, "note": "Đã hoàn tất."}, format="json"
+        url, {"status": TaskStatus.Code.COMPLETED, "expected_status": "IN_PROGRESS", "note": "Đã hoàn tất."}, format="json"
     )
     employee_reopen = api_as(task_users["employee"]).patch(
-        url, {"status": TaskStatus.Code.IN_PROGRESS, "note": "Cần mở lại."}, format="json"
+        url, {"status": TaskStatus.Code.IN_PROGRESS, "expected_status": "COMPLETED", "note": "Cần mở lại."}, format="json"
     )
     manager_reopen = api_as(task_users["manager"]).patch(
-        url, {"status": TaskStatus.Code.IN_PROGRESS, "note": "Mở lại để bổ sung."}, format="json"
+        url, {"status": TaskStatus.Code.IN_PROGRESS, "expected_status": "COMPLETED", "note": "Mở lại để bổ sung."}, format="json"
     )
 
     assert forbidden.status_code == 403
@@ -1006,6 +1143,38 @@ def test_status_workflow_requires_note_and_limits_reopening(
 
 
 @pytest.mark.django_db
+def test_status_change_rejects_missing_or_stale_expected_status(task_users, task_statuses, task_project):
+    task = make_task(task_project, task_statuses, task_users['employee'])
+    client = api_as(task_users['employee'])
+    url = f'/api/v1/tasks/{task.id}/status/'
+    missing = client.patch(url, {'status': 'COMPLETED'}, format='json')
+    assert missing.status_code == 400
+    changed = client.patch(url, {'status': 'ON_HOLD', 'expected_status': 'TODO', 'note': 'Chờ'}, format='json')
+    assert changed.status_code == 200
+    stale = client.patch(url, {'status': 'COMPLETED', 'expected_status': 'TODO'}, format='json')
+    assert stale.status_code == 409
+    task.refresh_from_db()
+    assert task.status.code == 'ON_HOLD'
+
+
+@pytest.mark.django_db
+def test_completing_with_incomplete_checklist_requires_explicit_confirmation(task_users, task_statuses, task_project):
+    task = make_task(task_project, task_statuses, task_users['employee'])
+    TaskChecklistItem.objects.create(task=task, title='Chưa xong', is_completed=False)
+    client = api_as(task_users['employee'])
+    url = f'/api/v1/tasks/{task.id}/status/'
+    rejected = client.patch(url, {'status': 'COMPLETED', 'expected_status': 'TODO'}, format='json')
+    assert rejected.status_code == 400
+    assert 'confirm_incomplete_checklist' in rejected.data['errors']
+    task.refresh_from_db()
+    assert task.status.code == 'TODO'
+    accepted = client.patch(url, {'status': 'COMPLETED', 'expected_status': 'TODO', 'confirm_incomplete_checklist': True}, format='json')
+    assert accepted.status_code == 200
+    assert accepted.data['data']['effective_progress'] == 100
+    assert accepted.data['data']['checklist_done'] == 0
+
+
+@pytest.mark.django_db
 def test_optional_status_note_accepts_blank_value(
     task_users, task_statuses, task_project
 ):
@@ -1013,13 +1182,32 @@ def test_optional_status_note_accepts_blank_value(
 
     changed = api_as(task_users["employee"]).patch(
         f"/api/v1/tasks/{task.id}/status/",
-        {"status": TaskStatus.Code.IN_PROGRESS, "note": ""},
+        {"status": TaskStatus.Code.IN_PROGRESS, "expected_status": "TODO", "note": ""},
         format="json",
     )
 
     assert changed.status_code == 200
     log = TaskAuditLog.objects.get(task=task, action=TaskAuditLog.Action.STATUS_CHANGED)
     assert "note" not in log.changes
+
+
+@pytest.mark.django_db
+def test_status_restrictions_explain_blocked_transitions(task_users, task_statuses, task_project):
+    manager = api_as(task_users['manager'])
+    employee = api_as(task_users['employee'])
+    parent = make_task(task_project, task_statuses, task_users['employee'])
+    make_task(task_project, task_statuses, task_users['employee2'], parent=parent)
+    make_task(task_project, task_statuses, task_users['employee2'], parent=parent)
+    data = manager.get(f'/api/v1/tasks/{parent.id}/').data['data']
+    assert {'code': 'COMPLETED', 'reason': 'Còn 2 công việc con chưa hoàn thành.'} in data['status_restrictions']
+    assert any(item['code'] == 'IN_PROGRESS' for item in data['allowed_transitions'])
+
+    completed = make_task(task_project, task_statuses, task_users['employee'], status=task_statuses['COMPLETED'])
+    result = employee.get(f'/api/v1/tasks/{completed.id}/').data['data']
+    assert 'Chỉ quản trị viên hoặc quản lý' in result['status_restrictions'][0]['reason']
+    ProjectMember.objects.filter(project=task_project, user=task_users['employee']).delete()
+    result = manager.get(f'/api/v1/tasks/{completed.id}/').data['data']
+    assert 'không còn là thành viên' in result['status_restrictions'][0]['reason']
 
 
 @pytest.mark.django_db
@@ -1056,14 +1244,14 @@ def test_reopening_task_requires_assignee_to_remain_in_project(task_users, task_
     assert removed.status_code == 204
     detail = client.get(f'/api/v1/tasks/{task.id}/')
     assert not any(item['code'] == TaskStatus.Code.IN_PROGRESS for item in detail.data['data']['allowed_transitions'])
-    blocked = client.patch(f'/api/v1/tasks/{task.id}/status/', {'status': 'IN_PROGRESS', 'note': 'Mở lại'}, format='json')
+    blocked = client.patch(f'/api/v1/tasks/{task.id}/status/', {'status': 'IN_PROGRESS', 'expected_status': 'COMPLETED', 'note': 'Mở lại'}, format='json')
     assert blocked.status_code == 400
     assert 'không còn là thành viên' in str(blocked.data['errors'])
     task.refresh_from_db()
     assert task.status.code == TaskStatus.Code.COMPLETED
     reassigned = client.patch(f'/api/v1/tasks/{task.id}/', {'assignee_id': task_users['employee2'].id, 'expected_updated_at': task.updated_at.isoformat()}, format='json')
     assert reassigned.status_code == 200
-    reopened = client.patch(f'/api/v1/tasks/{task.id}/status/', {'status': 'IN_PROGRESS', 'note': 'Mở lại'}, format='json')
+    reopened = client.patch(f'/api/v1/tasks/{task.id}/status/', {'status': 'IN_PROGRESS', 'expected_status': 'COMPLETED', 'note': 'Mở lại'}, format='json')
     assert reopened.status_code == 200
 
 
@@ -1150,7 +1338,7 @@ def test_invalid_completed_transition_returns_bad_request_for_manager(
 
     response = api_as(task_users["manager"]).patch(
         f"/api/v1/tasks/{task.id}/status/",
-        {"status": TaskStatus.Code.TODO},
+        {"status": TaskStatus.Code.TODO, "expected_status": "COMPLETED"},
         format="json",
     )
 
@@ -1167,10 +1355,10 @@ def test_status_change_sets_and_clears_completed_at(
     before_completion = timezone.now()
 
     completed = api_as(task_users["employee"]).patch(
-        url, {"status": TaskStatus.Code.IN_PROGRESS, "note": "Đang thực hiện."}, format="json"
+        url, {"status": TaskStatus.Code.IN_PROGRESS, "expected_status": "TODO", "note": "Đang thực hiện."}, format="json"
     )
     completed = api_as(task_users["employee"]).patch(
-        url, {"status": TaskStatus.Code.COMPLETED, "note": "Đã hoàn thành."}, format="json"
+        url, {"status": TaskStatus.Code.COMPLETED, "expected_status": "IN_PROGRESS", "note": "Đã hoàn thành."}, format="json"
     )
 
     task.refresh_from_db()
@@ -1180,7 +1368,7 @@ def test_status_change_sets_and_clears_completed_at(
     assert completed.data["data"]["completed_at"] is not None
 
     reopened = api_as(task_users["manager"]).patch(
-        url, {"status": TaskStatus.Code.IN_PROGRESS, "note": "Mở lại để kiểm tra."}, format="json"
+        url, {"status": TaskStatus.Code.IN_PROGRESS, "expected_status": "COMPLETED", "note": "Mở lại để kiểm tra."}, format="json"
     )
 
     task.refresh_from_db()
@@ -1213,12 +1401,12 @@ def test_task_history_records_actor_time_and_before_after_values(
     )
     changed = api_as(task_users["employee2"]).patch(
         f"/api/v1/tasks/{task.id}/status/",
-        {"status": TaskStatus.Code.IN_PROGRESS, "note": "Bắt đầu xử lý."},
+        {"status": TaskStatus.Code.IN_PROGRESS, "expected_status": "TODO", "note": "Bắt đầu xử lý."},
         format="json",
     )
     repeated = api_as(task_users["employee2"]).patch(
         f"/api/v1/tasks/{task.id}/status/",
-        {"status": TaskStatus.Code.IN_PROGRESS},
+        {"status": TaskStatus.Code.IN_PROGRESS, "expected_status": "IN_PROGRESS"},
         format="json",
     )
     history = api_as(task_users["manager"]).get(

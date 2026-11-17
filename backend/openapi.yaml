@@ -1687,9 +1687,14 @@ components:
       properties:
         status:
           $ref: '#/components/schemas/TaskStatusCodeEnum'
+        expected_status:
+          $ref: '#/components/schemas/TaskStatusCodeEnum'
         note:
           type: string
           maxLength: 500
+        confirm_incomplete_checklist:
+          type: boolean
+          default: false
     PatchedUser:
       type: object
       properties:
@@ -2256,6 +2261,12 @@ components:
             type: object
             additionalProperties: {}
           readOnly: true
+        status_restrictions:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+          readOnly: true
         can_edit_checklist:
           type: boolean
           readOnly: true
@@ -2275,6 +2286,7 @@ components:
       - parent_id
       - project
       - status
+      - status_restrictions
       - title
       - updated_at
     TaskAssignee:
@@ -2595,6 +2607,12 @@ components:
             type: object
             additionalProperties: {}
           readOnly: true
+        status_restrictions:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+          readOnly: true
         can_edit_checklist:
           type: boolean
           readOnly: true
@@ -2620,6 +2638,7 @@ components:
       - parent_id
       - project
       - status
+      - status_restrictions
       - title
       - updated_at
     TaskDetailResponse:

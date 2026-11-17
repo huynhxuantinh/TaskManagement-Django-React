@@ -90,6 +90,7 @@ export interface Task {
   updated_at: string
   completed_at: string | null
   allowed_transitions: TaskTransition[]
+  status_restrictions?: Array<{ code: string | null; reason: string }>
   can_edit_checklist: boolean
 }
 
