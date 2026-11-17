@@ -49,7 +49,7 @@ export function DashboardPage() {
     { label: 'Tổng công việc', value: summary?.task_count, icon: 'check' as const },
     { label: 'Đã hoàn thành', value: summary?.completed_task_count, icon: 'grid' as const },
     { label: 'Đang quá hạn', value: summary?.overdue_task_count, icon: 'chart' as const },
-    { label: 'Chưa ước lượng', value: summary?.missing_estimate_count, icon: 'check' as const },
+    { label: 'Công việc thiếu giờ', value: summary?.missing_estimate_count, icon: 'check' as const, explanation: 'Đếm tất cả công việc trong phạm vi của bạn, gồm cả công việc cha và con.' },
   ]
 
   return (
@@ -84,6 +84,7 @@ export function DashboardPage() {
             <strong className="mt-7 block font-mono text-3xl font-black text-slate-950">
               {summary ? metric.value : '—'}
             </strong>
+            {'explanation' in metric && <p className="mt-2 text-xs text-slate-500">{metric.explanation}</p>}
           </article>
         ))}
       </section>

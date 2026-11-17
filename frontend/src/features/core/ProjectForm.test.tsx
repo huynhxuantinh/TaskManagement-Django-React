@@ -35,6 +35,7 @@ const project = {
   member_count: 2,
   progress: 0,
   missing_estimate_count: 0,
+  unfinished_task_count: 0,
   created_at: '',
   updated_at: '2026-11-01T00:00:00Z',
 } as Project

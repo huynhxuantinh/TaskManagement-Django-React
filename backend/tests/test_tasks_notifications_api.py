@@ -657,6 +657,75 @@ def test_task_csv_export_escapes_formula_values(task_users, task_statuses, task_
 
 
 @pytest.mark.django_db
+def test_assignee_can_update_only_manual_progress_with_version(task_users, task_statuses, task_project):
+    task = make_task(task_project, task_statuses, task_users['employee'])
+    client = api_as(task_users['employee'])
+    url = f'/api/v1/tasks/{task.id}/progress/'
+    version = task.updated_at.isoformat()
+    assert client.get(f'/api/v1/tasks/{task.id}/').data['data']['can_edit_progress'] is True
+    assert client.patch(url, {'progress': 30, 'expected_updated_at': version, 'title': 'Forbidden'}, format='json').status_code == 400
+    assert client.patch(url, {'progress': 101, 'expected_updated_at': version}, format='json').status_code == 400
+    assert client.patch(url, [{'progress': 30}], format='json').status_code == 400
+    assert client.patch(url, {'progress': 30}, format='json').status_code == 400
+    assert api_as(task_users['employee2']).patch(url, {'progress': 30, 'expected_updated_at': version}, format='json').status_code == 404
+    assert api_as(task_users['manager']).patch(url, {'progress': 30, 'expected_updated_at': version}, format='json').status_code == 403
+    changed = client.patch(url, {'progress': 30, 'expected_updated_at': version}, format='json')
+    assert changed.status_code == 200
+    assert changed.data['data']['effective_progress'] == 30
+    assert TaskAuditLog.objects.filter(task=task, actor=task_users['employee'], action=TaskAuditLog.Action.UPDATED, changes__progress__new=30).exists()
+    assert client.patch(url, {'progress': 70, 'expected_updated_at': version}, format='json').status_code == 409
+    task.refresh_from_db()
+    TaskChecklistItem.objects.create(task=task, title='Item')
+    assert client.get(f'/api/v1/tasks/{task.id}/').data['data']['can_edit_progress'] is False
+    assert client.patch(url, {'progress': 70, 'expected_updated_at': task.updated_at.isoformat()}, format='json').status_code == 400
+    task.checklist_items.all().delete()
+    make_task(task_project, task_statuses, task_users['employee2'], parent=task)
+    assert client.patch(url, {'progress': 70, 'expected_updated_at': task.updated_at.isoformat()}, format='json').status_code == 400
+    task.subtasks.update(is_deleted=True)
+    task.status = task_statuses['COMPLETED']
+    task.save()
+    assert client.patch(url, {'progress': 70, 'expected_updated_at': task.updated_at.isoformat()}, format='json').status_code == 400
+
+
+@pytest.mark.django_db(transaction=True)
+def test_progress_update_rechecks_assignee_after_concurrent_reassignment(task_users, task_statuses, task_project, monkeypatch):
+    task = make_task(task_project, task_statuses, task_users['employee'])
+    passed_view = Event()
+    proceed = Event()
+    original = TaskService.update_assignee_progress
+
+    def delayed_update(*args, **kwargs):
+        passed_view.set()
+        assert proceed.wait(10)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(TaskService, 'update_assignee_progress', delayed_update)
+
+    def update():
+        close_old_connections()
+        try:
+            return api_as(task_users['employee']).patch(f'/api/v1/tasks/{task.id}/progress/', {
+                'progress': 70, 'expected_updated_at': task.updated_at.isoformat(),
+            }, format='json').status_code
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(update)
+        try:
+            assert passed_view.wait(10)
+            response = api_as(task_users['manager']).patch(f'/api/v1/tasks/{task.id}/', {
+                'assignee_id': task_users['employee2'].id, 'expected_updated_at': task.updated_at.isoformat(),
+            }, format='json')
+            assert response.status_code == 200
+        finally:
+            proceed.set()
+        assert future.result(timeout=10) == 403
+    task.refresh_from_db()
+    assert task.progress == 0
+
+
+@pytest.mark.django_db
 def test_reassignment_notifies_previous_assignee_without_leaking_to_former_member(task_users, task_statuses, task_project):
     old = task_users['employee']
     new = task_users['employee2']

@@ -1,3 +1,5 @@
+from collections.abc import Mapping
+
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
@@ -60,6 +62,7 @@ class TaskSerializer(serializers.ModelSerializer):
     has_subtasks = serializers.SerializerMethodField()
     has_hidden_parent = serializers.SerializerMethodField()
     can_edit_checklist = serializers.SerializerMethodField()
+    can_edit_progress = serializers.SerializerMethodField()
     checklist_total = serializers.SerializerMethodField()
     checklist_done = serializers.SerializerMethodField()
 
@@ -92,6 +95,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "allowed_transitions",
             "status_restrictions",
             "can_edit_checklist",
+            "can_edit_progress",
         )
 
     def get_is_overdue(self, task) -> bool:
@@ -149,6 +153,12 @@ class TaskSerializer(serializers.ModelSerializer):
             and task.status.code != TaskStatus.Code.COMPLETED
             and can_change_task_status(task, request.user)
         )
+
+    def get_can_edit_progress(self, task) -> bool:
+        request = self.context.get('request')
+        return bool(request and request.user.is_authenticated and request.user.is_active
+                    and task.assignee_id == request.user.id and task.status.code != TaskStatus.Code.COMPLETED
+                    and not self.get_checklist_total(task) and not self.get_has_subtasks(task))
 
 
 class AssigneeMembershipMixin:
@@ -249,6 +259,19 @@ class TaskUpdateSerializer(AssigneeMembershipMixin, serializers.ModelSerializer)
         if 'expected_updated_at' not in attrs:
             raise serializers.ValidationError({'expected_updated_at': ['Vui lòng cung cấp phiên bản công việc.']})
         return super().validate(attrs)
+
+
+class TaskProgressUpdateSerializer(serializers.Serializer):
+    progress = serializers.IntegerField(min_value=0, max_value=100)
+    expected_updated_at = serializers.DateTimeField()
+
+    def to_internal_value(self, data):
+        if not isinstance(data, Mapping):
+            return super().to_internal_value(data)
+        extra = set(data) - {'progress', 'expected_updated_at'}
+        if extra:
+            raise serializers.ValidationError({key: ['Trường này không được phép cập nhật.'] for key in sorted(extra)})
+        return super().to_internal_value(data)
 
 
 class TaskStatusUpdateSerializer(serializers.Serializer):

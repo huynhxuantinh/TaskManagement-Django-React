@@ -92,7 +92,10 @@ def project_progress_summaries(
         )
     children_by_parent: dict[int, list[Task]] = defaultdict(list)
     roots_by_project: dict[int, list[Task]] = defaultdict(list)
+    unfinished_by_project: dict[int, int] = defaultdict(int)
     for task in rows:
+        if task.status.code != TaskStatus.Code.COMPLETED:
+            unfinished_by_project[task.project_id] += 1
         if task.parent_id:
             children_by_parent[task.parent_id].append(task)
         else:
@@ -105,4 +108,5 @@ def project_progress_summaries(
             children = children_by_parent.get(root.id, [])
             units.extend(children or [root])
         summaries[project_id] = weighted_task_summary(units)
+        summaries[project_id]["unfinished_task_count"] = unfinished_by_project[project_id]
     return summaries

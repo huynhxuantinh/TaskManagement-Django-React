@@ -184,6 +184,22 @@ def send_deadline_notifications(reference_date=None):
 
 class TaskService:
     @staticmethod
+    @transaction.atomic
+    def update_assignee_progress(task_id, progress, expected_updated_at, actor):
+        task = Task.objects.select_for_update(of=('self',)).select_related('status', 'project').filter(pk=task_id).first()
+        if not task or task.is_deleted or task.project.is_deleted:
+            raise NotFound('Không tìm thấy công việc.')
+        if not actor.is_active or task.assignee_id != actor.id or not ProjectMember.objects.filter(project_id=task.project_id, user_id=actor.id).exists():
+            raise PermissionDenied('Chỉ người được giao và còn là thành viên mới được cập nhật tiến độ.')
+        if expected_updated_at != task.updated_at:
+            raise TaskUpdateConflict()
+        if task.status.code == TaskStatus.Code.COMPLETED:
+            raise ValidationError({'progress': ['Hãy mở lại công việc trước khi cập nhật tiến độ.']})
+        if task.checklist_items.exists() or task.subtasks.filter(is_deleted=False).exists():
+            raise ValidationError({'progress': ['Tiến độ được tính tự động từ checklist hoặc công việc con.']})
+        return TaskService.update_task(task, {'progress': progress, 'expected_updated_at': expected_updated_at}, actor)
+
+    @staticmethod
     def lock_assignee_membership(project_id, assignee):
         if assignee is None:
             return

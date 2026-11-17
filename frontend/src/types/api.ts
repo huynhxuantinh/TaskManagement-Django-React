@@ -36,6 +36,7 @@ export interface Project {
   member_count: number
   progress: number
   missing_estimate_count: number
+  unfinished_task_count: number
   created_at: string
   updated_at: string
 }
@@ -92,6 +93,7 @@ export interface Task {
   allowed_transitions: TaskTransition[]
   status_restrictions?: Array<{ code: string | null; reason: string }>
   can_edit_checklist: boolean
+  can_edit_progress?: boolean
 }
 
 export interface TaskAuditLog {

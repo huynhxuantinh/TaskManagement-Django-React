@@ -56,6 +56,7 @@ export function ProjectsPage() {
             <div className="flex items-start justify-between gap-4"><div><span className="font-mono text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">PRJ-{String(project.id).padStart(3, '0')}</span><h3 className="mt-2 text-xl font-extrabold tracking-tight group-hover:underline">{project.name}</h3></div><span className="rounded-full bg-[var(--accent-soft)] px-2.5 py-1 font-mono text-xs font-black">{project.progress}%</span></div>
             <p className="mt-3 line-clamp-2 min-h-10 text-sm leading-5 text-slate-600">{project.description || 'Chưa có mô tả dự án.'}</p>
             <div className="mt-6 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${project.progress}%` }} /></div>
+            <p className="mt-2 text-xs text-slate-600">Còn {project.unfinished_task_count} công việc chưa hoàn thành.</p>
             <div className="mt-4 flex items-end justify-between gap-3 text-xs text-slate-500"><span>{formatDate(project.start_date)} → {formatDate(project.end_date)}</span><strong className="text-slate-700">{project.member_count} thành viên</strong></div>
           </Link>
         ))}

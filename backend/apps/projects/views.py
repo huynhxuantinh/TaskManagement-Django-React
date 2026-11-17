@@ -52,6 +52,7 @@ def attach_project_progress(projects):
         summary = summaries[project.id]
         project.weighted_progress = summary["progress"]
         project.missing_estimate_count = summary["missing_count"]
+        project.unfinished_task_count = summary["unfinished_task_count"]
     return projects
 
 

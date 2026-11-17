@@ -37,6 +37,7 @@ from .serializers import (
     TaskFilterSerializer,
     TaskListResponseSerializer,
     TaskResponseSerializer,
+    TaskProgressUpdateSerializer,
     TaskSerializer,
     TaskStatusSerializer,
     TaskStatusUpdateSerializer,
@@ -226,6 +227,15 @@ class TaskViewSet(ModelViewSet):
         queryset = task.audit_logs.select_related("actor", "actor__role")
         page = self.paginate_queryset(queryset)
         return self.get_paginated_response(TaskAuditLogSerializer(page, many=True, context={'request': request}).data)
+
+    @extend_schema(tags=['Tasks'], request=TaskProgressUpdateSerializer, responses={200: TaskResponseSerializer})
+    def update_progress(self, request, pk=None):
+        task = self.get_object()
+        serializer = TaskProgressUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        task = TaskService.update_assignee_progress(task.pk, serializer.validated_data['progress'], serializer.validated_data['expected_updated_at'], request.user)
+        task = task_queryset().get(pk=task.pk)
+        return success(TaskSerializer(task, context={'request': request}).data, 'Cập nhật tiến độ thành công.')
 
     @extend_schema(
         tags=["Tasks"], request=TaskStatusUpdateSerializer, responses={200: TaskResponseSerializer}

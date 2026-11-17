@@ -61,6 +61,22 @@ def make_project(creator, name="Project", members=(), deleted=False):
 
 
 @pytest.mark.django_db
+def test_project_rounded_progress_includes_unfinished_task_count(project_users):
+    project = make_project(project_users["manager"])
+    todo = TaskStatus.objects.get_or_create(code="TODO", defaults={"name": "To Do"})[0]
+    done = TaskStatus.objects.get_or_create(code="COMPLETED", defaults={"name": "Completed"})[0]
+    Task.objects.create(title="Done", project=project, status=done, estimated_hours=Decimal("100"))
+    Task.objects.create(title="Open", project=project, status=todo, estimated_hours=Decimal("0.25"))
+    Task.objects.create(title="Deleted", project=project, status=todo, is_deleted=True)
+
+    response = api_as(project_users["manager"]).get(f"/api/v1/projects/{project.id}/")
+
+    assert response.status_code == 200
+    assert response.data["data"]["progress"] == 100
+    assert response.data["data"]["unfinished_task_count"] == 1
+
+
+@pytest.mark.django_db
 def test_project_create_uses_jwt_user_adds_creator_member_and_enforces_role(project_users):
     manager = project_users["manager"]
     payload = {

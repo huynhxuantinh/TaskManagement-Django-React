@@ -5,6 +5,7 @@ import { useApiResource } from '../../hooks/useApiResource'
 import type { Task } from '../../types/api'
 import { TaskChecklist } from './TaskChecklist'
 import { TaskHistory } from './TaskHistory'
+import { TaskProgressEditor } from './TaskProgressEditor'
 
 function formatDate(value: string | null) {
   if (!value) return 'Chưa đặt'
@@ -15,7 +16,7 @@ function formatDate(value: string | null) {
 export function TaskDetails({ taskId, onChanged }: { taskId: number; onChanged: () => void }) {
   const [checklistDraft, setChecklistDraft] = useState('')
   const [showHistory, setShowHistory] = useState(false)
-  const { data: task, loading, error, reload } = useApiResource<Task>(`/api/v1/tasks/${taskId}/`)
+  const { data: task, setData: setTask, loading, error, reload } = useApiResource<Task>(`/api/v1/tasks/${taskId}/`)
 
   if (loading) return <div className="h-72 animate-pulse rounded-2xl bg-slate-100" />
   if (error || !task) return <StatePanel eyebrow="Công việc" title="Không tải được chi tiết" description={error} />
@@ -36,6 +37,7 @@ export function TaskDetails({ taskId, onChanged }: { taskId: number; onChanged: 
           <div><dt className="text-xs font-bold uppercase text-slate-500">Quan hệ</dt><dd className="mt-1 text-sm font-semibold">{task.parent ? `Công việc con của ${task.parent.title}` : task.has_hidden_parent ? 'Có công việc cha ngoài phạm vi truy cập' : 'Công việc gốc'}</dd></div>
         </dl>
       </div>
+      {task.can_edit_progress && <TaskProgressEditor key={task.id} task={task} onSaved={(updated) => { setTask(updated); onChanged() }} />}
       <TaskChecklist
         key={task.checklist?.map((item) => `${item.id}:${item.is_completed}:${item.position}`).join('|')}
         task={task}

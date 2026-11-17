@@ -19,6 +19,7 @@ class ProjectSerializer(serializers.ModelSerializer):
     member_count = serializers.IntegerField(read_only=True)
     progress = serializers.SerializerMethodField()
     missing_estimate_count = serializers.IntegerField(read_only=True, default=0)
+    unfinished_task_count = serializers.IntegerField(read_only=True, default=0)
 
     class Meta:
         model = Project
@@ -32,6 +33,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             "member_count",
             "progress",
             "missing_estimate_count",
+            "unfinished_task_count",
             "created_at",
             "updated_at",
         )

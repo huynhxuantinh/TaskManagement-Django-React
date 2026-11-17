@@ -27,6 +27,7 @@ const project: Project = {
   member_count: 3,
   progress: 40,
   missing_estimate_count: 0,
+  unfinished_task_count: 0,
   created_at: '',
   updated_at: '',
 }

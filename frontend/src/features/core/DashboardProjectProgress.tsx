@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 
 import type { Project } from '../../types/api'
+import { EstimateNotice } from '../support/EstimateNotice'
 
 export function DashboardProjectProgress({ projects }: { projects: Project[] }) {
   return (
@@ -22,6 +23,8 @@ export function DashboardProjectProgress({ projects }: { projects: Project[] }) 
             <div role="progressbar" aria-label={`Tiến độ ${project.name}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={project.progress} className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
               <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${project.progress}%` }} />
             </div>
+            <EstimateNotice count={project.missing_estimate_count} className="mt-3 text-xs leading-5 text-slate-600" />
+            <p className="mt-2 text-xs text-slate-600">Còn {project.unfinished_task_count} công việc chưa hoàn thành.{project.progress === 100 && project.unfinished_task_count > 0 && ' Tiến độ được làm tròn và không đồng nghĩa tất cả công việc đã đóng.'}</p>
           </Link>
         ))}
         {projects.length === 0 && <p className="text-sm text-slate-500">Chưa có dự án trong phạm vi của bạn.</p>}

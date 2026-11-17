@@ -90,15 +90,14 @@ export function ProjectDashboard({
         <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
           <article className="dashboard-hero rounded-3xl p-6 text-white">
             <p className="font-mono text-xs font-black uppercase tracking-[0.18em] text-[var(--accent)]">Tiến độ tổng thể</p>
-            <div className="mt-6"><ReportProgress value={report.progress} label="Tiến độ dự án" /></div>
+            <div className="mt-6"><ReportProgress value={report.progress} label="Tiến độ dự án" unfinishedTaskCount={report.total_tasks - report.completed_tasks} /></div>
             <p className="mt-5 text-sm leading-6 text-slate-300">
               Đã hoàn thành {report.completed_tasks} trên tổng số {report.total_tasks} công việc.
             </p>
-            {report.missing_estimate_count > 0 && (
-              <p className="mt-3 rounded-xl bg-amber-300/15 px-3 py-2 text-sm font-semibold text-amber-100">
-                {report.missing_estimate_count} công việc chưa có giờ ước lượng; hệ thống đang dùng trọng số trung bình.
-              </p>
-            )}
+            <p className="mt-3 rounded-xl bg-amber-300/15 px-3 py-2 text-sm font-semibold text-amber-100">
+              {report.missing_estimate_count} công việc tính tiến độ thiếu giờ ước lượng. Chỉ tính công việc con hoặc công việc không có con.
+              {report.missing_estimate_count > 0 && ' Hệ thống dùng trọng số trung bình cho các công việc thiếu giờ.'}
+            </p>
           </article>
           <article className="rounded-3xl border border-slate-200 bg-white p-6">
             <p className="section-kicker">Phân bổ công việc</p>

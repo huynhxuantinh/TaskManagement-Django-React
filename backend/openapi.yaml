@@ -902,6 +902,37 @@ paths:
               schema:
                 $ref: '#/components/schemas/TaskAuditLogListResponse'
           description: ''
+  /api/v1/tasks/{id}/progress/:
+    patch:
+      operationId: v1_tasks_progress_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Tasks
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedTaskProgressUpdate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedTaskProgressUpdate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedTaskProgressUpdate'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+          description: ''
   /api/v1/tasks/{id}/status/:
     patch:
       operationId: v1_tasks_status_partial_update
@@ -1802,6 +1833,16 @@ components:
           type: string
           format: date-time
           readOnly: true
+    PatchedTaskProgressUpdate:
+      type: object
+      properties:
+        progress:
+          type: integer
+          maximum: 100
+          minimum: 0
+        expected_updated_at:
+          type: string
+          format: date-time
     PatchedTaskStatusUpdate:
       type: object
       properties:
@@ -1929,6 +1970,10 @@ components:
           type: integer
           readOnly: true
           default: 0
+        unfinished_task_count:
+          type: integer
+          readOnly: true
+          default: 0
         created_at:
           type: string
           format: date-time
@@ -1943,6 +1988,7 @@ components:
       - missing_estimate_count
       - name
       - progress
+      - unfinished_task_count
       - updated_at
     ProjectListData:
       type: object
@@ -2390,10 +2436,14 @@ components:
         can_edit_checklist:
           type: boolean
           readOnly: true
+        can_edit_progress:
+          type: boolean
+          readOnly: true
       required:
       - allowed_transitions
       - assignee
       - can_edit_checklist
+      - can_edit_progress
       - checklist_done
       - checklist_total
       - effective_estimated_hours
@@ -2736,6 +2786,9 @@ components:
         can_edit_checklist:
           type: boolean
           readOnly: true
+        can_edit_progress:
+          type: boolean
+          readOnly: true
         checklist:
           type: array
           items:
@@ -2745,6 +2798,7 @@ components:
       - allowed_transitions
       - assignee
       - can_edit_checklist
+      - can_edit_progress
       - checklist
       - checklist_done
       - checklist_total

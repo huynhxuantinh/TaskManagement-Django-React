@@ -65,7 +65,8 @@ describe('ProjectDashboard', () => {
 
     expect(screen.getByText('Tổng quan dự án')).toBeInTheDocument()
     expect(screen.getByText('33% tiến độ')).toBeInTheDocument()
-    expect(screen.getByText(/2 công việc chưa có giờ ước lượng/i)).toBeInTheDocument()
+    expect(screen.getByText(/2 công việc tính tiến độ thiếu giờ ước lượng/i)).toBeInTheDocument()
+    expect(screen.getByText(/số lượng công việc bao gồm cả cha và con/i)).toHaveTextContent('trọng số giờ')
     expect(screen.getByText('Viết kiểm thử giao diện')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /xem trang công việc/i })).toHaveAttribute('href', '/tasks?project=4')
   })
@@ -80,6 +81,11 @@ describe('ProjectDashboard', () => {
     expect(screen.getByText('Công việc của bạn')).toBeInTheDocument()
     expect(screen.getByText('Chỉ hiển thị công việc được giao cho bạn')).toBeInTheDocument()
     expect(screen.getByText('Chưa có công việc nào trong phạm vi của bạn.')).toBeInTheDocument()
+  })
+
+  it('shows zero missing estimates for the units used in project progress', () => {
+    render(<MemoryRouter><ProjectDashboard projectId={4} report={{ ...report, missing_estimate_count: 0 }} tasks={[]} taskCount={0} showAllTasks loading={false} reportError="" tasksError="" /></MemoryRouter>)
+    expect(screen.getByText(/0 công việc tính tiến độ thiếu giờ ước lượng/i)).toBeInTheDocument()
   })
 
   it('cho người quản lý tạo công việc ngay từ Kanban dự án', () => {
