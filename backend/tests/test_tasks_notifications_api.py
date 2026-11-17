@@ -472,6 +472,29 @@ def test_member_removal_waits_for_inflight_assignment(task_users, task_statuses,
 
 
 @pytest.mark.django_db
+def test_creation_audit_records_all_initial_fields_as_json(task_users, task_statuses, task_project):
+    parent = make_task(task_project, task_statuses, task_users['employee'])
+    today = timezone.localdate()
+    payload = {
+        'title': 'Audit initial', 'description': 'Nội dung ban đầu', 'project_id': task_project.id,
+        'assignee_id': task_users['employee'].id, 'priority': 3, 'parent': parent.id,
+        'start_date': today.isoformat(), 'deadline': (today + timedelta(days=3)).isoformat(),
+        'estimated_hours': '12.50', 'progress': 35, 'status': 'TODO',
+    }
+    response = api_as(task_users['manager']).post('/api/v1/tasks/', payload, format='json')
+    assert response.status_code == 201
+    log = TaskAuditLog.objects.get(task_id=response.data['data']['id'], action=TaskAuditLog.Action.CREATED)
+    assert log.changes['description'] == {'old': None, 'new': 'Nội dung ban đầu'}
+    assert log.changes['priority']['new'] == 3
+    assert log.changes['start_date']['new'] == today.isoformat()
+    assert log.changes['estimated_hours']['new'] == '12.50'
+    assert log.changes['progress']['new'] == 35
+    assert log.changes['parent']['new'] == {'id': parent.id, 'title': parent.title}
+    assert log.changes['assignee']['new']['id'] == task_users['employee'].id
+    assert log.changes['status']['new'] == 'TODO'
+
+
+@pytest.mark.django_db
 def test_creating_on_hold_requires_reason_and_records_it(task_users, task_statuses, task_project):
     client = api_as(task_users['manager'])
     payload = {'title': 'Paused task', 'project_id': task_project.id, 'status': 'ON_HOLD'}
@@ -746,6 +769,34 @@ def test_task_detail_update_delete_permissions_and_soft_delete(
     assert task.is_deleted is True
     assert Task.objects.filter(pk=task.pk).exists()
     assert api_as(task_users["manager"]).get(url).status_code == 404
+
+
+@pytest.mark.django_db
+def test_deleted_tasks_and_history_are_available_only_to_admin(task_users, task_statuses, task_project):
+    parent = make_task(task_project, task_statuses, task_users['employee'])
+    child = make_task(task_project, task_statuses, task_users['employee'], parent=parent)
+    active = make_task(task_project, task_statuses, task_users['employee'])
+    manager = api_as(task_users['manager'])
+    admin = api_as(task_users['admin'])
+    assert manager.delete(f'/api/v1/tasks/{parent.id}/').status_code == 204
+
+    response = admin.get('/api/v1/tasks/deleted/?page_size=1')
+    assert response.status_code == 200
+    assert response.data['data']['count'] == 2
+    assert response.data['data']['next'] is not None
+    row = response.data['data']['results'][0]
+    assert row['id'] in {parent.id, child.id}
+    assert row['deleted_by_id'] == task_users['manager'].id
+    assert row['deleted_at'] is not None
+    history = admin.get(f'/api/v1/tasks/deleted/{child.id}/history/')
+    assert history.status_code == 200
+    assert any(log['action'] == 'DELETED' and log['actor']['id'] == task_users['manager'].id for log in history.data['data']['results'])
+    assert admin.get(f'/api/v1/tasks/{child.id}/history/').status_code == 404
+    assert admin.get(f'/api/v1/tasks/deleted/{active.id}/history/').status_code == 404
+    for client in (manager, api_as(task_users['employee']), api_as(task_users['outsider'])):
+        assert client.get('/api/v1/tasks/deleted/').status_code == 403
+        assert client.get(f'/api/v1/tasks/deleted/{child.id}/history/').status_code == 403
+    assert api_as().get('/api/v1/tasks/deleted/').status_code in (401, 403)
 
 
 @pytest.mark.django_db
@@ -1057,6 +1108,7 @@ def test_checklist_reorder_validates_order_audits_and_enforces_permissions(
         "old": [item.id for item in items],
         "new": ordered_ids,
     }
+    assert log.changes['order_titles'] == {str(item.id): item.title for item in items}
 
     task.status = task_statuses[TaskStatus.Code.COMPLETED]
     task.save(update_fields=["status"])
@@ -1172,6 +1224,22 @@ def test_completing_with_incomplete_checklist_requires_explicit_confirmation(tas
     assert accepted.status_code == 200
     assert accepted.data['data']['effective_progress'] == 100
     assert accepted.data['data']['checklist_done'] == 0
+    log = TaskAuditLog.objects.get(task=task, action=TaskAuditLog.Action.STATUS_CHANGED)
+    assert log.changes['checklist_incomplete_confirmed']['new'] is True
+    assert log.changes['checklist_unfinished_count']['new'] == 1
+
+
+@pytest.mark.django_db
+def test_completion_with_finished_checklist_does_not_record_unneeded_confirmation(task_users, task_statuses, task_project):
+    task = make_task(task_project, task_statuses, task_users['employee'])
+    TaskChecklistItem.objects.create(task=task, title='Xong', is_completed=True)
+    response = api_as(task_users['employee']).patch(f'/api/v1/tasks/{task.id}/status/', {
+        'status': 'COMPLETED', 'expected_status': 'TODO', 'confirm_incomplete_checklist': True,
+    }, format='json')
+    assert response.status_code == 200
+    changes = TaskAuditLog.objects.get(task=task, action=TaskAuditLog.Action.STATUS_CHANGED).changes
+    assert 'checklist_incomplete_confirmed' not in changes
+    assert 'checklist_unfinished_count' not in changes
 
 
 @pytest.mark.django_db

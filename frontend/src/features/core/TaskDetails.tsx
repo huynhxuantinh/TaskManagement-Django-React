@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { StatePanel } from '../../components/ui/StatePanel'
+import { Button } from '../../components/ui/Button'
 import { useApiResource } from '../../hooks/useApiResource'
 import type { Task } from '../../types/api'
 import { TaskChecklist } from './TaskChecklist'
+import { TaskHistory } from './TaskHistory'
 
 function formatDate(value: string | null) {
   if (!value) return 'Chưa đặt'
@@ -12,6 +14,7 @@ function formatDate(value: string | null) {
 
 export function TaskDetails({ taskId, onChanged }: { taskId: number; onChanged: () => void }) {
   const [checklistDraft, setChecklistDraft] = useState('')
+  const [showHistory, setShowHistory] = useState(false)
   const { data: task, loading, error, reload } = useApiResource<Task>(`/api/v1/tasks/${taskId}/`)
 
   if (loading) return <div className="h-72 animate-pulse rounded-2xl bg-slate-100" />
@@ -40,6 +43,10 @@ export function TaskDetails({ taskId, onChanged }: { taskId: number; onChanged: 
         draft={checklistDraft}
         onDraftChange={setChecklistDraft}
       />
+      <section aria-label="Lịch sử công việc">
+        <Button type="button" variant="secondary" aria-expanded={showHistory} onClick={() => setShowHistory((current) => !current)}>{showHistory ? 'Ẩn lịch sử' : 'Xem lịch sử'}</Button>
+        {showHistory && <div className="mt-4"><TaskHistory task={task} /></div>}
+      </section>
     </div>
   )
 }

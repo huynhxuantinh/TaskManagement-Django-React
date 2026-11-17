@@ -121,7 +121,7 @@ class ChecklistService:
         TaskChecklistItem.objects.bulk_update(ordered, ["position"])
         TaskAuditLog.objects.create(
             task=task, actor=actor, action=TaskAuditLog.Action.CHECKLIST_REORDERED,
-            changes={"order": {"old": old_ids, "new": item_ids}},
+            changes={"order": {"old": old_ids, "new": item_ids}, 'order_titles': {str(item.id): item.title for item in items}},
         )
         return ordered
 
@@ -218,15 +218,7 @@ class TaskService:
             actor=actor,
             action=TaskAuditLog.Action.CREATED,
             changes={
-                "title": {"old": None, "new": task.title},
-                "assignee": {
-                    "old": None,
-                    "new": audit_value("assignee", task.assignee),
-                },
-                "deadline": {
-                    "old": None,
-                    "new": audit_value("deadline", task.deadline),
-                },
+                **{field: {'old': None, 'new': audit_value(field, getattr(task, field))} for field in AUDITED_TASK_FIELDS},
                 "status": {"old": None, "new": task.status.code},
                 **({'note': {'old': None, 'new': note}} if note else {}),
             },
@@ -337,7 +329,8 @@ class TaskService:
             ).exists()
         if task.status_id == new_status.id:
             return task
-        if is_completed and task.checklist_items.filter(is_completed=False).exists() and not confirm_incomplete_checklist:
+        incomplete_count = task.checklist_items.filter(is_completed=False).count() if is_completed else 0
+        if incomplete_count and not confirm_incomplete_checklist:
             raise ValidationError({'confirm_incomplete_checklist': ['Checklist còn mục chưa hoàn thành. Vui lòng xác nhận trước khi hoàn thành công việc.']})
         old_status = task.status.code
         note = validate_transition(task, new_status, actor, note)
@@ -354,6 +347,10 @@ class TaskService:
             changes={
                 "status": {"old": old_status, "new": new_status.code},
                 **({"note": {"old": None, "new": note}} if note else {}),
+                **({
+                    'checklist_incomplete_confirmed': {'old': None, 'new': True},
+                    'checklist_unfinished_count': {'old': None, 'new': incomplete_count},
+                } if incomplete_count else {}),
             },
         )
         recipients = {task.project.creator_id, task.assignee_id}

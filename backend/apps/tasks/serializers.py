@@ -370,3 +370,29 @@ class TaskAuditLogListResponseSerializer(serializers.Serializer):
     message = serializers.CharField(read_only=True)
     data = TaskAuditLogListDataSerializer(read_only=True)
 
+
+class DeletedTaskSerializer(serializers.ModelSerializer):
+    project = TaskProjectSerializer(read_only=True)
+    status = TaskStatusSerializer(read_only=True)
+    assignee = TaskUserSerializer(read_only=True)
+    deleted_at = serializers.DateTimeField(read_only=True, allow_null=True)
+    deleted_by_id = serializers.IntegerField(read_only=True, allow_null=True)
+    deleted_by_name = serializers.CharField(read_only=True, allow_null=True)
+
+    class Meta:
+        model = Task
+        fields = ('id', 'title', 'project', 'status', 'assignee', 'deleted_at', 'deleted_by_id', 'deleted_by_name')
+
+
+class DeletedTaskListDataSerializer(serializers.Serializer):
+    count = serializers.IntegerField(read_only=True)
+    next = serializers.URLField(read_only=True, allow_null=True)
+    previous = serializers.URLField(read_only=True, allow_null=True)
+    results = DeletedTaskSerializer(many=True, read_only=True)
+
+
+class DeletedTaskListResponseSerializer(serializers.Serializer):
+    success = serializers.BooleanField(read_only=True)
+    message = serializers.CharField(read_only=True)
+    data = DeletedTaskListDataSerializer(read_only=True)
+

@@ -933,6 +933,40 @@ paths:
               schema:
                 $ref: '#/components/schemas/TaskResponse'
           description: ''
+  /api/v1/tasks/deleted/:
+    get:
+      operationId: v1_tasks_deleted_retrieve
+      tags:
+      - Admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletedTaskListResponse'
+          description: ''
+  /api/v1/tasks/deleted/{id}/history/:
+    get:
+      operationId: v1_tasks_deleted_history_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskAuditLogListResponse'
+          description: ''
   /api/v1/tasks/export/:
     get:
       operationId: v1_tasks_export_retrieve
@@ -1372,6 +1406,92 @@ components:
           writeOnly: true
       required:
       - password
+    DeletedTask:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          maxLength: 200
+        project:
+          allOf:
+          - $ref: '#/components/schemas/TaskProject'
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/TaskStatus'
+          readOnly: true
+        assignee:
+          allOf:
+          - $ref: '#/components/schemas/TaskUser'
+          readOnly: true
+        deleted_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        deleted_by_id:
+          type: integer
+          readOnly: true
+          nullable: true
+        deleted_by_name:
+          type: string
+          readOnly: true
+          nullable: true
+      required:
+      - assignee
+      - deleted_at
+      - deleted_by_id
+      - deleted_by_name
+      - id
+      - project
+      - status
+      - title
+    DeletedTaskListData:
+      type: object
+      properties:
+        count:
+          type: integer
+          readOnly: true
+        next:
+          type: string
+          format: uri
+          readOnly: true
+          nullable: true
+        previous:
+          type: string
+          format: uri
+          readOnly: true
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeletedTask'
+          readOnly: true
+      required:
+      - count
+      - next
+      - previous
+      - results
+    DeletedTaskListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          readOnly: true
+        message:
+          type: string
+          readOnly: true
+        data:
+          allOf:
+          - $ref: '#/components/schemas/DeletedTaskListData'
+          readOnly: true
+      required:
+      - data
+      - message
+      - success
     Distribution:
       type: object
       properties:

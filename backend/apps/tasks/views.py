@@ -2,7 +2,7 @@ import csv
 from datetime import timedelta
 
 from django.http import HttpResponse
-from django.db.models import Count, Exists, OuterRef, Prefetch, Q
+from django.db.models import Count, Exists, F, OuterRef, Prefetch, Q, Subquery
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view
@@ -14,14 +14,17 @@ from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 
 from apps.accounts.models import Role, User
-from apps.accounts.permissions import has_role
+from apps.accounts.permissions import IsAdmin, has_role
 from apps.core.api import success
+from apps.core.pagination import StandardPagination
 from apps.projects.permissions import can_manage_project
 from apps.projects.models import ProjectMember
 
-from .models import Task, TaskChecklistItem, TaskStatus
+from .models import Task, TaskAuditLog, TaskChecklistItem, TaskStatus
 from .serializers import (
     TaskAuditLogListResponseSerializer,
+    DeletedTaskListResponseSerializer,
+    DeletedTaskSerializer,
     TaskAuditLogSerializer,
     TaskAssigneeSerializer,
     TaskChecklistItemSerializer,
@@ -247,6 +250,34 @@ class TaskViewSet(ModelViewSet):
     def _require_manager(self, project):
         if not can_manage_project(self.request.user, project):
             raise PermissionDenied("Bạn không có quyền quản lý công việc của dự án này.")
+
+
+class DeletedTaskListView(APIView):
+    permission_classes = [IsAuthenticated, IsAdmin]
+
+    @extend_schema(tags=['Admin'], responses={200: DeletedTaskListResponseSerializer})
+    def get(self, request):
+        deletion = TaskAuditLog.objects.filter(task_id=OuterRef('pk'), action=TaskAuditLog.Action.DELETED).order_by('-created_at', '-id')
+        tasks = Task.objects.filter(is_deleted=True).select_related('project', 'status', 'assignee__role').annotate(
+            deleted_at=Subquery(deletion.values('created_at')[:1]),
+            deleted_by_id=Subquery(deletion.values('actor_id')[:1]),
+            deleted_by_name=Subquery(deletion.values('actor__full_name')[:1]),
+        ).order_by(F('deleted_at').desc(nulls_last=True), '-id')
+        paginator = StandardPagination()
+        page = paginator.paginate_queryset(tasks, request, view=self)
+        return paginator.get_paginated_response(DeletedTaskSerializer(page, many=True).data)
+
+
+class DeletedTaskHistoryView(APIView):
+    permission_classes = [IsAuthenticated, IsAdmin]
+
+    @extend_schema(tags=['Admin'], responses={200: TaskAuditLogListResponseSerializer})
+    def get(self, request, pk):
+        task = get_object_or_404(Task, pk=pk, is_deleted=True)
+        logs = task.audit_logs.select_related('actor', 'actor__role')
+        paginator = StandardPagination()
+        page = paginator.paginate_queryset(logs, request, view=self)
+        return paginator.get_paginated_response(TaskAuditLogSerializer(page, many=True, context={'request': request}).data)
 
 
 class TaskStatusListView(APIView):

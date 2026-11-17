@@ -28,9 +28,20 @@ const fieldLabels: Record<string, string> = {
   item: 'Mục checklist',
   order: 'Thứ tự checklist',
   is_completed: 'Hoàn thành',
+  checklist_incomplete_confirmed: 'Đã xác nhận hoàn thành khi checklist chưa xong',
+  checklist_unfinished_count: 'Số mục checklist chưa hoàn thành',
 }
 
-function displayValue(value: unknown) {
+const statusLabels: Record<string, string> = { TODO: 'Chưa thực hiện', IN_PROGRESS: 'Đang thực hiện', COMPLETED: 'Đã hoàn thành', ON_HOLD: 'Tạm dừng' }
+const priorityLabels: Record<string, string> = { '1': 'Thấp', '2': 'Trung bình', '3': 'Cao' }
+
+function displayValue(value: unknown, field: string, titles: unknown) {
+  if (field === 'order' && Array.isArray(value)) {
+    const lookup = titles && typeof titles === 'object' && !Array.isArray(titles) ? titles as Record<string, unknown> : {}
+    return value.map((id) => typeof lookup[String(id)] === 'string' ? lookup[String(id)] : `Mục #${id} (không lưu tên)`).join(' → ') || 'Không có mục'
+  }
+  if (field === 'status' && typeof value === 'string') return statusLabels[value] ?? value
+  if (field === 'priority' && value !== null && value !== undefined) return priorityLabels[String(value)] ?? String(value)
   if (Array.isArray(value)) return value.join(', ')
   if (value === null || value === undefined || value === '') return 'Chưa có'
   if (typeof value === 'object' && 'full_name' in value) {
@@ -75,12 +86,12 @@ export function TaskHistory({ task }: { task: Task }) {
           </div>
           <p className="mt-1 text-xs text-slate-500">Thực hiện bởi {log.actor?.full_name ?? 'Tài khoản đã xóa'}</p>
           <div className="mt-3 space-y-1 text-sm">
-            {Object.entries(log.changes).map(([field, change]) => (
+            {Object.entries(log.changes).filter(([field]) => field !== 'order_titles').map(([field, change]) => (
               <p key={field}>
                 <span className="font-semibold">{fieldLabels[field] ?? field}:</span>{' '}
-                <span className="text-slate-500">{displayValue(oldValue(change))}</span>
+                <span className="text-slate-500">{displayValue(oldValue(change), field, log.changes.order_titles)}</span>
                 {' → '}
-                <span>{displayValue(newValue(change))}</span>
+                <span>{displayValue(newValue(change), field, log.changes.order_titles)}</span>
               </p>
             ))}
           </div>
